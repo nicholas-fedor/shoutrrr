@@ -183,12 +183,54 @@ func SplitEscapedPath(escapedPath string) []string {
 	segments := strings.Split(escapedPath, "/")
 
 	for i, segment := range segments {
+		// A segment without a % has nothing to decode.
+		if strings.IndexByte(segment, '%') < 0 {
+			continue
+		}
+
 		if decoded, err := url.PathUnescape(segment); err == nil {
 			segments[i] = decoded
 		}
 	}
 
 	return segments
+}
+
+// JoinEscapedPath writes each value as one segment of a URL path, after a
+// slash. It returns the path both decoded and escaped. Set them as the Path
+// and RawPath of a [url.URL], so a slash in a value goes out as %2F and
+// [SplitEscapedPath] reads the value back whole. No values give the path "/".
+//
+// Parameters:
+//   - values: the values, one per segment.
+//
+// Returns:
+//   - path: the decoded path, for [url.URL.Path].
+//   - rawPath: the path with each value escaped by [url.PathEscape], for
+//     [url.URL.RawPath].
+func JoinEscapedPath(values []string) (path, rawPath string) { //nolint:nonamedreturns // Same-type returns need names.
+	if len(values) == 0 {
+		return "/", "/"
+	}
+
+	size := len(values)
+	for _, value := range values {
+		size += len(value)
+	}
+
+	var decoded, escaped strings.Builder
+
+	decoded.Grow(size)
+	escaped.Grow(size)
+
+	for _, value := range values {
+		decoded.WriteByte('/')
+		decoded.WriteString(value)
+		escaped.WriteByte('/')
+		escaped.WriteString(url.PathEscape(value))
+	}
+
+	return decoded.String(), escaped.String()
 }
 
 // ValidatePathSegments checks a path that a service puts into a request path

@@ -39,7 +39,11 @@ The server must be able to receive SMS verification codes during initial setup a
 Recipients can be:
 
 - __Phone numbers__: With country code (e.g., +0987654321)
-- __Group IDs__: In the format `group.groupId`. A group ID can contain `/`, so it may span several path segments. It ends at the next phone number (`+...`), username (`u:...`), or group ID (`group....`).
+- __Group IDs__: In the format `group.groupId`.
+  A group ID can contain `/`, which you write as `%2F` so the group ID stays one path segment.
+  The URLs Shoutrrr writes use this form.
+  An unescaped `/` also works, and the group ID then spans several path segments up to the next phone number (`+...`), username (`u:...`), or group ID (`group....`).
+  That form cannot carry a group ID with a `/` followed by `+`.
 - __Usernames__: In the format `u:nickname.123`
 
 Recipients set with the `recipients` (or `to`) query or send param are comma-separated and must use the same formats.
@@ -83,10 +87,11 @@ signal://localhost:8080/+1234567890/group.abcdefghijklmnop=
 ### Send to a group ID that contains a slash
 
 ```
-signal://localhost:8080/+1234567890/group.ABCD/EFGH=/+0987654321
+signal://localhost:8080/+1234567890/group.ABCD%2FEFGH=/+0987654321
 ```
 
 The recipients are the group `group.ABCD/EFGH=` and the phone number `+0987654321`.
+The unescaped form `group.ABCD/EFGH=` reads the same.
 
 ### With authentication
 

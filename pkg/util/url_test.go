@@ -259,6 +259,28 @@ func TestSplitEscapedPath(t *testing.T) {
 	}
 }
 
+// TestJoinEscapedPath verifies that values are written as path segments, with
+// a slash and other reserved characters escaped only in the raw path, and that
+// a URL with both reads each value back whole.
+func TestJoinEscapedPath(t *testing.T) {
+	t.Parallel()
+
+	values := []string{"+15551234567", "group.ab/+cd==", "#tag", "a b?c"}
+
+	path, rawPath := JoinEscapedPath(values)
+
+	assert.Equal(t, "/+15551234567/group.ab/+cd==/#tag/a b?c", path)
+	assert.Equal(t, "/+15551234567/group.ab%2F+cd==/%23tag/a%20b%3Fc", rawPath)
+
+	parsed, err := url.Parse((&url.URL{Scheme: "x", Host: "h", Path: path, RawPath: rawPath}).String())
+	require.NoError(t, err)
+	assert.Equal(t, append([]string{""}, values...), SplitEscapedPath(parsed.EscapedPath()))
+
+	path, rawPath = JoinEscapedPath(nil)
+	assert.Equal(t, "/", path)
+	assert.Equal(t, "/", rawPath)
+}
+
 // TestValidatePathSegments verifies that a path is accepted unless one of its
 // segments is "." or "..". Empty segments and names that only start or end
 // with a dot are accepted.

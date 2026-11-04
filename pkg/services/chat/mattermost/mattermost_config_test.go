@@ -213,7 +213,8 @@ func TestCreateConfigFromURL(t *testing.T) {
 }
 
 // TestConfigGetURL verifies that GetURL serializes a config back to its
-// service URL, normalizing prop values.
+// service URL, normalizing prop values. A channel with a slash is escaped as
+// one path segment and reads back whole.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -263,6 +264,18 @@ func TestConfigGetURL(t *testing.T) {
 		config := &Config{Host: "mattermost.host", Token: "token"}
 
 		assert.Equal(t, "mattermost://mattermost.host/token", config.GetURL().String())
+	})
+
+	t.Run("channel with a slash", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Host: "mattermost.host", Token: "token", Channel: "team/general"}
+		serviceURL := config.GetURL()
+		assert.Equal(t, "mattermost://mattermost.host/token/team%2Fgeneral", serviceURL.String())
+
+		restored := &Config{}
+		require.NoError(t, restored.SetURL(parseTestURL(t, serviceURL.String())))
+		assert.Equal(t, "team/general", restored.Channel)
 	})
 }
 

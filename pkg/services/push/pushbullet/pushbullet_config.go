@@ -76,9 +76,14 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 //   - *url.URL: the service URL, with the token as the host and the targets
 //     as the path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	// Each target is one escaped segment, so a slash in an email address goes
+	// out as %2F and reads back whole.
+	path, rawPath := util.JoinEscapedPath(c.Targets)
+
 	return &url.URL{
 		Host:       c.Token,
-		Path:       "/" + strings.Join(c.Targets, "/"),
+		Path:       path,
+		RawPath:    rawPath,
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),
@@ -117,16 +122,15 @@ func (c *Config) sendTargets() []string {
 //   - error: an access token error, an error wrapping [util.ErrInvalidQuery]
 //     for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	path := serviceURL.Path
-	if path != "" && path[0] == '/' {
-		path = path[1:]
-	}
+	// An escaped slash stays in its segment, so a target written by GetURL
+	// reads back whole.
+	targets := util.SplitEscapedPath(strings.TrimPrefix(serviceURL.EscapedPath(), "/"))
 
+	// An unescaped # starts the fragment. It holds a channel tag and any
+	// targets after it, which are read the same way as the path.
 	if serviceURL.Fragment != "" {
-		path += "/#" + serviceURL.Fragment
+		targets = append(targets, util.SplitEscapedPath("#"+serviceURL.EscapedFragment())...)
 	}
-
-	targets := strings.Split(path, "/")
 
 	if err := validateToken(serviceURL.Host); err != nil {
 		return err

@@ -146,7 +146,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 
 // TestConfigGetURL verifies that GetURL writes the credentials as the user
 // info, the sender as the host, and the recipients as the path, and
-// round-trips through SetURL.
+// round-trips through SetURL. A slash in a recipient is escaped, so the
+// recipient reads back whole.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -154,12 +155,12 @@ func TestConfigGetURL(t *testing.T) {
 		AccountSID: testAccountSID,
 		AuthToken:  "authToken",
 		FromNumber: testFrom,
-		ToNumbers:  []string{testTo, "+15551111111"},
+		ToNumbers:  []string{testTo, "+15551111111", "+1555/2222222"},
 		Title:      "Alert",
 	}
 
 	serviceURL := config.GetURL()
-	assert.Equal(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo+"/+15551111111?title=Alert", serviceURL.String())
+	assert.Equal(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo+"/+15551111111/+1555%2F2222222?title=Alert", serviceURL.String())
 
 	roundTrip := &Config{}
 	require.NoError(t, roundTrip.SetURL(serviceURL))
@@ -193,8 +194,9 @@ func TestNormalizePhoneNumber(t *testing.T) {
 	}
 }
 
-// TestParseToNumbers verifies that the path splits into normalized numbers,
-// skipping empty and blank segments.
+// TestParseToNumbers verifies that the escaped path splits into normalized
+// numbers, skipping empty and blank segments. Each segment is decoded, and an
+// escaped slash stays in its number.
 func TestParseToNumbers(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +211,8 @@ func TestParseToNumbers(t *testing.T) {
 		{name: "one number", path: "/" + testTo, want: []string{testTo}},
 		{name: "several numbers", path: "/" + testTo + "/+15551111111", want: []string{testTo, "+15551111111"}},
 		{name: "empty and blank segments", path: "//" + testTo + "/ /", want: []string{testTo}},
+		{name: "escaped plus sign", path: "/%2B15551111111", want: []string{"+15551111111"}},
+		{name: "escaped slash stays in its number", path: "/%2B1555%2F1111111", want: []string{"+1555/1111111"}},
 	}
 
 	for _, tt := range tests {

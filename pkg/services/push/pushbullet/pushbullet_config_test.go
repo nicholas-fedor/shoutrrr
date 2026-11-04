@@ -105,15 +105,31 @@ func TestConfigSetURLErrors(t *testing.T) {
 }
 
 // TestConfigGetURL verifies that GetURL serializes a config back to the
-// service URL that SetURL read.
+// service URL that SetURL read. An email address with a slash in its local
+// part stays one escaped path segment. A channel tag's # is escaped. A URL
+// without targets keeps its path's slash.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	rawURL := "pushbullet://" + testToken + "/device?title=Great+News"
-	config := &Config{}
-	require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
+	for _, rawURL := range []string{
+		"pushbullet://" + testToken + "/device?title=Great+News",
+		"pushbullet://" + testToken + "/a%2Fb@example.com/%23tag/device?title=Alert",
+		"pushbullet://" + testToken + "/?title=Alert",
+	} {
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
 
-	assert.Equal(t, rawURL, config.GetURL().String())
+		assert.Equal(t, rawURL, config.GetURL().String())
+	}
+
+	t.Run("targets read back whole", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t, "pushbullet://"+testToken+"/a%2Fb@example.com/%23tag")))
+
+		assert.Equal(t, []string{"a/b@example.com", "#tag"}, config.Targets)
+	})
 }
 
 // TestConfigQueryResolver verifies the config's query props: an unknown key

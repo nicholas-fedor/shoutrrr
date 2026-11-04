@@ -108,7 +108,9 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: the constructed URL
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	recipients := strings.Join(c.Recipients, "/")
+	// Each recipient is one escaped segment, so a slash in a group ID goes out
+	// as %2F and reads back whole.
+	path, rawPath := util.JoinEscapedPath(append([]string{c.Source}, c.Recipients...))
 
 	query := format.BuildQueryWithCustomFields(resolver, url.Values{})
 	for _, key := range urlPartKeys {
@@ -118,7 +120,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	result := &url.URL{
 		Scheme:   Scheme,
 		Host:     net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
-		Path:     fmt.Sprintf("/%s/%s", c.Source, recipients),
+		Path:     path,
+		RawPath:  rawPath,
 		RawQuery: query.Encode(),
 	}
 
@@ -187,7 +190,10 @@ func (c *Config) parseHostPort(serviceURL *url.URL) error {
 // Returns:
 //   - error: if parsing fails, nil otherwise
 func (c *Config) parsePath(serviceURL *url.URL) error {
-	pathParts := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+	// An escaped slash stays in its segment, so a group ID written by GetURL
+	// reads back whole. Raw slashes still split it, and the segments are joined
+	// again as the recipients are read.
+	pathParts := util.SplitEscapedPath(strings.Trim(serviceURL.EscapedPath(), "/"))
 	if len(pathParts) < minPathParts {
 		return ErrNoRecipients
 	}
