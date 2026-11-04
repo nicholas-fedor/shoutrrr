@@ -341,6 +341,10 @@ const pathSegmentMarker = "pathsegx"
 // element of a string-list field, to when they need a value of their own.
 const sampleText = "contract"
 
+// roomJIDSample is a valid XMPP room JID, the element the empty_list_elements
+// check gives XMPP's rooms, which the fixtures leave empty.
+const roomJIDSample = "room@conference.example.invalid"
+
 // pathSegmentSuffixes follow a field's plain value in the values the
 // path_segments check sends. Each would leave its segment of a request path
 // that a service built from the value without escaping and checking it.
@@ -357,6 +361,14 @@ var subpathFields = map[string][]string{
 	"hangouts":      {"Path"},
 	"homeassistant": {"Path"},
 	"ntfy":          {"Topic"},
+}
+
+// listSamples gives, by scheme and field, the element the empty_list_elements
+// check gives a string-list field that the fixture leaves empty and that does
+// not accept [sampleText].
+var listSamples = map[string]map[string]string{
+	"xmpp":  {"Rooms": roomJIDSample},
+	"xmpps": {"Rooms": roomJIDSample},
 }
 
 // fixtures covers every scheme returned by router.SupportedSchemas.
@@ -2044,14 +2056,12 @@ func sortedQueryKeys(requestURL *url.URL) []string {
 // as the list without it.
 //
 // For each exported string-list field of the fixture's config, the baseline
-// config holds the field's own elements, or [sampleText] when the fixture
-// leaves it empty. The variant appends an empty element. Reading the variant's
-// URL back must give the result of reading the baseline's URL back. A send with
-// the variant must make the same requests and dials as a send with the
-// baseline, with the same headers and bodies. It must also return the same
-// error. When the two sends differ, the baseline is sent again, and words that
-// differ between the two baseline sends, such as a random transaction ID, are
-// left out of the comparison.
+// config holds the field's own elements. A field that the fixture leaves empty
+// holds the element [listSamples] gives it, or [sampleText], which must read
+// back. Each variant inserts an empty element at one position of the baseline
+// list, from before the first element to after the last. One more variant
+// holds only an empty element, and its baseline holds no elements. Each
+// variant is judged against its baseline by [compareEmptyElement].
 func runEmptyListElements(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -2066,56 +2076,88 @@ func runEmptyListElements(t *testing.T, fx *fixture) failure {
 		}
 
 		list, _ := reflect.TypeAssert[[]string](value.Convert(reflect.TypeFor[[]string]()))
-		if len(list) == 0 {
-			list = []string{sampleText}
+		sampled := len(list) == 0
+
+		if sampled {
+			sample, ok := listSamples[fx.scheme][structField.Name]
+			if !ok {
+				sample = sampleText
+			}
+
+			list = []string{sample}
 		}
 
-		baseline := configVariant{
-			config: withList(t, config, structField.Index, list),
-			name:   structField.Name + " without an empty element",
-		}
-		variant := configVariant{
-			config: withList(t, config, structField.Index, append(slices.Clone(list), "")),
-			name:   structField.Name + " with an empty element",
-		}
+		baseline := configVariant{config: withList(t, config, structField.Index, list), name: fmt.Sprintf("%s %q", structField.Name, list)}
+		empty := configVariant{config: withList(t, config, structField.Index, nil), name: structField.Name + " []"}
 
-		for _, readVariant := range []*configVariant{&baseline, &variant} {
+		for _, readVariant := range []*configVariant{&baseline, &empty} {
 			if result := readVariant.readOwnURL(t); result.kind != failNone {
 				return result
 			}
 		}
 
-		if variant.readBackText() != baseline.readBackText() {
-			return fail(failEmptyElementKept, "%s reads back as %q, but %s as %q",
-				variant.name, variant.readBackText(), baseline.name, baseline.readBackText())
+		// A sample that fails to read back would fail every send alike, so the
+		// check could not see what the empty element changes.
+		if sampled && baseline.readBackErr != nil {
+			t.Fatalf("the sample %s reads back with %v; give the field a valid element in listSamples", baseline.name, baseline.readBackErr)
 		}
 
-		if result := compareEmptyElementSends(t, fx, baseline, variant); result.kind != failNone {
-			return result
+		// pair is a variant list with the baseline it is judged against.
+		type pair struct {
+			baseline *configVariant
+			list     []string
+		}
+
+		pairs := []pair{{baseline: &empty, list: []string{""}}}
+		for position := range len(list) + 1 {
+			pairs = append(pairs, pair{baseline: &baseline, list: slices.Insert(slices.Clone(list), position, "")})
+		}
+
+		for _, pair := range pairs {
+			variant := configVariant{
+				config: withList(t, config, structField.Index, pair.list),
+				name:   fmt.Sprintf("%s %q", structField.Name, pair.list),
+			}
+
+			if result := compareEmptyElement(t, fx, pair.baseline, &variant); result.kind != failNone {
+				return result
+			}
 		}
 	}
 
 	return failure{}
 }
 
-// compareEmptyElementSends sends with the baseline and the variant of the
-// empty_list_elements check, and reports a variant send that differs from the
-// baseline send.
+// compareEmptyElement reports a variant of the empty_list_elements check that
+// reads back or sends unlike its baseline.
 //
-// When the two differ, the baseline is sent again, and a word that differs
-// between the two baseline sends may hold anything in the variant send.
+// Reading the variant's URL back must give the result of reading the
+// baseline's URL back. A send with the variant must make the same requests and
+// dials as a send with the baseline, with the same headers and bodies. It must
+// also return the same error. When the two sends differ, the baseline is sent
+// again, and a word that differs between the two baseline sends, such as a
+// random transaction ID, may hold anything in the variant send.
 //
 // Parameters:
 //   - t: the test.
 //   - fx: the fixture.
-//   - baseline: the config with the list as it is.
-//   - variant: the config with an empty element appended to the list.
+//   - baseline: the config with the list as it is, already read back.
+//   - variant: the config with an empty element in the list.
 //
 // Returns:
-//   - failure: a failEmptyElementKept failure when the sends differ, a
-//     failInit or failPanic failure from a send, or none.
-func compareEmptyElementSends(t *testing.T, fx *fixture, baseline, variant configVariant) failure {
+//   - failure: a failEmptyElementKept failure when the variant differs, a
+//     failInit or failPanic failure from a send or a read-back, or none.
+func compareEmptyElement(t *testing.T, fx *fixture, baseline, variant *configVariant) failure {
 	t.Helper()
+
+	if result := variant.readOwnURL(t); result.kind != failNone {
+		return result
+	}
+
+	if variant.readBackText() != baseline.readBackText() {
+		return fail(failEmptyElementKept, "%s reads back as %q, but %s as %q",
+			variant.name, variant.readBackText(), baseline.name, baseline.readBackText())
+	}
 
 	want, result := sendVariant(t, fx, baseline.config)
 	if result.kind != failNone {

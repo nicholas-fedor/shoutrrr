@@ -205,7 +205,9 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 
 	c.Source = source
 
-	recipients, err := parseRecipients(pathParts[1:])
+	// An empty segment, such as a doubled slash leaves, names no recipient and
+	// ends no group ID, as an empty list element names none.
+	recipients, err := parseRecipients(util.NonEmpty(pathParts[1:]))
 	if err != nil {
 		return err
 	}

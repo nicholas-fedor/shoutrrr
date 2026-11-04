@@ -316,8 +316,10 @@ Every service follows the same rules, so services behave alike for users and for
   Each request must keep the host and query keys of a send with the plain value, and must add no fragment.
   Its path must hold no `.` or `..` segment, written as is or percent-encoded.
   The path must also keep its number of segments, unless the check's list of server subpath fields names the field.
-- The `empty_list_elements` contract check appends an empty element to each string-list config field.
-  The field holds its fixture value, or a marker when the fixture leaves it empty.
+- The `empty_list_elements` contract check puts an empty element at each position of each string-list config field.
+  The field holds its fixture value, or a sample element when the fixture leaves it empty.
+  The sample must read back, so a field that rejects the default sample needs its own in the check's list of samples.
+  A field holding only an empty element must also work as an empty field.
   Reading the config's URL back must give the result for the list without the empty element.
   A send must make the same requests, with the same headers and bodies, and return the same error.
 - A service that fails a check is listed in that file's allowlist with the reason.
