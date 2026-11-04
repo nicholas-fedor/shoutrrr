@@ -1,6 +1,10 @@
 package homeassistant
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
+)
 
 // Errors returned when reading the configuration or sending.
 var (
@@ -16,8 +20,10 @@ var (
 	// ErrInvalidService indicates that the service query value is not a valid domain.action pair.
 	ErrInvalidService = errors.New("homeassistant service is invalid")
 
-	// ErrInvalidPort indicates that the URL port is not a valid TCP port.
-	ErrInvalidPort = errors.New("homeassistant port is invalid")
+	// ErrInvalidPort indicates a port that is not a number from 1 to 65535.
+	//
+	// It is [util.ErrInvalidPort], so the port rule of every service applies.
+	ErrInvalidPort = util.ErrInvalidPort
 
 	// ErrSendFailed indicates that sending a Home Assistant notification failed.
 	ErrSendFailed = errors.New("failed to send homeassistant notification")

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -154,7 +153,7 @@ func (s *Service) SendContext(
 
 	endpointURL := (&url.URL{
 		Scheme: "https",
-		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
+		Host:   util.JoinURLHostPort(config.Host, int(config.Port)),
 		Path:   eventEndpointPath,
 	}).String()
 

@@ -2,7 +2,6 @@ package signal
 
 import (
 	"net/url"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -194,7 +193,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid source from the source param", rawURL: testServiceURL + "?source=alice", wantErr: ErrInvalidPhoneNumber},
 		{name: "unknown query key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "unbracketed IPv6 host", rawURL: "signal://2001:db8::1/" + testSource + "/" + testRecipient, wantErr: util.ErrInvalidHost},
-		{name: "port out of range", rawURL: "signal://localhost:70000/" + testSource + "/" + testRecipient, wantErr: strconv.ErrRange},
+		{name: "port out of range", rawURL: "signal://localhost:70000/" + testSource + "/" + testRecipient, wantErr: util.ErrInvalidPort},
+		{name: "port 0", rawURL: "signal://localhost:0/" + testSource + "/" + testRecipient, wantErr: util.ErrInvalidPort},
 		{name: "invalid text mode", rawURL: testServiceURL + "?textmode=markdown", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?notifyself=maybe", wantErr: format.ErrInvalidBoolValue},
 	}

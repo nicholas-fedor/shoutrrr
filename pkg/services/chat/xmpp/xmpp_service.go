@@ -240,7 +240,7 @@ func (s *Service) SetSessionFactory(factory SessionFactory) {
 //   - net.Conn: the connected TCP socket.
 //   - error: an error if the dial fails.
 func (s *Service) dial(ctx context.Context, cfg *Config) (net.Conn, error) {
-	addr := net.JoinHostPort(cfg.Host, strconvPort(cfg.Port))
+	addr := net.JoinHostPort(cfg.Host, strconv.FormatUint(uint64(cfg.Port), 10))
 
 	dial := s.dialContext
 	if dial == nil {
@@ -255,15 +255,4 @@ func (s *Service) dial(ctx context.Context, cfg *Config) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-// strconvPort formats port as a decimal string for [net.JoinHostPort].
-//
-// Parameters:
-//   - port: The TCP port.
-//
-// Returns:
-//   - string: the port as a decimal string.
-func strconvPort(port uint16) string {
-	return strconv.FormatUint(uint64(port), 10)
 }

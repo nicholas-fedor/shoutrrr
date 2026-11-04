@@ -3,7 +3,6 @@ package mqtt
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -267,14 +266,9 @@ func (c *Config) brokerScheme() string {
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// A zero port selects the default port for the scheme. The URL leaves it
 	// out, and a URL without a port reads back as port 0.
-	port := ""
-	if c.Port != 0 {
-		port = strconv.Itoa(c.Port)
-	}
-
 	result := &url.URL{
 		Scheme:     c.brokerScheme(),
-		Host:       util.JoinURLHost(c.Host, port),
+		Host:       util.JoinURLHostPort(c.Host, c.Port),
 		ForceQuery: true, // Always include the query string separator (?)
 		// SetURL strips the path's first slash, so a topic's own leading slash,
 		// which makes it a distinct MQTT topic, follows the path's slash.
@@ -344,8 +338,8 @@ func (c *Config) prepare() error {
 		return fmt.Errorf("QoS: %w: %w", ErrInvalidQoS, err)
 	}
 
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("%w: %d must be 1 to 65535", util.ErrInvalidPort, c.Port)
+	if err := util.ValidatePort(c.Port); err != nil {
+		return err
 	}
 
 	return nil
@@ -387,19 +381,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	// Extract the hostname and port from the URL. An IPv6 host must be in brackets.
-	host, port, err := util.SplitURLHost(serviceURL)
+	// A URL without a port reads as port 0, which the defaults turn into the
+	// port for the scheme.
+	host, parsedPort, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-
-	// A URL without a port reads as port 0, which the defaults turn into the
-	// port for the scheme.
-	parsedPort, err := util.ParseURLPort(port)
-	if err != nil {
-		return fmt.Errorf("parsing port: %w", err)
-	}
 
 	c.Port = int(parsedPort)
 

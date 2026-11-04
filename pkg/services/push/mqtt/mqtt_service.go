@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -559,7 +558,7 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		s.warnings.Plaintext(ctx, s)
 	}
 
-	serverURL := &url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, strconv.Itoa(port))}
+	serverURL := &url.URL{Scheme: scheme, Host: util.JoinURLHostPort(config.Host, port)}
 
 	// The connection lives until Close, an idle teardown, or a replacement after
 	// it ends, so its lifetime does not derive from the send's context. Its

@@ -2,10 +2,8 @@ package xmpp
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -143,7 +141,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	result := &url.URL{
 		Scheme:     scheme,
-		Host:       net.JoinHostPort(c.Host, strconv.FormatUint(uint64(port), 10)),
+		Host:       util.JoinURLHostPort(c.Host, int(port)),
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
 	}
@@ -210,7 +208,8 @@ func (c *Config) prepare() error {
 //   - serviceURL: The XMPP configuration URL to parse.
 //
 // Returns:
-//   - error: an error if the URL is invalid, including a malformed query
+//   - error: an error if the URL is invalid, including a port that is not a
+//     number from 1 to 65535 ([util.ErrInvalidPort]) and a malformed query
 //     ([util.ErrInvalidQuery]), or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.scheme = serviceURL.Scheme
@@ -229,23 +228,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	host, port, err := util.SplitURLHost(serviceURL)
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-
-	if port != "" {
-		parsed, err := strconv.ParseUint(port, 10, 16)
-		if err != nil {
-			return fmt.Errorf("parsing port: %w", err)
-		}
-
-		c.Port = uint16(parsed)
-	} else {
-		c.Port = 0
-	}
+	c.Port = port
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {

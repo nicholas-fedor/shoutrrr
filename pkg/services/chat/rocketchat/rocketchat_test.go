@@ -407,9 +407,11 @@ func TestSendUnknownParam(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without a host, an integration ID, or a token
-// fails before any request. So does an integration ID or token that is not
-// one path segment, and a channel with a slash.
+// reading a URL does.
+//
+// A config without a host, an integration ID, or a token fails before any
+// request. So does a port outside 1 to 65535. An integration ID or token that
+// is not one path segment fails too, as does a channel with a slash.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -420,6 +422,8 @@ func TestSendChecksConfig(t *testing.T) {
 		name    string
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
+		{name: "port out of range", change: func(config *Config) { config.Port = "99999" }, wantErr: util.ErrInvalidPort},
+		{name: "port 0", change: func(config *Config) { config.Port = "0" }, wantErr: util.ErrInvalidPort},
 		{name: "no integration ID", change: func(config *Config) { config.TokenA = "" }, wantErr: ErrNotEnoughArguments},
 		{name: "no token", change: func(config *Config) { config.TokenB = "" }, wantErr: ErrNotEnoughArguments},
 		{name: "dot-dot integration ID", change: func(config *Config) { config.TokenA = ".." }, wantErr: util.ErrInvalidPathSegment},

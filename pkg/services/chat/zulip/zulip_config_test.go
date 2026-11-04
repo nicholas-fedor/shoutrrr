@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Values shared by the tests.
@@ -66,6 +67,8 @@ func TestConfigClone(t *testing.T) {
 // TestConfigSetURL verifies that SetURL reads the bot credentials and host
 // from the URL authority and the message settings from the query, replacing
 // any earlier values.
+//
+// A host ending in an empty port is stored without it.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -78,6 +81,11 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "credentials and host only",
 			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost,
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
+		},
+		{
+			name:   "empty port",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":",
 			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
 		},
 		{
@@ -242,23 +250,30 @@ func TestConfigQueryResolver(t *testing.T) {
 		format.GetConfigQueryResolver(config).QueryFields())
 }
 
-// TestIsValidHost verifies that a host name, IPv4 address, or bracketed IPv6
-// address with an optional port from 1 to 65535 is accepted and that other
-// values are rejected.
-func TestIsValidHost(t *testing.T) {
+// TestValidateHost verifies that a host name, IPv4 address, or bracketed IPv6
+// address with an optional port is accepted and that other values are
+// rejected.
+//
+// A port outside 1 to 65535 fails with util.ErrInvalidPort. An empty port, as
+// in a URL ending in a colon, means no port.
+func TestValidateHost(t *testing.T) {
 	t.Parallel()
 
 	for _, valid := range []string{
-		testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co", "localhost", "localhost:9991", "zulip",
-		"192.0.2.10", "192.0.2.10:8443", "[2001:db8::1]", "[2001:db8::1]:8443",
+		testHost, testHost + ":1", testHost + ":65535", testHost + ":", "chat.zulip-cloud.example.co", "localhost",
+		"localhost:9991", "zulip", "192.0.2.10", "192.0.2.10:8443", "[2001:db8::1]", "[2001:db8::1]:8443",
 	} {
-		assert.True(t, isValidHost(valid), valid)
+		require.NoError(t, validateHost(valid), valid)
+	}
+
+	for _, invalid := range []string{testHost + ":0", testHost + ":65536", "192.0.2.10:0"} {
+		require.ErrorIs(t, validateHost(invalid), util.ErrInvalidPort, invalid)
 	}
 
 	for _, invalid := range []string{
-		"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", testHost + ":+80", "zulip example.com",
-		"-zulip.example.com", "zulip..example.com", "2001:db8::1", "[2001:db8::1", "[zulip.example.com]:8443", "192.0.2.10:0",
+		"", testHost + ":http", testHost + ":+80", "zulip example.com", "-zulip.example.com", "zulip..example.com",
+		"2001:db8::1", "[2001:db8::1", "[zulip.example.com]:8443", "[192.0.2.10]",
 	} {
-		assert.False(t, isValidHost(invalid), invalid)
+		require.Error(t, validateHost(invalid), invalid)
 	}
 }

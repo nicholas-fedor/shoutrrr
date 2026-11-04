@@ -238,6 +238,9 @@ Every service follows the same rules, so services behave alike for users and for
 - Check a value that fills several segments by design, such as a server's base path, with `util.ValidatePathSegments`, which rejects a `.` or `..` segment.
 - Read values that a service URL's path holds one per segment, such as recipients, with `util.SplitEscapedPath` on the escaped path.
   Write them back with `util.JoinEscapedPath`, so a value with a slash reads back whole.
+- Read the server's host and port from a service URL with `util.SplitURLHost`, or with `util.SplitURLHostPort` to get the port as a number.
+  Both reject a port outside 1 to 65535, so every service reads ports by one rule.
+  Leave a port of 0 out of the URL that `GetURL` writes, so a config built in code without a port reads back with the default port.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
@@ -303,6 +306,7 @@ Every service follows the same rules, so services behave alike for users and for
   The linter flags any call to the deprecated `Log` and `Logf` methods.
   It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
 - `TestIntegrationPlaceholderURL` fails a service that treats `<scheme>://dummy@dummy.com` differently from a URL of the same shape.
+- `TestIntegrationURLPortRange` fails a service whose URL host is its server when it reads a URL with port 0 or 65536.
 - The `unknown_params` contract check sends a param that no service uses, and fails a service that accepts it.
   Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.
   Generic and the logger are listed as exceptions, because their params fill a webhook body and a message template.
