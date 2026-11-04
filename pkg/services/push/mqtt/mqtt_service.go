@@ -243,11 +243,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	config.applyDefaults()
-
-	// The check runs before the connection is opened or reused, so an invalid
+	// The checks run before the connection is opened or reused, so an invalid
 	// config neither dials nor publishes.
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return err
 	}
 
