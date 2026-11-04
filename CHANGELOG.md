@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.14.4 by @renovate[bot] in [#2056](https://github.com/nicholas-fedor/shoutrrr/pull/2056)
 - Update binwiederhier/ntfy:latest docker digest to 1875ddc by @renovate[bot] in [#2050](https://github.com/nicholas-fedor/shoutrrr/pull/2050)
 
 ## [0.23.0] - 2026-11-03
