@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep each room in its own request path segment by @nicholas-fedor in [#2048](https://github.com/nicholas-fedor/shoutrrr/pull/2048)
+
 ### Documentation
 
 - Mark the v0.23.0 deprecations with their release by @nicholas-fedor in [#2046](https://github.com/nicholas-fedor/shoutrrr/pull/2046)
