@@ -271,3 +271,22 @@ func FuzzValidatePathSegments(f *testing.F) {
 		assert.Equal(t, want, ValidatePathSegments(path) == nil, "%q", path)
 	})
 }
+
+// FuzzJoinEscapedPath checks that values written by JoinEscapedPath into a
+// URL's path come back whole from SplitEscapedPath after the URL is written
+// and parsed again. Seeds hold values with slashes, signs, escapes, and
+// invalid UTF-8.
+func FuzzJoinEscapedPath(f *testing.F) {
+	for _, seed := range [][2]string{{"a", "b"}, {"group.ab/+cd==", "+15551234567"}, {"%2F", "#tag"}, {"a b?c", "../x"}, {"\xff", ""}} {
+		f.Add(seed[0], seed[1])
+	}
+
+	f.Fuzz(func(t *testing.T, first, second string) {
+		values := []string{first, second}
+		path, rawPath := JoinEscapedPath(values)
+
+		parsed, err := url.Parse((&url.URL{Scheme: "x", Host: "h", Path: path, RawPath: rawPath}).String())
+		require.NoError(t, err)
+		assert.Equal(t, append([]string{""}, values...), SplitEscapedPath(parsed.EscapedPath()))
+	})
+}

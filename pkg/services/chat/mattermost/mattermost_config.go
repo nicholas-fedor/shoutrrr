@@ -90,10 +90,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 //   - *url.URL: the service URL, with the token and the channel, when set, as
 //     its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	paths := []string{"", c.Token, c.Channel}
+	values := []string{c.Token, c.Channel}
 	if c.Channel == "" {
-		paths = paths[:2]
+		values = values[:1]
 	}
+
+	// Each value is one escaped segment, as the path is read.
+	path, rawPath := util.JoinEscapedPath(values)
 
 	var user *url.Userinfo
 	if c.UserName != "" {
@@ -104,7 +107,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		User:       user,
 		Host:       c.Host,
-		Path:       strings.Join(paths, "/"),
+		Path:       path,
+		RawPath:    rawPath,
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),

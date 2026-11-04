@@ -119,6 +119,13 @@ func TestConfigSetURL(t *testing.T) {
 			want:   defaults(func(c *Config) { c.Recipients = []string{"+15559876543", "u:alice.01"} }),
 		},
 		{
+			name:   "group ID with an escaped slash before a sign",
+			rawURL: testServiceURL + "/group.AB%2F%2BCD/" + testRecipient,
+			want: defaults(func(c *Config) {
+				c.Recipients = []string{testRecipient, "group.AB/+CD", testRecipient}
+			}),
+		},
+		{
 			name:   "recipient types",
 			rawURL: testServiceURL + "/group.ABCD/EFGH=/u:alice.01/group.ABCD+EFGH",
 			want: defaults(func(c *Config) {
@@ -195,7 +202,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 // TestConfigGetURL verifies that GetURL writes the credentials, host, port,
 // source, and recipients into the URL authority and path, and only the other
 // settings that differ from their defaults into the query, and that the URL
-// round-trips through SetURL.
+// round-trips through SetURL. A slash in a group ID is escaped, so a group ID
+// whose slash precedes a + reads back whole.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +217,7 @@ func TestConfigGetURL(t *testing.T) {
 		{
 			name:   "every setting",
 			rawURL: "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?token=tok&title=Alert&textmode=styled&notifyself=no&disabletls=yes&skiptlsverify=yes&attachments=aGVsbG8%3D",
-			want:   "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?attachments=aGVsbG8%3D&disabletls=Yes&notifyself=No&skiptlsverify=Yes&textmode=Styled&title=Alert&token=tok",
+			want:   "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD%2FEFGH=/u:alice.01?attachments=aGVsbG8%3D&disabletls=Yes&notifyself=No&skiptlsverify=Yes&textmode=Styled&title=Alert&token=tok",
 		},
 		{
 			name:   "user without a password",
@@ -225,6 +233,11 @@ func TestConfigGetURL(t *testing.T) {
 			name:   "recipients from the query",
 			rawURL: testServiceURL + "?to=%2B15559876543,u:alice.01",
 			want:   "signal://localhost:8080/" + testSource + "/+15559876543/u:alice.01",
+		},
+		{
+			name:   "group IDs with slashes",
+			rawURL: testServiceURL + "?to=group.AB%2F%2BCD,group.EF%2FGH=",
+			want:   "signal://localhost:8080/" + testSource + "/group.AB%2F+CD/group.EF%2FGH=",
 		},
 	}
 

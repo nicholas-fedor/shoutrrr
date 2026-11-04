@@ -89,13 +89,15 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: the service URL, with the recipients as path segments.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	path := "/" + strings.Join(c.ToNumbers, "/")
+	// Each recipient is one escaped segment, as the path is read.
+	path, rawPath := util.JoinEscapedPath(c.ToNumbers)
 
 	return &url.URL{
 		Scheme:     Scheme,
 		User:       url.UserPassword(c.AccountSID, c.AuthToken),
 		Host:       c.FromNumber,
 		Path:       path,
+		RawPath:    rawPath,
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
 	}
@@ -117,7 +119,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.AuthToken = password
 
 	c.FromNumber = normalizePhoneNumber(serviceURL.Host)
-	c.ToNumbers = parseToNumbers(serviceURL.Path)
+	c.ToNumbers = parseToNumbers(serviceURL.EscapedPath())
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -195,20 +197,21 @@ func normalizePhoneNumber(number string) string {
 }
 
 // parseToNumbers extracts and normalizes recipient phone numbers from the URL path.
+// An escaped slash stays in its segment, so it never splits one number into two.
 //
 // Parameters:
-//   - path: the URL path, with one recipient per segment.
+//   - escapedPath: the escaped URL path, with one recipient per segment.
 //
 // Returns:
 //   - []string: the normalized numbers without empty segments, or nil for an
 //     empty path.
-func parseToNumbers(path string) []string {
-	rawPath := strings.TrimPrefix(path, "/")
-	if rawPath == "" {
+func parseToNumbers(escapedPath string) []string {
+	trimmed := strings.TrimPrefix(escapedPath, "/")
+	if trimmed == "" {
 		return nil
 	}
 
-	parts := strings.Split(rawPath, "/")
+	parts := util.SplitEscapedPath(trimmed)
 	numbers := make([]string, 0, len(parts))
 
 	for _, p := range parts {

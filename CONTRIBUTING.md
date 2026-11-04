@@ -231,6 +231,8 @@ Every service follows the same rules, so services behave alike for users and for
   Escaping keeps `?` and `#` in the segment, but `.` and `..` pass through it unchanged and would walk the path.
   `url.URL` also keeps a slash as a separator, so the check rejects a slash too.
 - Check a value that fills several segments by design, such as a server's base path, with `util.ValidatePathSegments`, which rejects a `.` or `..` segment.
+- Read values that a service URL's path holds one per segment, such as recipients, with `util.SplitEscapedPath` on the escaped path.
+  Write them back with `util.JoinEscapedPath`, so a value with a slash reads back whole.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
