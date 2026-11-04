@@ -2,6 +2,8 @@ package matrix
 
 import (
 	"net/url"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -109,6 +111,40 @@ func (c *Config) loginKey() loginKey {
 	return loginKey{host: c.Host, user: c.User, password: c.Password}
 }
 
+// prepare trims each room and starts a room without a # or ! sigil with #, so
+// it names an alias. It then checks the config. Reading a service URL and
+// each send run it, so a send reaches the rooms that its URL names. A config
+// built in code also fails its checks before the login or any request. A
+// changed room goes into a new slice, so a send never writes to the rooms of
+// the config it was copied from.
+//
+// Returns:
+//   - error: the error from the config's checks, such as
+//     [ErrMissingCredentials].
+func (c *Config) prepare() error {
+	var rooms []string
+
+	for index, room := range c.Rooms {
+		trimmed := strings.TrimSpace(room)
+		if trimmed != "" && !strings.HasPrefix(trimmed, aliasSigil) && !strings.HasPrefix(trimmed, roomIDSigil) {
+			trimmed = aliasSigil + trimmed
+		}
+
+		if trimmed == room {
+			continue
+		}
+
+		if rooms == nil {
+			rooms = slices.Clone(c.Rooms)
+			c.Rooms = rooms
+		}
+
+		rooms[index] = trimmed
+	}
+
+	return c.validate()
+}
+
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
 // for a config with the send's params applied.
 //
@@ -151,20 +187,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for r, room := range c.Rooms {
-		// If room does not begin with a '#' let's prepend it
-		if room != "" && room[0] != '#' && room[0] != '!' {
-			c.Rooms[r] = "#" + room
-		}
-	}
-
-	return c.validate()
+	return c.prepare()
 }
 
 // validate checks that the config has credentials and names a homeserver.
-// An empty password or access token cannot authenticate. Reading a service
-// URL and each send run it, so a config built in code fails before the login
-// or any request.
+// An empty password or access token cannot authenticate.
 //
 // Returns:
 //   - error: [ErrMissingCredentials] for a config without a password or

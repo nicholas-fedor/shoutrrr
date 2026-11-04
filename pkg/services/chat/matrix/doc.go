@@ -59,7 +59,7 @@
 //
 // ## Notification to specific rooms
 //
-//	url := "matrix://:access_token@matrix.example.com?rooms=#alerts:example.com,#general:example.com"
+//	url := "matrix://:access_token@matrix.example.com?rooms=%23alerts:example.com,%23general:example.com"
 //	err := shoutrrr.Send(url, "Alert message")
 //
 // ## Notification with password authentication
@@ -83,38 +83,39 @@
 //
 // Send alerts from monitoring systems like Prometheus, Nagios, or Zabbix:
 //
-//	url := "matrix://:access_token@matrix.example.com?rooms=#alerts:example.com&title=Monitoring"
+//	url := "matrix://:access_token@matrix.example.com?rooms=%23alerts:example.com&title=Monitoring"
 //	err := shoutrrr.Send(url, "Disk space critical: 95% used")
 //
 // ## CI/CD Pipeline Notifications
 //
 // Notify about build status from Jenkins, GitHub Actions, or GitLab CI:
 //
-//	url := "matrix://:access_token@matrix.example.com?rooms=#builds:example.com&title=Build%20Status"
+//	url := "matrix://:access_token@matrix.example.com?rooms=%23builds:example.com&title=Build%20Status"
 //	err := shoutrrr.Send(url, "Build #123 passed")
 //
 // ## Team Notifications
 //
 // Send notifications to team rooms:
 //
-//	url := "matrix://:access_token@matrix.example.com?rooms=#team:example.com"
+//	url := "matrix://:access_token@matrix.example.com?rooms=%23team:example.com"
 //	err := shoutrrr.Send(url, "Deployment started")
 //
 // ## Application Notifications
 //
 // Send notifications from applications:
 //
-//	url := "matrix://myuser:mypassword@matrix.example.com?rooms=#notifications:example.com"
+//	url := "matrix://myuser:mypassword@matrix.example.com?rooms=%23notifications:example.com"
 //	err := shoutrrr.Send(url, "New order received: #12345")
 //
 // # Room Alias Resolution
 //
-// The service automatically resolves room aliases to room IDs. If a room alias
-// doesn't start with # or !, # is automatically prepended:
+// The service automatically resolves room aliases to room IDs. A # in a URL
+// starts its fragment, so write it as %23 or leave it out. A room from the URL
+// or from the send params that doesn't start with # or ! gets # prepended:
 //
 //	// These are equivalent:
-//	rooms=general
-//	rooms=#general:example.com
+//	rooms=general:example.com
+//	rooms=%23general:example.com
 //
 // Room IDs must start with !:
 //
@@ -137,6 +138,7 @@
 //   - ErrNoJoinedRooms: No rooms configured and none joined
 //   - ErrUnsupportedLoginFlows: Server doesn't support password login
 //   - ErrLoginReplyWithoutToken: A login reply held no access token
+//   - ErrInvalidRoomID: A room ID to send to does not start with !
 //   - ErrUnexpectedStatus: Unexpected HTTP response from server
 //
 // # Security Considerations

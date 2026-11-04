@@ -48,8 +48,11 @@ type client struct {
 	httpClient types.HTTPClient
 	// accessToken authenticates the requests after login, or is empty before.
 	accessToken string
-	// apiURL is the homeserver's base URL.
-	apiURL url.URL
+	// baseURL is the homeserver's base URL, its scheme and host, which every
+	// request path follows.
+	baseURL string
+	// host is the homeserver host, with an optional port.
+	host string
 }
 
 // DefaultHTTPClient is an HTTP client whose requests time out after
@@ -155,7 +158,7 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 // Parameters:
 //   - ctx: cancellation and deadline for the request and the waits.
 //   - method: the HTTP method.
-//   - path: the API path.
+//   - path: the escaped API path, which the request uses as written.
 //   - request: the value sent as the JSON request body, sent byte for byte
 //     when it is a [jsontext.Value], or nil to send no body.
 //   - response: the value the JSON response is decoded into.
@@ -203,20 +206,6 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 	return err
 }
 
-// buildURL returns a copy of the base API URL with the specified path set.
-//
-// Parameters:
-//   - path: the API path.
-//
-// Returns:
-//   - string: the request URL.
-func (c *client) buildURL(path string) string {
-	u := c.apiURL
-	u.Path = path
-
-	return u.String()
-}
-
 // getJoinedRooms retrieves the list of rooms the client has joined.
 //
 // Parameters:
@@ -236,7 +225,8 @@ func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 	return response.Rooms, nil
 }
 
-// joinRoom joins a specified room and returns its ID.
+// joinRoom joins a specified room and returns its ID. The room travels
+// escaped as one path segment, so a character such as / stays in the room.
 //
 // Parameters:
 //   - ctx: bounds the request.
@@ -251,7 +241,7 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	err := c.apiDo(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf(apiRoomJoin, room),
+		apiRoomJoin+url.PathEscape(room),
 		emptyJSONObject,
 		&resRoom,
 	)
@@ -275,8 +265,6 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 //   - error: the error of the flows request or the password login, or
 //     [ErrUnsupportedLoginFlows] when the homeserver offers no password flow.
 func (c *client) login(ctx context.Context, user, password string) error {
-	c.apiURL.RawQuery = ""
-
 	resLogin := apiResLoginFlows{}
 	if err := c.apiDo(ctx, http.MethodGet, apiLogin, nil, &resLogin); err != nil {
 		return fmt.Errorf("failed to get login flows: %w", err)
@@ -311,7 +299,7 @@ func (c *client) login(ctx context.Context, user, password string) error {
 func (c *client) loginPassword(ctx context.Context, user, password string) error {
 	response := apiResLogin{}
 
-	deviceID := generateDeviceID(user, c.apiURL.Host)
+	deviceID := generateDeviceID(user, c.host)
 
 	err := c.apiDo(
 		ctx,
@@ -349,7 +337,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - method: the HTTP method.
-//   - path: the API path.
+//   - path: the escaped API path, which the request uses as written.
 //   - body: the JSON request body, or nil to send none.
 //   - response: the value the JSON response is decoded into.
 //
@@ -366,10 +354,18 @@ func (c *client) send(ctx context.Context, method, path string, body []byte, res
 		reader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.buildURL(path), reader)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL, reader)
 	if err != nil {
 		return noRetry, fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
 	}
+
+	// The path is set on the parsed base URL, which spares parsing the whole
+	// request URL. RawPath keeps the escapes, such as a / in a room.
+	if req.URL.Path, err = url.PathUnescape(path); err != nil {
+		return noRetry, fmt.Errorf("creating %s request: %w", method, err)
+	}
+
+	req.URL.RawPath = path
 
 	if body != nil {
 		req.Header.Set("Content-Type", contentType)
@@ -442,6 +438,7 @@ func (c *client) sendMessage(ctx context.Context, message string, rooms []string
 }
 
 // sendMessageToRoom sends a message to a specific room using PUT method with transaction ID.
+// The room ID travels escaped as one path segment.
 //
 // Parameters:
 //   - ctx: bounds the request.
@@ -449,12 +446,20 @@ func (c *client) sendMessage(ctx context.Context, message string, rooms []string
 //   - roomID: the room ID.
 //
 // Returns:
-//   - error: the request error or the API's error.
+//   - error: [ErrInvalidRoomID] for a room ID without the ! sigil, or the
+//     request error or the API's error.
 func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) error {
+	rest, ok := strings.CutPrefix(roomID, roomIDSigil)
+	if !ok {
+		return ErrInvalidRoomID
+	}
+
 	resEvent := apiResEvent{}
 	txnID := generateTransactionID()
 
-	path := fmt.Sprintf(apiSendMessage, roomID, txnID)
+	// A path segment holds the ! as is, so only the rest of the room ID is
+	// escaped.
+	path := apiRooms + roomIDSigil + url.PathEscape(rest) + apiSendMessage + txnID
 
 	request := apiReqSend{
 		MsgType: msgTypeText,
@@ -484,7 +489,6 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 		rooms,
 		sequential.PerTarget(requestsPerRoom*defaultHTTPTimeout),
 		func(ctx context.Context, room string) error {
-			room = strings.TrimSpace(room)
 			if room == "" {
 				return ErrEmptyRoom
 			}
@@ -492,7 +496,7 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			// Rooms identify the recipients, so the records leave them out.
 			c.logger.Debug(ctx, "sending message")
 
-			if !strings.HasPrefix(room, "!") {
+			if !strings.HasPrefix(room, roomIDSigil) {
 				roomID, err := c.joinRoom(ctx, room)
 				if err != nil {
 					return fmt.Errorf("error joining room %v: %w", room, err)
@@ -719,6 +723,7 @@ func newClient(host, scheme string, httpClient types.HTTPClient, logger *standar
 	return &client{
 		logger:     logger,
 		httpClient: httpClient,
-		apiURL:     url.URL{Scheme: scheme, Host: host},
+		baseURL:    (&url.URL{Scheme: scheme, Host: host}).String(),
+		host:       host,
 	}
 }

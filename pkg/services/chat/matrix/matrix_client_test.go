@@ -11,7 +11,6 @@ import (
 	"maps"
 	"math"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -203,7 +202,8 @@ func newScriptedClient(t *testing.T, replies ...reply) (*client, *scriptedHTTPCl
 	logger.SetLogger(log.New(t.Output(), "", 0))
 
 	return &client{
-		apiURL:     url.URL{Scheme: "https", Host: "matrix.example.com"},
+		baseURL:    "https://matrix.example.com",
+		host:       "matrix.example.com",
 		httpClient: httpClient,
 		logger:     logger,
 	}, httpClient
@@ -239,7 +239,8 @@ func TestNewClient(t *testing.T) {
 	httpClient := &scriptedHTTPClient{t: t}
 	c := newClient("matrix.example.com", "http", httpClient, nil)
 
-	assert.Equal(t, url.URL{Scheme: "http", Host: "matrix.example.com"}, c.apiURL)
+	assert.Equal(t, "http://matrix.example.com", c.baseURL)
+	assert.Equal(t, "matrix.example.com", c.host)
 	assert.Same(t, httpClient, c.httpClient)
 	assert.NotNil(t, c.logger)
 	assert.Empty(t, c.accessToken)
@@ -320,9 +321,10 @@ func TestAPIRequestFailures(t *testing.T) {
 	}
 }
 
-// TestAPIDo verifies that apiDo reports marshaling and request creation errors
-// without sending, sends a request value as JSON with the given method, sends
-// raw JSON byte for byte, and sends no body for a nil request.
+// TestAPIDo verifies that apiDo reports marshaling, request creation, and
+// path escape errors without sending. It also checks the bodies it sends. A
+// request value goes as JSON with the given method, raw JSON goes byte for
+// byte, and a nil request sends no body.
 func TestAPIDo(t *testing.T) {
 	t.Parallel()
 
@@ -341,6 +343,16 @@ func TestAPIDo(t *testing.T) {
 
 		c, _ := newScriptedClient(t)
 		err := c.apiDo(t.Context(), "BAD METHOD", apiLogin, nil, &apiResLogin{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "creating")
+	})
+
+	t.Run("malformed path escape", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t)
+		err := c.apiDo(t.Context(), http.MethodGet, "/%zz", nil, &apiResLogin{})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "creating")
@@ -416,7 +428,7 @@ func TestAPIDoRetriesRateLimits(t *testing.T) {
 		request := apiReqSend{MsgType: msgTypeText, Body: "test message"}
 
 		c, httpClient := newScriptedClient(t, rateLimited("2"), ok(`{"event_id":"$event"}`))
-		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, apiSendMessage, request, &apiResEvent{}))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, apiRooms+"!room:matrix.example.com"+apiSendMessage+"txn", request, &apiResEvent{}))
 
 		assert.Equal(t, 2*time.Second, time.Since(start))
 		require.Equal(t, 2, httpClient.requestCount())
@@ -665,8 +677,9 @@ func TestGetJoinedRooms(t *testing.T) {
 	}
 }
 
-// TestJoinRoom verifies that joining a room returns its ID, sends an empty JSON
-// object, and reports a failed request.
+// TestJoinRoom verifies that joining a room returns its ID and sends an empty
+// JSON object. It also checks that a failed request is reported, and that the
+// room goes on the wire escaped as one path segment.
 func TestJoinRoom(t *testing.T) {
 	t.Parallel()
 
@@ -689,6 +702,17 @@ func TestJoinRoom(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Empty(t, roomID)
+	})
+
+	t.Run("escaped alias", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{"room_id":"!joinedroom:matrix.example.com"}`))
+		_, err := c.joinRoom(t.Context(), "#a/../b?c:matrix.example.com")
+
+		require.NoError(t, err)
+		require.Len(t, httpClient.requests, 1)
+		assert.Equal(t, apiRoomJoin+"%23a%2F..%2Fb%3Fc:matrix.example.com", httpClient.requests[0].URL.EscapedPath())
 	})
 }
 
@@ -843,16 +867,42 @@ func TestSendMessage(t *testing.T) {
 	}
 }
 
-// TestSendMessageToRoom verifies that a failed message request is reported.
+// TestSendMessageToRoom verifies that a failed message request is reported. It
+// also checks that a room ID without the ! sigil is rejected without a request,
+// and that a room ID goes on the wire escaped as one path segment.
 func TestSendMessageToRoom(t *testing.T) {
 	t.Parallel()
 
-	c, _ := newScriptedClient(t, failed("mock error"))
-	require.Error(t, c.sendMessageToRoom(t.Context(), "test message", "!room:matrix.example.com"))
+	t.Run("failure", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("mock error"))
+		require.Error(t, c.sendMessageToRoom(t.Context(), "test message", "!room:matrix.example.com"))
+	})
+
+	t.Run("room ID without the sigil", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t)
+		require.ErrorIs(t, c.sendMessageToRoom(t.Context(), "test message", ".."), ErrInvalidRoomID)
+		assert.Empty(t, httpClient.requests)
+	})
+
+	t.Run("escaped room ID", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{"event_id":"$event"}`))
+		require.NoError(t, c.sendMessageToRoom(t.Context(), "test message", "!a/../b?c:matrix.example.com"))
+		require.Len(t, httpClient.requests, 1)
+		assert.True(t, strings.HasPrefix(
+			httpClient.requests[0].URL.EscapedPath(),
+			apiRooms+"!a%2F..%2Fb%3Fc:matrix.example.com"+apiSendMessage,
+		), httpClient.requests[0].URL.EscapedPath())
+	})
 }
 
 // TestSendToExplicitRooms verifies that aliases are joined before sending, room
-// IDs are sent to directly, blank rooms are rejected without requests, and one
+// IDs are sent to directly, empty rooms are rejected without requests, and one
 // error is reported for each failed room.
 func TestSendToExplicitRooms(t *testing.T) {
 	t.Parallel()
@@ -876,8 +926,6 @@ func TestSendToExplicitRooms(t *testing.T) {
 		{name: "room ID skips join", rooms: []string{"!roomid:matrix.example.com"}, replies: []reply{sent}, wantRequests: 1},
 		{name: "alias and room ID", rooms: []string{"#room:matrix.example.com", "!otherroom:matrix.example.com"}, replies: []reply{joined, sent, sent}, wantRequests: 3},
 		{name: "empty room", rooms: []string{""}, wantErrs: 1, wantErr: ErrEmptyRoom},
-		{name: "whitespace room", rooms: []string{"   "}, wantErrs: 1, wantErr: ErrEmptyRoom},
-		{name: "room with surrounding spaces", rooms: []string{"  !roomid:matrix.example.com  "}, replies: []reply{sent}, wantRequests: 1},
 		{
 			name:         "one of two rooms fails",
 			rooms:        []string{"#room1:matrix.example.com", "#room2:matrix.example.com"},

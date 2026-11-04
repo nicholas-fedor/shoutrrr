@@ -98,12 +98,16 @@ type identifier struct {
 const (
 	// apiLogin is the login endpoint path.
 	apiLogin = "/_matrix/client/v3/login"
-	// apiRoomJoin is the room join endpoint path, formatted with the room ID
-	// or alias.
-	apiRoomJoin = "/_matrix/client/v3/join/%s"
-	// apiSendMessage is the message send endpoint path, formatted with the
-	// room ID and a transaction ID.
-	apiSendMessage = "/_matrix/client/v3/rooms/%s/send/m.room.message/%s"
+	// apiRoomJoin is the join endpoint, /_matrix/client/v3/join/{roomIdOrAlias},
+	// without the escaped room.
+	apiRoomJoin = "/_matrix/client/v3/join/"
+	// apiRooms starts the message send endpoint,
+	// /_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}, before the
+	// escaped room ID.
+	apiRooms = "/_matrix/client/v3/rooms/"
+	// apiSendMessage is the part of the message send endpoint between the room
+	// ID and the transaction ID.
+	apiSendMessage = "/send/m.room.message/"
 	// apiJoinedRooms is the joined rooms endpoint path.
 	apiJoinedRooms = "/_matrix/client/v3/joined_rooms"
 
@@ -116,6 +120,11 @@ const (
 	flowLoginPassword flowType = "m.login.password"
 	// idTypeUser is the Matrix identifier type for username-based authentication.
 	idTypeUser identifierType = "m.id.user"
+
+	// roomIDSigil starts every Matrix room ID.
+	roomIDSigil = "!"
+	// aliasSigil starts every Matrix room alias.
+	aliasSigil = "#"
 )
 
 // Error returns the error message from the Matrix API error response.
