@@ -372,11 +372,13 @@ func TestSendContextErrors(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks its config after applying
-// its params, as reading a URL does. A config without a host, a sender, or a
-// recipient fails before the dial. So does an address with a line break.
-// Incomplete OAuth2 refresh settings fail before any token request. An empty
-// client host uses localhost. An unknown auth method from a param is
-// inferred, as one in a URL is.
+// its params, as reading a URL does.
+//
+// A config without a host, a sender, or a recipient fails before the dial. So
+// does an address with a line break, and an authentication or encryption method
+// that is not one of its values. Incomplete OAuth2 refresh settings fail before
+// any token request. An empty client host uses localhost. An unknown auth
+// method from a param is inferred, as one in a URL is.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -395,6 +397,8 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Refresh},
 		{name: "sender with a line break", params: &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
 		{name: "recipient with a line break", params: &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
+		{name: "undefined auth method", change: func(config *Config) { config.Auth = -1 }, wantErr: format.ErrInvalidEnumValue},
+		{name: "undefined encryption method", change: func(config *Config) { config.Encryption = 99 }, wantErr: format.ErrInvalidEnumValue},
 	}
 
 	for _, tt := range tests {

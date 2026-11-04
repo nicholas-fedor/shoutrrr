@@ -201,8 +201,11 @@ func TestSend(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without a client key or a channel token fails
-// before any request. So does a channel token with a colon or brackets.
+// reading a URL does.
+//
+// A config without a client key or a channel token fails before any request.
+// So does a channel token with a colon or brackets, and a type that is not one
+// of its values.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +218,7 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrClientKeyMissing},
 		{name: "no channel", change: func(config *Config) { config.Channel = "" }, wantErr: ErrChannelMissing},
 		{name: "channel with a port", change: func(config *Config) { config.Channel = "channel:443" }, wantErr: util.ErrInvalidHost},
+		{name: "undefined type", change: func(config *Config) { config.Type = 99 }, wantErr: format.ErrInvalidEnumValue},
 	}
 
 	for _, tt := range tests {

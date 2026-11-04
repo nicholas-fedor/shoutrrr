@@ -554,8 +554,11 @@ func TestSendErrors(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without a valid topic fails before any request.
-// So does a host that is not a hostname or a bracketed IPv6 address.
+// reading a URL does.
+//
+// A config without a valid topic fails before any request. So does a host that
+// is not a hostname or a bracketed IPv6 address, and a priority that is not one
+// of its values.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -569,6 +572,7 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "invalid topic", change: func(config *Config) { config.Topic = "a topic" }, wantErr: ErrInvalidTopic},
 		{name: "unbracketed IPv6 host", change: func(config *Config) { config.Host = "::1" }, wantErr: util.ErrInvalidHost},
 		{name: "non-numeric port", change: func(config *Config) { config.Host = "ntfy.sh:abc" }, wantErr: util.ErrInvalidPort},
+		{name: "undefined priority", change: func(config *Config) { config.Priority = 6 }, wantErr: format.ErrInvalidEnumValue},
 	}
 
 	for _, tt := range tests {

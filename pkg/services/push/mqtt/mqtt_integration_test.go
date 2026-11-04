@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -353,7 +354,10 @@ func TestIntegrationSendErrors(t *testing.T) {
 }
 
 // TestIntegrationSendInvalidQoS verifies that a send with a QoS outside 0 to 2
-// fails with ErrInvalidQoS before it touches the connection.
+// fails before it touches the connection.
+//
+// The error wraps ErrInvalidQoS and format.ErrInvalidEnumValue, as an invalid
+// enum value of any service does.
 func TestIntegrationSendInvalidQoS(t *testing.T) {
 	t.Parallel()
 
@@ -369,7 +373,9 @@ func TestIntegrationSendInvalidQoS(t *testing.T) {
 			service := newMockedService(t, mockBrokerURL, mocks.NewMockConnectionManager(t))
 			service.Config.QoS = qos
 
-			require.ErrorIs(t, service.Send("Test message", nil), mqtt.ErrInvalidQoS)
+			err := service.Send("Test message", nil)
+			require.ErrorIs(t, err, mqtt.ErrInvalidQoS)
+			require.ErrorIs(t, err, format.ErrInvalidEnumValue)
 		})
 	}
 }

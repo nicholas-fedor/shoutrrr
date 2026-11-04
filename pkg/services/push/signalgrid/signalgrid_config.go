@@ -110,14 +110,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.validate()
 }
 
-// validate checks that the config has a client key and a channel token.
+// validate checks that the config has a client key, a channel token, and a
+// defined type.
+//
 // Reading a service URL and each send run it, so a config built in code fails
 // before a request.
 //
 // Returns:
 //   - error: [ErrClientKeyMissing] or [ErrChannelMissing] for a missing
 //     field. A channel token that a URL host cannot hold gives an error
-//     wrapping [util.ErrInvalidHost]. Otherwise nil.
+//     wrapping [util.ErrInvalidHost]. A type that is not one of its values
+//     gives an error wrapping [format.ErrInvalidEnumValue]. Otherwise nil.
 func (c *Config) validate() error {
 	if c.ClientKey == "" {
 		return ErrClientKeyMissing
@@ -129,6 +132,10 @@ func (c *Config) validate() error {
 
 	if err := util.ValidateHostToken(c.Channel); err != nil {
 		return fmt.Errorf("channel token: %w", err)
+	}
+
+	if err := format.CheckEnumValue(NotificationType.Enum, int(c.Type)); err != nil {
+		return fmt.Errorf("type: %w", err)
 	}
 
 	return nil

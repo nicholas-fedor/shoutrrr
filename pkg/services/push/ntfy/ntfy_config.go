@@ -238,7 +238,7 @@ func (c *Config) normalizeScheme() {
 }
 
 // prepare drops the empty tags and actions, as reading a list setting does,
-// then checks the host syntax and the topic.
+// then checks the host syntax, the topic, and the priority.
 //
 // Reading a service URL and each send run it, so a config built in code sends
 // the tags and actions its URL would, and fails before a request as its URL
@@ -249,7 +249,9 @@ func (c *Config) normalizeScheme() {
 //     a hostname or a bracketed IPv6 address. [ErrTopicRequired] for a missing
 //     topic. [ErrInvalidTopic] for an invalid topic name or an empty path
 //     segment. An error wrapping [util.ErrInvalidPathSegment] for a base path
-//     with a "." or ".." segment. Otherwise nil.
+//     with a "." or ".." segment. An error wrapping
+//     [format.ErrInvalidEnumValue] for a priority that is not one of its
+//     values. Otherwise nil.
 func (c *Config) prepare() error {
 	c.Tags = util.NonEmpty(c.Tags)
 	c.Actions = util.NonEmpty(c.Actions)
@@ -260,6 +262,10 @@ func (c *Config) prepare() error {
 
 	if c.Topic == "" {
 		return ErrTopicRequired
+	}
+
+	if err := format.CheckEnumValue(Priority.Enum, int(c.Priority)); err != nil {
+		return fmt.Errorf("priority: %w", err)
 	}
 
 	return validateTopicPath(c.Topic)
