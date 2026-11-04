@@ -186,15 +186,20 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 //
 // Returns:
 //   - error: [ErrHostMissing] for a config without a host. An error wrapping
-//     [util.ErrInvalidPort] for a port that is not a number from 1 to 65535.
-//     [ErrNotEnoughArguments] without the integration ID or the token. An error
-//     wrapping [util.ErrInvalidPathSegment] for an integration ID or token that
-//     is not one segment of the webhook path. [ErrInvalidChannel] for a channel
-//     with a slash. Otherwise nil.
+//     [util.ErrInvalidHost] for a host that holds a port or brackets. An error
+//     wrapping [util.ErrInvalidPort] for a port that is not a number from 1 to
+//     65535. [ErrNotEnoughArguments] without the integration ID or the token.
+//     An error wrapping [util.ErrInvalidPathSegment] for an integration ID or
+//     token that is not one segment of the webhook path. [ErrInvalidChannel]
+//     for a channel with a slash. Otherwise nil.
 func (c *Config) validate() error {
 	// A Rocket.Chat server has no default host.
 	if c.Host == "" {
 		return ErrHostMissing
+	}
+
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
 	}
 
 	if _, err := util.ParseURLPort(c.Port); err != nil {

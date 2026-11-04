@@ -297,9 +297,11 @@ func TestSendOversizedBody(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without a token or a host fails before any
-// request. So do a port out of range, a path prefix with a ".." segment, and
-// an invalid notify service.
+// reading a URL does.
+//
+// A config without a token or a host fails before any request. So does a host
+// that holds a port, and a port out of range. A path prefix with a ".."
+// segment fails too, as does an invalid notify service.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -311,6 +313,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrTokenMissing},
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrHostMissing},
+		{name: "host with a port", change: func(config *Config) { config.Host = "ha.example.com:8123" }, wantErr: util.ErrInvalidHost},
 		{name: "path prefix that walks up", change: func(config *Config) { config.Path = "/ha/../../evil" }, wantErr: util.ErrInvalidPathSegment},
 		{name: "negative port", change: func(config *Config) { config.Port = -1 }, wantErr: ErrInvalidPort},
 		{name: "port above 65535", change: func(config *Config) { config.Port = 65536 }, wantErr: ErrInvalidPort},
@@ -467,9 +470,9 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the API URL
-// unparsable fails the send before any request, without the URL in the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without the URL in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, "homeassistant://s3cret@ha.example.com/SECRETprefix")
@@ -479,8 +482,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETprefix")
 }
 

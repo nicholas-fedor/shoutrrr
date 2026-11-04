@@ -184,8 +184,10 @@ func TestServiceSendRequest(t *testing.T) {
 }
 
 // TestServiceSendChecksConfig verifies that a send checks a config built in
-// code as reading a URL does. A config without a key, token, or webhook path
-// fails before any request, and so does a path with a ".." segment. A config
+// code as reading a URL does.
+//
+// A config without a key, token, or webhook path fails before any request. So
+// does an IPv6 host without brackets, and a path with a ".." segment. A config
 // without a host posts to [DefaultHost].
 func TestServiceSendChecksConfig(t *testing.T) {
 	t.Parallel()
@@ -198,6 +200,8 @@ func TestServiceSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingKey},
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrMissingToken},
+		{name: "IPv6 host without brackets", change: func(config *Config) { config.Host = "2001:db8::1" }, wantErr: util.ErrInvalidHost},
+		{name: "port without a host", change: func(config *Config) { config.Host = ":443" }, wantErr: util.ErrInvalidHost},
 		{name: "no path", change: func(config *Config) { config.Path = "" }, wantErr: ErrMissingPath},
 		{name: "path that walks up", change: func(config *Config) { config.Path = "/v1/spaces/../../evil" }, wantErr: util.ErrInvalidPathSegment},
 	}
@@ -329,22 +333,6 @@ func TestServiceSendContextCanceled(t *testing.T) {
 	require.ErrorIs(t, newTestService(t, client).SendContext(ctx, "message", nil), context.Canceled)
 }
 
-// TestServiceSendInvalidURL verifies that SendContext reports a request URL
-// that cannot be built and does not call the HTTP client.
-func TestServiceSendInvalidURL(t *testing.T) {
-	t.Parallel()
-
-	service := &Service{Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}}
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-
-	err := service.SendContext(t.Context(), "Message", nil)
-
-	urlErr, ok := errors.AsType[*url.Error](err)
-	require.True(t, ok, "error %v is not a *url.Error", err)
-	assert.Equal(t, "parse", urlErr.Op)
-	assert.ErrorContains(t, err, "creating HTTP request")
-}
-
 // TestSetHTTPClient verifies that SetHTTPClient installs a custom client and
 // restores the default client for a nil or typed-nil client.
 func TestSetHTTPClient(t *testing.T) {
@@ -381,9 +369,9 @@ func TestSetHTTPClient(t *testing.T) {
 	}
 }
 
-// TestServiceSendRedactsUnparsableURL verifies that a host that makes the
-// webhook URL unparsable fails the send without the key or token in the error.
-func TestServiceSendRedactsUnparsableURL(t *testing.T) {
+// TestServiceSendRejectsInvalidHost verifies that a host a URL cannot hold
+// fails the send before any request, without the key or token in the error.
+func TestServiceSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := &Service{Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "SECRETkey", Token: "SECRETtoken"}}
@@ -392,8 +380,7 @@ func TestServiceSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETkey")
 	assert.NotContains(t, err.Error(), "SECRETtoken")
 }

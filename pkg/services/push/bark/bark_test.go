@@ -223,8 +223,10 @@ func TestSend(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does, so a config without a device key or a host fails before
-// any request. So does a server path with a ".." segment.
+// reading a URL does.
+//
+// A config without a device key or a host fails before any request. So does an
+// IPv6 host without brackets, and a server path with a ".." segment.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -236,6 +238,8 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingDeviceKey},
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+		{name: "port without a host", change: func(config *Config) { config.Host = ":8080" }, wantErr: ErrMissingHost},
+		{name: "IPv6 host without brackets", change: func(config *Config) { config.Host = "2001:db8::1" }, wantErr: util.ErrInvalidHost},
 		{name: "server path that walks up", change: func(config *Config) { config.Path = "/base/../.." }, wantErr: util.ErrInvalidPathSegment},
 	}
 
@@ -656,9 +660,9 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the API URL
-// unparsable fails the send before any request, without the URL in the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without the URL in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, "bark://:devicekey@bark.example.com/SECRETpath")
@@ -668,8 +672,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETpath")
 }
 

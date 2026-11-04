@@ -228,20 +228,28 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.validate()
 }
 
-// validate checks that the config has the device key and the host a push
-// needs. Reading a service URL and each send run it, so a config built in code
-// fails before a request.
+// validate checks that the config has the device key and the host a push needs.
+//
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
 //
 // Returns:
 //   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field. An
-//     error wrapping [util.ErrInvalidPathSegment] for a server path with a "."
-//     or ".." segment. Otherwise nil.
+//     error wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host
+//     that a URL cannot hold. An error wrapping [util.ErrInvalidPathSegment]
+//     for a server path with a "." or ".." segment. Otherwise nil.
 func (c *Config) validate() error {
 	if c.DeviceKey == "" {
 		return ErrMissingDeviceKey
 	}
 
-	if c.Host == "" {
+	// The host may carry a port, so a port alone names no host.
+	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" {
 		return ErrMissingHost
 	}
 

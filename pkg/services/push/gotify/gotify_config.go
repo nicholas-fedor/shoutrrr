@@ -239,17 +239,25 @@ func (c *Config) tokenPath() string {
 	return c.Path + "/" + c.Token
 }
 
-// validate checks the host and the token that every request needs. Reading a
-// service URL and each send run it, so a config built in code fails before a
-// request. A Gotify server has no default host.
+// validate checks the host and the token that every request needs.
+//
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request. A Gotify server has no default host.
 //
 // Returns:
 //   - error: [ErrHostMissing] for a config without a host name. An error
-//     wrapping [util.ErrInvalidPathSegment] for a subpath with a "." or ".."
-//     segment. [ErrInvalidToken] for a missing token or one in neither Gotify
-//     token format. Otherwise nil.
+//     wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host that
+//     a URL cannot hold. An error wrapping [util.ErrInvalidPathSegment] for a
+//     subpath with a "." or ".." segment. [ErrInvalidToken] for a missing
+//     token or one in neither Gotify token format. Otherwise nil.
 func (c *Config) validate() error {
-	if (&url.URL{Host: c.Host}).Hostname() == "" {
+	// The host may carry a port, so a port alone names no host.
+	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" {
 		return ErrHostMissing
 	}
 

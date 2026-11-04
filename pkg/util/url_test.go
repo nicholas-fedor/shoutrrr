@@ -135,7 +135,8 @@ func TestURLUserPassword_Integration(t *testing.T) {
 //
 // It rejects an unbracketed host with several colons and a port that is not a
 // number, which url.Parse either splits at the wrong colon or only lets through
-// in a hand-built URL. It also rejects a port outside 1 to 65535.
+// in a hand-built URL. It also rejects a port outside 1 to 65535, and brackets
+// around anything but an IPv6 address, as url.Parse does.
 func TestSplitURLHost(t *testing.T) {
 	t.Parallel()
 
@@ -158,10 +159,19 @@ func TestSplitURLHost(t *testing.T) {
 		{name: "bracketed IPv6 and port", host: "[2001:db8::1]:8443", wantHost: "2001:db8::1", wantPort: "8443"},
 		{name: "bracketed IPv6 and empty port", host: "[::1]:", wantHost: "::1"},
 		{name: "bracketed IPv6 with a zone", host: "[fe80::1%en0]:80", wantHost: "fe80::1%en0", wantPort: "80"},
+		{name: "bracketed IPv6 with a VLAN zone", host: "[fe80::1%eth0.10]", wantHost: "fe80::1%eth0.10"},
+		{name: "bracketed IPv6 with a slash in its zone", host: "[fe80::1%a/b]:80", wantErr: ErrInvalidHost},
+		{name: "bracketed IPv6 with a non-ASCII zone", host: "[fe80::1%\u00fc]", wantErr: ErrInvalidHost},
 		{name: "unbracketed IPv6", host: "::1", wantErr: ErrInvalidHost},
 		{name: "unbracketed IPv6 and port", host: "2001:db8::1:8443", wantErr: ErrInvalidHost},
 		{name: "unclosed bracket", host: "[::1", wantErr: ErrInvalidHost},
 		{name: "text after the bracket", host: "[::1]x", wantErr: ErrInvalidHost},
+		{name: "bracketed hostname", host: "[srv.example]", wantErr: ErrInvalidHost},
+		{name: "bracketed hostname and port", host: "[ha.local:8123]", wantErr: ErrInvalidHost},
+		{name: "bracketed IPv4", host: "[192.0.2.1]:80", wantErr: ErrInvalidHost},
+		{name: "bracketed IPv4-mapped IPv6", host: "[::ffff:192.0.2.1]", wantHost: "::ffff:192.0.2.1"},
+		{name: "host with a slash", host: "srv/evil:80", wantErr: ErrInvalidHost},
+		{name: "host with an at sign", host: "user@srv", wantErr: ErrInvalidHost},
 		{name: "non-numeric port", host: "example.com:abc", wantErr: ErrInvalidPort},
 		{name: "non-numeric port after IPv6", host: "[::1]:abc", wantErr: ErrInvalidPort},
 		{name: "highest port", host: "example.com:65535", wantHost: "example.com", wantPort: "65535"},
@@ -230,6 +240,23 @@ func TestSplitURLHostPort(t *testing.T) {
 			assert.Equal(t, tt.wantHost, host)
 			assert.Equal(t, tt.wantPort, port)
 		})
+	}
+}
+
+// TestValidateHostName verifies that a hostname kept apart from its port may
+// hold a colon only as an IPv6 address.
+//
+// A bracket, a slash, or an at sign fails too, since a URL host cannot hold
+// one. The same holds for such a character in an IPv6 zone.
+func TestValidateHostName(t *testing.T) {
+	t.Parallel()
+
+	for _, host := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "fe80::1%en0", "fe80::1%eth0.10"} {
+		require.NoError(t, ValidateHostName(host), host)
+	}
+
+	for _, host := range []string{"srv.example:443", "[2001:db8::1]", "192.0.2.1:80", "srv[1]", "srv/evil", "user@srv", "fe80::1%a/b", "fe80::1%a@b"} {
+		require.ErrorIs(t, ValidateHostName(host), ErrInvalidHost, host)
 	}
 }
 

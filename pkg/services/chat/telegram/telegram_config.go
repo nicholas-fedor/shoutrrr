@@ -205,15 +205,19 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validateAPIURL checks that an API URL is an http or https URL with a host
-// name, not only a port. The bot token and method are appended to its path, so
-// it cannot carry a query or a fragment, even an empty one, and credentials
-// belong in the token, not in userinfo.
+// name.
+//
+// A port must be a number from 1 to 65535. The bot token and method are
+// appended to the URL's path, so it cannot carry a query or a fragment, even an
+// empty one. Credentials belong in the token, not in userinfo.
 //
 // Parameters:
 //   - rawURL: the API URL, or empty for the default.
 //
 // Returns:
-//   - error: [ErrInvalidAPIURL] with the reason, or nil for a valid or empty URL.
+//   - error: [ErrInvalidAPIURL] with the reason, also wrapping
+//     [util.ErrInvalidPort] for a port outside 1 to 65535, or nil for a valid
+//     or empty URL.
 func validateAPIURL(rawURL string) error {
 	if rawURL == "" {
 		return nil
@@ -235,6 +239,10 @@ func validateAPIURL(rawURL string) error {
 	case apiURL.RawQuery != "" || apiURL.ForceQuery || strings.Contains(rawURL, "#"):
 		return fmt.Errorf("%w: the URL cannot hold a query or a fragment", ErrInvalidAPIURL)
 	default:
+		if _, _, err := util.SplitURLHost(apiURL); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidAPIURL, err)
+		}
+
 		return nil
 	}
 }

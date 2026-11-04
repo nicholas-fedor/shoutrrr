@@ -807,8 +807,10 @@ func TestSendWarnsPlaintext(t *testing.T) {
 }
 
 // TestAPIURLValidation verifies that an API URL must be an http or https URL
-// with a host and without userinfo, a query, or a fragment, both in the
-// service URL and in the send params, and that a rejected URL makes no request.
+// with a host and a port from 1 to 65535 if any.
+//
+// It cannot hold userinfo, a query, or a fragment. Both the service URL and the
+// send params are checked, and a rejected URL makes no request.
 func TestAPIURLValidation(t *testing.T) {
 	t.Parallel()
 
@@ -823,6 +825,8 @@ func TestAPIURLValidation(t *testing.T) {
 		"fragment":       "https://tg.example.com/#top",
 		"empty fragment": "https://tg.example.com/#",
 		"does not parse": "https://tg.example.com:port",
+		"port 0":         "http://localhost:0",
+		"port too high":  "http://localhost:65536",
 	}
 
 	for name, apiURL := range invalid {

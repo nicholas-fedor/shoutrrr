@@ -290,19 +290,24 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.prepare()
 }
 
-// validate checks the port, the source, and the recipients that every message
-// needs, and the text mode.
+// validate checks the host, the port, the source, and the recipients that every
+// message needs, and the text mode.
 //
 // Reading a service URL and each send run it, so a config built in code, or
 // one whose port or recipients a param changed, fails before a request.
 //
 // Returns:
-//   - error: [util.ErrInvalidPort] for a port outside 1 to 65535, or
-//     [ErrInvalidPhoneNumber] for an invalid source. [ErrNoRecipients] or
+//   - error: an error wrapping [util.ErrInvalidHost] for a host that holds a
+//     port or brackets. [util.ErrInvalidPort] for a port outside 1 to 65535,
+//     or [ErrInvalidPhoneNumber] for an invalid source. [ErrNoRecipients] or
 //     [ErrInvalidRecipient] for missing or invalid recipients. An error
 //     wrapping [format.ErrInvalidEnumValue] for a text mode that is not one
 //     of its values. Otherwise nil.
 func (c *Config) validate() error {
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
 	if err := util.ValidatePort(c.Port); err != nil {
 		return err
 	}

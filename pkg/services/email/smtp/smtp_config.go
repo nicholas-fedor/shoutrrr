@@ -340,13 +340,18 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: [ErrHostMissing], [ErrFromAddressMissing], [ErrToAddressMissing],
-//     an error for an address with a line break, an error wrapping
+//     an error wrapping [util.ErrInvalidHost] for a host that holds a port or
+//     brackets, an error for an address with a line break, an error wrapping
 //     [format.ErrInvalidEnumValue] for an undefined method,
 //     [ErrInvalidOAuth2Refresh] for invalid refresh settings, or nil.
 func (c *Config) validate() error {
 	// An SMTP server has no default host.
 	if c.Host == "" {
 		return ErrHostMissing
+	}
+
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
 	}
 
 	if c.FromAddress == "" {

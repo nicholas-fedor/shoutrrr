@@ -24,6 +24,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // fakeHomeserver answers Matrix API requests and counts password logins.
@@ -871,8 +872,10 @@ func TestSendRejectsInvalidParamBeforeLogin(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without credentials or a homeserver host fails
-// before the login makes any request.
+// reading a URL does.
+//
+// A config without credentials or a homeserver host fails before the login
+// makes any request. So does a homeserver port outside 1 to 65535.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -884,7 +887,9 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingCredentials},
 		{name: "no password", change: func(config *Config) { config.Password = "" }, wantErr: ErrMissingCredentials},
+		{name: "port out of range", change: func(config *Config) { config.Host = "matrix.example.com:99999" }, wantErr: util.ErrInvalidPort},
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+		{name: "port without a host", change: func(config *Config) { config.Host = ":8448" }, wantErr: ErrMissingHost},
 	}
 
 	for _, tt := range tests {

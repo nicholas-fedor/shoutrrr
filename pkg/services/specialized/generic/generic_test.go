@@ -21,6 +21,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -342,6 +343,8 @@ func TestSend(t *testing.T) {
 // TestSendChecksConfig verifies that a send with a config built in code
 // without a webhook fails before any request, as reading a URL without a host
 // does.
+//
+// So does a webhook whose IPv6 host has no brackets.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -350,6 +353,10 @@ func TestSendChecksConfig(t *testing.T) {
 	service.Config = &Config{}
 
 	require.ErrorIs(t, service.Send("Message", nil), ErrHostMissing)
+
+	service.Config = &Config{webhookURL: &url.URL{Scheme: "https", Host: "2001:db8::1", Path: "/webhook"}}
+
+	require.ErrorIs(t, service.Send("Message", nil), util.ErrInvalidHost)
 }
 
 // TestSendLeavesParamsAndConfigUnchanged verifies that a send neither adds the
@@ -645,22 +652,16 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
-// unparsable fails the send before any request, without the credentials in
-// the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestInitializeRejectsInvalidHost verifies that a webhook host a URL cannot
+// hold fails when the URL is read, without the credentials in the error.
+func TestInitializeRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
-	service := &Service{}
 	serviceURL := &url.URL{Scheme: "generic", Host: "bad host", Path: "/hook", User: url.UserPassword("user", "SECRETpassword")}
-	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
-	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
-	err := service.Send("message", nil)
+	err := (&Service{}).Initialize(serviceURL, log.New(t.Output(), "", 0))
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETpassword")
 }
 

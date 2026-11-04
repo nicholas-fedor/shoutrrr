@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -329,8 +329,10 @@ func TestSend(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. A config without an API key fails before any request,
-// and one without a host or port posts to the default API.
+// reading a URL does.
+//
+// A config without an API key fails before any request, and so does a host
+// that holds a port. One without a host or port posts to the default API.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -343,6 +345,17 @@ func TestSendChecksConfig(t *testing.T) {
 		*service.Config = Config{}
 
 		require.ErrorIs(t, service.Send("Message", nil), ErrAPIKeyMissing)
+	})
+
+	t.Run("host with a port", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		service.Config.Host = "api.opsgenie.com:443"
+
+		require.ErrorIs(t, service.Send("Message", nil), util.ErrInvalidHost)
 	})
 
 	t.Run("no host or port", func(t *testing.T) {
@@ -477,10 +490,9 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the alerts URL
-// unparsable fails the send before any request, without the host in the
-// error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without the host in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
@@ -490,8 +502,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRET")
 }
 

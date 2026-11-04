@@ -173,15 +173,22 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 	return c.prepare()
 }
 
-// validate checks the integration key, the severity, and the event action of
-// every event. Reading a service URL and each send run it, so a config built in
-// code or changed by a param fails before a request.
+// validate checks the host, the integration key, the severity, and the event
+// action of every event.
+//
+// Reading a service URL and each send run it, so a config built in code or
+// changed by a param fails before a request.
 //
 // Returns:
-//   - error: an error for a missing integration key or one that is not 32
-//     hexadecimal characters. Otherwise an error for a severity or event
+//   - error: an error wrapping [util.ErrInvalidHost] for a host that holds a
+//     port or brackets. An error for a missing integration key or one that is
+//     not 32 hexadecimal characters. Otherwise an error for a severity or event
 //     action that PagerDuty does not accept, or nil.
 func (c *Config) validate() error {
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
 	if c.IntegrationKey == "" {
 		return errMissingIntegrationKey
 	}

@@ -265,6 +265,10 @@ func (c *Config) validate() error {
 		return ErrMissingHost
 	}
 
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
 	if c.User == "" {
 		return ErrMissingUser
 	}

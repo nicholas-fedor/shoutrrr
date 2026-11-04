@@ -32,6 +32,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // fakeSMTP is an SMTP server that answers each client command from a script,
@@ -375,8 +376,9 @@ func TestSendContextErrors(t *testing.T) {
 // its params, as reading a URL does.
 //
 // A config without a host, a sender, or a recipient fails before the dial. So
-// does an address with a line break, and an authentication or encryption method
-// that is not one of its values. Incomplete OAuth2 refresh settings fail before
+// does a host that holds a port, and an address with a line break. An
+// authentication or encryption method that is not one of its values fails
+// too. Incomplete OAuth2 refresh settings fail before
 // any token request. An empty client host uses localhost. An unknown auth
 // method from a param is inferred, as one in a URL is.
 func TestSendChecksConfig(t *testing.T) {
@@ -392,6 +394,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
 		{name: "no recipients", change: func(config *Config) { config.ToAddresses = nil }, wantErr: ErrToAddressMissing},
+		{name: "host with a port", change: func(config *Config) { config.Host = "mail.example.com:587" }, wantErr: util.ErrInvalidHost},
 		{name: "blank sender param", params: &types.Params{"fromaddress": " "}, wantErr: ErrFromAddressMissing},
 		{name: "empty sender param", params: &types.Params{"fromaddress": ""}, wantErr: ErrFromAddressMissing},
 		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Refresh},

@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -195,17 +196,26 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks that the config has credentials and names a homeserver.
+//
 // An empty password or access token cannot authenticate.
 //
 // Returns:
 //   - error: [ErrMissingCredentials] for a config without a password or
-//     access token, [ErrMissingHost] for a config without a host, or nil.
+//     access token, or [ErrMissingHost] for a config without a host. An error
+//     wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host that
+//     a URL cannot hold. Otherwise nil.
 func (c *Config) validate() error {
 	if c.Password == "" {
 		return ErrMissingCredentials
 	}
 
-	if c.Host == "" {
+	// The host may carry a port, so a port alone names no host.
+	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" {
 		return ErrMissingHost
 	}
 

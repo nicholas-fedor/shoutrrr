@@ -2,7 +2,6 @@ package zulip
 
 import (
 	"fmt"
-	"net/netip"
 	"net/url"
 	"strings"
 
@@ -221,22 +220,14 @@ func validateHost(host string) error {
 		return err
 	}
 
-	bracketed := strings.HasPrefix(host, "[")
-
-	// An IPv4 address starts with a digit and an IPv6 address holds a colon,
-	// so a host name that does neither skips the parse and its error.
-	if name != "" && ('0' <= name[0] && name[0] <= '9' || strings.Contains(name, ":")) {
-		if addr, parseErr := netip.ParseAddr(name); parseErr == nil {
-			// URLs bracket IPv6 addresses and only IPv6 addresses.
-			if addr.Is6() != bracketed {
-				return util.ErrInvalidHost
-			}
-
-			return nil
-		}
+	// SplitURLHost accepts brackets only around an IPv6 address, and an
+	// unbracketed host with a colon only before its port.
+	if strings.HasPrefix(host, "[") {
+		return nil
 	}
 
-	if bracketed || !isHostName(name) {
+	// An IPv4 address reads as a host name of digit labels.
+	if !isHostName(name) {
 		return util.ErrInvalidHost
 	}
 

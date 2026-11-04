@@ -188,10 +188,11 @@ func (c *Config) impliedPort() int {
 //
 // Returns:
 //   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field. An
-//     error wrapping [ErrInvalidPort] for a port outside 0 to 65535. An error
-//     wrapping [util.ErrInvalidPathSegment] for a path prefix with a "." or
-//     ".." segment. [ErrInvalidService] for an invalid notify service.
-//     Otherwise nil.
+//     error wrapping [util.ErrInvalidHost] for a host that holds a port or
+//     brackets. An error wrapping [ErrInvalidPort] for a port outside 0 to
+//     65535. An error wrapping [util.ErrInvalidPathSegment] for a path prefix
+//     with a "." or ".." segment. [ErrInvalidService] for an invalid notify
+//     service. Otherwise nil.
 func (c *Config) prepare() error {
 	c.Targets = util.NonEmpty(c.Targets)
 
@@ -201,6 +202,10 @@ func (c *Config) prepare() error {
 
 	if c.Host == "" {
 		return ErrHostMissing
+	}
+
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
 	}
 
 	if c.Port != 0 {

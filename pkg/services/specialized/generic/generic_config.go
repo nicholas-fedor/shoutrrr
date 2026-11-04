@@ -295,18 +295,30 @@ func maskedValues(values map[string]string) map[string]string {
 	return masked
 }
 
-// validateWebhook checks that a webhook URL has a host to send to. Reading a
-// service URL checks the URL first, so a rejected URL leaves the config
-// unchanged. Each send checks the config's webhook URL, so a config built in
-// code fails before a request.
+// validateWebhook checks that a webhook URL has a host to send to.
+//
+// Reading a service URL checks the URL first, so a rejected URL leaves the
+// config unchanged. Each send checks the config's webhook URL, so a config
+// built in code fails before a request.
 //
 // Parameters:
 //   - webhookURL: the webhook URL, or nil for a config built in code.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a webhook URL without a host, or nil.
+//   - error: [ErrHostMissing] for a webhook URL without a host. An error
+//     wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host that
+//     a URL cannot hold. Otherwise nil.
 func validateWebhook(webhookURL *url.URL) error {
-	if webhookURL == nil || webhookURL.Hostname() == "" {
+	if webhookURL == nil {
+		return ErrHostMissing
+	}
+
+	host, _, err := util.SplitURLHost(webhookURL)
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" {
 		return ErrHostMissing
 	}
 
