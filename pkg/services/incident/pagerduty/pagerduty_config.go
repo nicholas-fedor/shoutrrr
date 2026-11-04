@@ -3,7 +3,6 @@ package pagerduty
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -98,13 +97,14 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: The service URL.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	port := ""
-	if c.Port > 0 && c.Port != defaultPort {
-		port = strconv.FormatUint(uint64(c.Port), 10)
+	// The default port is left out, as a URL without a port reads back with it.
+	port := int(c.Port)
+	if port == defaultPort {
+		port = 0
 	}
 
 	return &url.URL{
-		Host:     util.JoinURLHost(c.Host, port),
+		Host:     util.JoinURLHostPort(c.Host, port),
 		Path:     "/" + c.IntegrationKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
@@ -142,28 +142,20 @@ func (c *Config) prepare() error {
 //
 // Returns:
 //   - error: a host that is not a hostname or a bracketed IPv6 address
-//     ([util.ErrInvalidHost]), an invalid port, a malformed query
+//     ([util.ErrInvalidHost]), a port that is not a number from 1 to 65535
+//     ([util.ErrInvalidPort]), a malformed query
 //     ([util.ErrInvalidQuery]), or a query prop error. Otherwise the error from
 //     the config's checks, such as a missing integration key.
 func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	c.IntegrationKey = strings.TrimPrefix(serviceURL.Path, "/")
 
-	host, port, err := util.SplitURLHost(serviceURL)
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-	c.Port = 0
-
-	if port != "" {
-		portNumber, err := strconv.ParseUint(port, 10, 16)
-		if err != nil {
-			return fmt.Errorf("failed to parse port: %w", err)
-		}
-
-		c.Port = uint16(portNumber)
-	}
+	c.Port = port
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {

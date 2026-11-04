@@ -272,6 +272,10 @@ const (
 	checkEmptyListElements = "empty_list_elements"
 )
 
+// checkURLPortRange verifies that a service whose URL host is its server
+// rejects a URL port outside 1 to 65535.
+const checkURLPortRange = "url_port_range"
+
 // Checks that run against the services that let users skip TLS certificate
 // verification over HTTP.
 const (
@@ -323,6 +327,7 @@ const (
 	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
 	failPathSegmentLeft                         // a config value left its segment of a request path
 	failEmptyElementKept                        // a list with an empty element read back or sent unlike the list without it
+	failPortAccepted                            // a URL port outside 1 to 65535 was read, or rejected without util.ErrInvalidPort
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -586,6 +591,15 @@ var fixtures = []fixture{
 // its audit finding. Fixing a failure must remove its entry, because
 // TestIntegrationContract fails if an allowlisted case passes.
 var allowlist = map[string]map[string]knownFailure{
+	checkURLPortRange: {
+		"bark":       {"Bark reads its URL host as written", failPortAccepted},
+		"generic":    {"Generic reads its URL host as written", failPortAccepted},
+		"googlechat": {"Google Chat reads its URL host as written", failPortAccepted},
+		"gotify":     {"Gotify reads its URL host as written", failPortAccepted},
+		"hangouts":   {"Google Chat reads its URL host as written", failPortAccepted},
+		"matrix":     {"Matrix reads its URL host as written", failPortAccepted},
+		"mattermost": {"Mattermost reads its URL host as written", failPortAccepted},
+	},
 	checkSendUsesContext: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.
@@ -785,6 +799,54 @@ func TestIntegrationIPv6Hosts(t *testing.T) {
 			service, err := serviceRouter.Locate(withURLHost(t, fixtureURL, "2001:db8::1"))
 			closeService(t, service)
 			require.ErrorIs(t, err, util.ErrInvalidHost)
+		})
+	}
+}
+
+// TestIntegrationURLPortRange verifies that every service whose URL host is
+// the server it connects to rejects a URL port outside 1 to 65535.
+//
+// Port 0 is reserved and a port is a 16-bit number, so no such URL can reach a
+// server. Ports 0 and 65536 must each fail with [util.ErrInvalidPort], and a
+// port inside the range must still read. Known failures are listed in
+// [allowlist], as in [TestIntegrationContract].
+func TestIntegrationURLPortRange(t *testing.T) {
+	t.Parallel()
+
+	// serverHostSchemes lists the schemes whose URL host is the server they
+	// connect to, including those that read their host as written.
+	serverHostSchemes := []string{
+		"bark", "generic", "googlechat", "gotify", "hangouts", "homeassistant", "matrix", "mattermost", "mqtt",
+		"mqtts", "ntfy", "opsgenie", "pagerduty", "rocketchat", "signal", "smtp", "xmpp", "xmpps", "zulip",
+	}
+
+	for _, scheme := range serverHostSchemes {
+		t.Run(scheme, func(t *testing.T) {
+			t.Parallel()
+
+			fixtureURL := fixtureURLFor(t, scheme)
+
+			parsed, err := url.Parse(fixtureURL)
+			require.NoError(t, err)
+
+			// locate reads the fixture's URL with port as its port.
+			locate := func(port string) error {
+				_, err := locateDefault(t, withURLHost(t, fixtureURL, parsed.Hostname()+":"+port), log.New(io.Discard, "", 0))
+
+				return err
+			}
+
+			require.NoError(t, locate("8443"))
+
+			var result failure
+
+			for _, port := range []string{"0", "65536"} {
+				if err := locate(port); !errors.Is(err, util.ErrInvalidPort) {
+					result = fail(failPortAccepted, "port %s read with error %v, want util.ErrInvalidPort", port, err)
+				}
+			}
+
+			assertContract(t, checkURLPortRange, scheme, result)
 		})
 	}
 }

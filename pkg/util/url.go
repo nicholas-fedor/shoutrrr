@@ -10,6 +10,9 @@ import (
 	"unicode/utf8"
 )
 
+// maxPort is the highest TCP port number.
+const maxPort = 65535
+
 // Errors for a URL whose authority, path, or query does not parse, or for a
 // value that does not fit its part of a URL.
 var (
@@ -60,6 +63,10 @@ func URLUserPassword(user, password string) *url.Userinfo {
 // non-numeric port of a hand-built URL in the hostname, so both are rejected
 // here rather than read as a different host.
 //
+// A port must be a number from 1 to 65535, as [ParseURLPort] reads it. Port 0
+// is reserved and a port is a 16-bit number, so no other port reaches a
+// server.
+//
 // Parameters:
 //   - serviceURL: the URL whose Host to split.
 //
@@ -67,38 +74,53 @@ func URLUserPassword(user, password string) *url.Userinfo {
 //   - host: the hostname, without brackets, or "" when the URL has none.
 //   - port: the decimal port, or "" when the URL has none.
 //   - err: [ErrInvalidHost] for an unbracketed host with several colons or a
-//     malformed bracket, or [ErrInvalidPort] for a port that is not a number.
+//     malformed bracket, or an error wrapping [ErrInvalidPort] for a port that
+//     is not a number from 1 to 65535.
 func SplitURLHost(serviceURL *url.URL) (host, port string, err error) { //nolint:nonamedreturns // Same-type returns need names.
-	authority := serviceURL.Host
-
-	if rest, bracketed := strings.CutPrefix(authority, "["); bracketed {
-		var found bool
-		if host, rest, found = strings.Cut(rest, "]"); !found {
-			return "", "", ErrInvalidHost
-		}
-
-		if rest != "" {
-			if port, found = strings.CutPrefix(rest, ":"); !found {
-				return "", "", ErrInvalidHost
-			}
-		}
-	} else {
-		if strings.Count(authority, ":") > 1 {
-			return "", "", ErrInvalidHost
-		}
-
-		host, port, _ = strings.Cut(authority, ":")
+	host, port, err = splitAuthority(serviceURL.Host)
+	if err != nil {
+		return "", "", err
 	}
 
-	if strings.Trim(port, "0123456789") != "" {
-		return "", "", ErrInvalidPort
+	if _, err := ParseURLPort(port); err != nil {
+		return "", "", err
 	}
 
 	return host, port, nil
 }
 
-// ParseURLPort reads a URL port as a TCP port number. The port is the decimal
-// text [SplitURLHost] returns.
+// SplitURLHostPort splits the authority of serviceURL into its hostname and
+// port number.
+//
+// It reads the authority as [SplitURLHost] does, for a service that keeps its
+// port as a number.
+//
+// Parameters:
+//   - serviceURL: the URL whose Host to split.
+//
+// Returns:
+//   - string: the hostname, without brackets, or "" when the URL has none.
+//   - uint16: the port, or 0 when the URL has none.
+//   - error: the error [SplitURLHost] returns for the authority.
+func SplitURLHostPort(serviceURL *url.URL) (string, uint16, error) {
+	host, port, err := splitAuthority(serviceURL.Host)
+	if err != nil {
+		return "", 0, err
+	}
+
+	number, err := ParseURLPort(port)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return host, number, nil
+}
+
+// ParseURLPort reads the text of a URL port as a TCP port number.
+//
+// [SplitURLHost] reads a URL's port with it, and a service whose config holds
+// the port as text checks a port set in code with it. The number must pass
+// [ValidatePort].
 //
 // Parameters:
 //   - port: the decimal port, or "" when the URL has none.
@@ -113,11 +135,35 @@ func ParseURLPort(port string) (uint16, error) {
 	}
 
 	number, err := strconv.ParseUint(port, 10, 16)
-	if err != nil || number == 0 {
+	if err != nil {
 		return 0, fmt.Errorf("%w: %q must be 1 to 65535", ErrInvalidPort, port)
 	}
 
+	if err := ValidatePort(int(number)); err != nil {
+		return 0, err
+	}
+
 	return uint16(number), nil
+}
+
+// ValidatePort checks that a port number can reach a server.
+//
+// A port is a 16-bit number and port 0 is reserved. A port must therefore be
+// 1 to 65535. A service whose config holds the port as a number checks a port set
+// in code with it, as reading a URL checks one.
+//
+// Parameters:
+//   - port: the port.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidPort] for a port outside 1 to 65535,
+//     or nil.
+func ValidatePort(port int) error {
+	if port < 1 || port > maxPort {
+		return fmt.Errorf("%w: %d must be 1 to 65535", ErrInvalidPort, port)
+	}
+
+	return nil
 }
 
 // ValidateHostToken checks a token that a service URL carries as its host as
@@ -285,6 +331,26 @@ func JoinURLHost(host, port string) string {
 	return host
 }
 
+// JoinURLHostPort writes host and a port number as a URL authority, as
+// [JoinURLHost] does.
+//
+// Port 0 stands for no port, so a config without one writes a URL that reads
+// back with its default port.
+//
+// Parameters:
+//   - host: the hostname or IP address, without brackets.
+//   - port: the port, or 0 for none.
+//
+// Returns:
+//   - string: the authority, such as example.com:8080 or [::1].
+func JoinURLHostPort(host string, port int) string {
+	if port == 0 {
+		return JoinURLHost(host, "")
+	}
+
+	return JoinURLHost(host, strconv.Itoa(port))
+}
+
 // ParseURLQuery parses the query of serviceURL.
 //
 // [url.URL.Query] silently drops each pair it cannot parse, so a setting with a
@@ -325,4 +391,40 @@ func isHostTokenByte(c byte) bool {
 	default:
 		return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9'
 	}
+}
+
+// splitAuthority splits a URL authority into its hostname and port text, as
+// [SplitURLHost] describes, without reading the port as a number.
+//
+// Parameters:
+//   - authority: the URL's Host.
+//
+// Returns:
+//   - host: the hostname, without brackets.
+//   - port: the text after the port colon, or "".
+//   - err: [ErrInvalidHost] for an unbracketed host with several colons or a
+//     malformed bracket.
+func splitAuthority(authority string) (host, port string, err error) { //nolint:nonamedreturns // Same-type returns need names.
+	if rest, bracketed := strings.CutPrefix(authority, "["); bracketed {
+		var found bool
+		if host, rest, found = strings.Cut(rest, "]"); !found {
+			return "", "", ErrInvalidHost
+		}
+
+		if rest != "" {
+			if port, found = strings.CutPrefix(rest, ":"); !found {
+				return "", "", ErrInvalidHost
+			}
+		}
+
+		return host, port, nil
+	}
+
+	if strings.Count(authority, ":") > 1 {
+		return "", "", ErrInvalidHost
+	}
+
+	host, port, _ = strings.Cut(authority, ":")
+
+	return host, port, nil
 }

@@ -2,10 +2,8 @@ package zulip
 
 import (
 	"fmt"
-	"net"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -130,7 +128,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	c.BotMail = serviceURL.User.Username()
 	c.BotKey, _ = serviceURL.User.Password()
+
+	// A host that splits is stored without an empty port, so a URL ending in
+	// a colon reads as the host alone. One that does not split is kept as
+	// written for the config's checks to reject.
 	c.Host = serviceURL.Host
+	if host, port, err := util.SplitURLHost(serviceURL); err == nil {
+		c.Host = util.JoinURLHost(host, port)
+	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -151,6 +156,7 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 }
 
 // validate checks the bot's credentials, the host, and the message type.
+//
 // Zulip authenticates each request with the bot's e-mail address and API key.
 // Reading a service URL and each send run it, so a config built in code or
 // changed by a param fails before a request.
@@ -158,7 +164,8 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 // Returns:
 //   - error: [ErrMissingBotMail], [ErrMissingAPIKey], or [ErrMissingHost] for
 //     a missing field. A host that is not a host name or address with an
-//     optional port from 1 to 65535 gives [ErrInvalidHost]. An unsupported
+//     optional port gives an error wrapping [ErrInvalidHost], and also
+//     [util.ErrInvalidPort] for a port outside 1 to 65535. An unsupported
 //     message type gives [ErrInvalidMessageType]. Otherwise nil.
 func (c *Config) validate() error {
 	if c.BotMail == "" {
@@ -173,8 +180,8 @@ func (c *Config) validate() error {
 		return ErrMissingHost
 	}
 
-	if !isValidHost(c.Host) {
-		return fmt.Errorf("%w: %q", ErrInvalidHost, c.Host)
+	if err := validateHost(c.Host); err != nil {
+		return fmt.Errorf("%w: %q: %w", ErrInvalidHost, c.Host, err)
 	}
 
 	return ValidateMessageType(c.Type)
@@ -197,52 +204,43 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	return &config, err
 }
 
-// isValidHost reports whether the host is a host name, an IPv4 address, or a
-// bracketed IPv6 address, with an optional port from 1 to 65535.
+// validateHost checks that the host is a host name, an IPv4 address, or a
+// bracketed IPv6 address, with an optional port.
+//
+// The port follows the URL port rule, a number from 1 to 65535.
 //
 // Parameters:
 //   - host: the host, as in a URL authority.
 //
 // Returns:
-//   - bool: true for a valid host.
-func isValidHost(host string) bool {
+//   - error: an error wrapping [util.ErrInvalidPort] for a port outside 1 to
+//     65535, [util.ErrInvalidHost] for any other invalid host, or nil.
+func validateHost(host string) error {
+	name, _, err := util.SplitURLHost(&url.URL{Host: host})
+	if err != nil {
+		return err
+	}
+
 	bracketed := strings.HasPrefix(host, "[")
-	name, port, split := host, "", false
-
-	// A port follows the last colon only when no closing bracket comes after
-	// it, so a host without a port skips the split and its error.
-	if strings.LastIndexByte(host, ':') > strings.LastIndexByte(host, ']') {
-		var err error
-
-		name, port, err = net.SplitHostPort(host)
-		split = err == nil
-	}
-
-	if !split {
-		name = host
-
-		if bracketed {
-			inner, ok := strings.CutSuffix(strings.TrimPrefix(host, "["), "]")
-			if !ok {
-				return false
-			}
-
-			name = inner
-		}
-	} else if number, parseErr := strconv.ParseUint(port, 10, 16); parseErr != nil || number == 0 {
-		return false
-	}
 
 	// An IPv4 address starts with a digit and an IPv6 address holds a colon,
 	// so a host name that does neither skips the parse and its error.
 	if name != "" && ('0' <= name[0] && name[0] <= '9' || strings.Contains(name, ":")) {
 		if addr, parseErr := netip.ParseAddr(name); parseErr == nil {
 			// URLs bracket IPv6 addresses and only IPv6 addresses.
-			return addr.Is6() == bracketed
+			if addr.Is6() != bracketed {
+				return util.ErrInvalidHost
+			}
+
+			return nil
 		}
 	}
 
-	return !bracketed && isHostName(name)
+	if bracketed || !isHostName(name) {
+		return util.ErrInvalidHost
+	}
+
+	return nil
 }
 
 // isHostName reports whether name is a host name of one or more DNS labels

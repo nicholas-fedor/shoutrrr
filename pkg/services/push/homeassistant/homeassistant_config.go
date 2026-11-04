@@ -2,10 +2,8 @@ package homeassistant
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"path"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -110,7 +108,7 @@ func (c *Config) apiURL(domain, service string) string {
 
 	return (&url.URL{
 		Scheme: scheme,
-		Host:   net.JoinHostPort(c.Host, strconv.Itoa(c.requestPort())),
+		Host:   util.JoinURLHostPort(c.Host, c.requestPort()),
 		Path:   apiPath,
 	}).String()
 }
@@ -150,12 +148,14 @@ func (c *Config) domainService() (string, string, error) {
 // Returns:
 //   - The service URL with the token as userinfo and the host as hostname.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	port := ""
-	if c.Port != 0 && c.Port != c.impliedPort() {
-		port = strconv.Itoa(c.Port)
+	// The port the scheme implies is left out, as a URL without a port reads
+	// back with it.
+	port := c.Port
+	if port == c.impliedPort() {
+		port = 0
 	}
 
-	host := util.JoinURLHost(c.Host, port)
+	host := util.JoinURLHostPort(c.Host, port)
 
 	return &url.URL{
 		Scheme:   Scheme,
@@ -187,11 +187,11 @@ func (c *Config) impliedPort() int {
 // before a request as its URL would.
 //
 // Returns:
-//   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field.
-//     [ErrInvalidPort] for a port outside 0 to 65535. An error wrapping
-//     [util.ErrInvalidPathSegment] for a path prefix with a "." or ".."
-//     segment. [ErrInvalidService] for an invalid notify service. Otherwise
-//     nil.
+//   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field. An
+//     error wrapping [ErrInvalidPort] for a port outside 0 to 65535. An error
+//     wrapping [util.ErrInvalidPathSegment] for a path prefix with a "." or
+//     ".." segment. [ErrInvalidService] for an invalid notify service.
+//     Otherwise nil.
 func (c *Config) prepare() error {
 	c.Targets = util.NonEmpty(c.Targets)
 
@@ -203,8 +203,10 @@ func (c *Config) prepare() error {
 		return ErrHostMissing
 	}
 
-	if c.Port < 0 || c.Port > 65535 {
-		return fmt.Errorf("%w: %d", ErrInvalidPort, c.Port)
+	if c.Port != 0 {
+		if err := util.ValidatePort(c.Port); err != nil {
+			return err
+		}
 	}
 
 	if err := util.ValidatePathSegments(c.Path); err != nil {
@@ -228,33 +230,6 @@ func (c *Config) requestPort() int {
 	return c.impliedPort()
 }
 
-// setPort parses an optional TCP port from the URL.
-//
-// Parameters:
-//   - rawPort: The port string from the URL, or empty when omitted.
-//
-// Returns:
-//   - An error if the port is not an integer, or is 0. The config's checks
-//     reject a port above 65535.
-func (c *Config) setPort(rawPort string) error {
-	if rawPort == "" {
-		c.Port = 0
-
-		return nil
-	}
-
-	// A zero port in the config selects the default port, so a URL that
-	// writes port 0 is rejected rather than read as the default.
-	port, err := strconv.Atoi(rawPort)
-	if err != nil || port == 0 {
-		return fmt.Errorf("%w: %q", ErrInvalidPort, rawPort)
-	}
-
-	c.Port = port
-
-	return nil
-}
-
 // setURL updates the configuration from a service URL.
 //
 // Parameters:
@@ -263,8 +238,10 @@ func (c *Config) setPort(rawPort string) error {
 //
 // Returns:
 //   - An error if the host is not a hostname or a bracketed IPv6 address
-//     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
-//     a query parameter is invalid, or required fields are missing.
+//     ([util.ErrInvalidHost]), the port is not a number from 1 to 65535
+//     ([ErrInvalidPort]), the query is malformed
+//     ([util.ErrInvalidQuery]), a query parameter is invalid, or required
+//     fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		c.Token = serviceURL.User.Username()
@@ -272,16 +249,15 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Token = ""
 	}
 
-	host, port, err := util.SplitURLHost(serviceURL)
+	// A zero port in the config selects the default port, so a URL that
+	// writes port 0 is rejected rather than read as the default.
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-
-	if err := c.setPort(port); err != nil {
-		return err
-	}
+	c.Port = int(port)
 
 	c.Path = normalizePath(serviceURL.Path)
 

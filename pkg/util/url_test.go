@@ -131,9 +131,11 @@ func TestURLUserPassword_Integration(t *testing.T) {
 }
 
 // TestSplitURLHost verifies that SplitURLHost returns the hostname without
-// brackets and the port of a URL's authority, and rejects an unbracketed host
-// with several colons and a port that is not a number, which url.Parse either
-// splits at the wrong colon or only lets through in a hand-built URL.
+// brackets and the port of a URL's authority.
+//
+// It rejects an unbracketed host with several colons and a port that is not a
+// number, which url.Parse either splits at the wrong colon or only lets through
+// in a hand-built URL. It also rejects a port outside 1 to 65535.
 func TestSplitURLHost(t *testing.T) {
 	t.Parallel()
 
@@ -162,6 +164,10 @@ func TestSplitURLHost(t *testing.T) {
 		{name: "text after the bracket", host: "[::1]x", wantErr: ErrInvalidHost},
 		{name: "non-numeric port", host: "example.com:abc", wantErr: ErrInvalidPort},
 		{name: "non-numeric port after IPv6", host: "[::1]:abc", wantErr: ErrInvalidPort},
+		{name: "highest port", host: "example.com:65535", wantHost: "example.com", wantPort: "65535"},
+		{name: "port 0", host: "example.com:0", wantErr: ErrInvalidPort},
+		{name: "port past 65535", host: "example.com:65536", wantErr: ErrInvalidPort},
+		{name: "port past 65535 after IPv6", host: "[::1]:99999", wantErr: ErrInvalidPort},
 	}
 
 	for _, tt := range tests {
@@ -181,6 +187,77 @@ func TestSplitURLHost(t *testing.T) {
 			assert.Equal(t, tt.wantPort, port)
 		})
 	}
+}
+
+// TestSplitURLHostPort verifies that SplitURLHostPort reads a URL's authority
+// as SplitURLHost does, with the port as a number.
+//
+// A URL without a port gives port 0, and a host or port that SplitURLHost
+// rejects fails the same way.
+func TestSplitURLHostPort(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URL authorities with the hostname and port, or error,
+	// SplitURLHostPort should return.
+	tests := []struct {
+		wantErr  error
+		name     string
+		host     string
+		wantHost string
+		wantPort uint16
+	}{
+		{name: "no port", host: "example.com", wantHost: "example.com"},
+		{name: "port", host: "example.com:8080", wantHost: "example.com", wantPort: 8080},
+		{name: "bracketed IPv6 and port", host: "[2001:db8::1]:8443", wantHost: "2001:db8::1", wantPort: 8443},
+		{name: "unbracketed IPv6", host: "::1", wantErr: ErrInvalidHost},
+		{name: "port 0", host: "example.com:0", wantErr: ErrInvalidPort},
+		{name: "port past 65535", host: "example.com:65536", wantErr: ErrInvalidPort},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			host, port, err := SplitURLHostPort(&url.URL{Host: tt.host})
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHost, host)
+			assert.Equal(t, tt.wantPort, port)
+		})
+	}
+}
+
+// TestValidatePort verifies that a port from 1 to 65535 passes and that 0, a
+// negative port, and one past 65535 fail with ErrInvalidPort.
+func TestValidatePort(t *testing.T) {
+	t.Parallel()
+
+	for _, port := range []int{1, 8080, 65535} {
+		require.NoError(t, ValidatePort(port), port)
+	}
+
+	for _, port := range []int{0, -1, 65536} {
+		require.ErrorIs(t, ValidatePort(port), ErrInvalidPort, port)
+	}
+}
+
+// TestJoinURLHostPort verifies that a port number follows the host and that
+// port 0 writes the host alone.
+//
+// An IPv6 host keeps its brackets with or without a port.
+func TestJoinURLHostPort(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "example.com:8080", JoinURLHostPort("example.com", 8080))
+	assert.Equal(t, "example.com", JoinURLHostPort("example.com", 0))
+	assert.Equal(t, "[::1]:443", JoinURLHostPort("::1", 443))
+	assert.Equal(t, "[::1]", JoinURLHostPort("::1", 0))
 }
 
 // TestParseURLPort verifies that a URL port reads as its number and an empty

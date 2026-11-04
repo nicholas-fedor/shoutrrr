@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
@@ -154,7 +153,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	serviceURL := (&url.URL{
 		Scheme: "https",
-		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
+		Host:   util.JoinURLHostPort(config.Host, int(config.Port)),
 		Path:   alertEndpointPath,
 	}).String()
 

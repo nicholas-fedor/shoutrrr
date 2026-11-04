@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -70,7 +69,9 @@ var (
 	// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
 	ErrAPIKeyMissing = errors.New("API key missing from config URL path")
 	// ErrInvalidPort indicates a port that is not a number from 1 to 65535.
-	ErrInvalidPort = errors.New("invalid port")
+	//
+	// It is [util.ErrInvalidPort], so the port rule of every service applies.
+	ErrInvalidPort = util.ErrInvalidPort
 )
 
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
@@ -113,13 +114,8 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: the service URL, with the API key as its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	port := ""
-	if c.Port > 0 {
-		port = strconv.FormatUint(uint64(c.Port), 10)
-	}
-
 	result := &url.URL{
-		Host:     util.JoinURLHost(c.Host, port),
+		Host:     util.JoinURLHostPort(c.Host, int(c.Port)),
 		Path:     "/" + c.APIKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
@@ -163,32 +159,19 @@ func (c *Config) prepare() error {
 //
 // Returns:
 //   - error: [util.ErrInvalidHost] for a host that is not a hostname or a
-//     bracketed IPv6 address, [util.ErrInvalidPort] for a port that is not a
-//     number, [ErrInvalidPort] for a port outside 1 to 65535, an error
-//     wrapping [util.ErrInvalidQuery] for a malformed query, a query prop
-//     error, or [ErrAPIKeyMissing] for a missing or empty API key.
+//     bracketed IPv6 address. An error wrapping [ErrInvalidPort] for a port
+//     that is not a number from 1 to 65535. An error wrapping
+//     [util.ErrInvalidQuery] for a malformed query, a query prop error, or
+//     [ErrAPIKeyMissing] for a missing or empty API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	host, port, err := util.SplitURLHost(serviceURL)
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
 	c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
-	c.Port = 0
-
-	if port != "" {
-		portNumber, err := strconv.ParseUint(port, 10, 16)
-		if err != nil {
-			return fmt.Errorf("%w %q: %w", ErrInvalidPort, port, err)
-		}
-
-		if portNumber == 0 {
-			return fmt.Errorf("%w %q", ErrInvalidPort, port)
-		}
-
-		c.Port = uint16(portNumber)
-	}
+	c.Port = port
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {

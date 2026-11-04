@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -152,14 +151,9 @@ func (c *Config) applyDefaults() {
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// A zero port selects the default port. The URL leaves it out, and a URL
 	// without a port reads back as port 0.
-	port := ""
-	if c.Port != 0 {
-		port = strconv.FormatUint(uint64(c.Port), 10)
-	}
-
 	serviceURL := &url.URL{
 		User:       util.URLUserPassword(c.Username, c.Password),
-		Host:       util.JoinURLHost(c.Host, port),
+		Host:       util.JoinURLHostPort(c.Host, int(c.Port)),
 		Path:       "/",
 		Scheme:     Scheme,
 		ForceQuery: true,
@@ -315,19 +309,15 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Username = serviceURL.User.Username()
 	c.Password = password
 
-	host, portStr, err := util.SplitURLHost(serviceURL)
+	// A URL without a port reads as port 0, which the defaults turn into the
+	// default port.
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-
-	// A URL without a port reads as port 0, which the defaults turn into the
-	// default port.
-	c.Port, err = util.ParseURLPort(portStr)
-	if err != nil {
-		return fmt.Errorf("parsing port: %w", err)
-	}
+	c.Port = port
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {

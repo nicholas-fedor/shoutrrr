@@ -179,12 +179,14 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return nil
 }
 
-// validate checks that the config names a webhook and a channel it can post
-// to. Reading a service URL and each send run it, so a config built in code
-// fails before a request.
+// validate checks that the config names a webhook and a channel it can post to.
+//
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a config without a host.
+//   - error: [ErrHostMissing] for a config without a host. An error wrapping
+//     [util.ErrInvalidPort] for a port that is not a number from 1 to 65535.
 //     [ErrNotEnoughArguments] without the integration ID or the token. An error
 //     wrapping [util.ErrInvalidPathSegment] for an integration ID or token that
 //     is not one segment of the webhook path. [ErrInvalidChannel] for a channel
@@ -193,6 +195,10 @@ func (c *Config) validate() error {
 	// A Rocket.Chat server has no default host.
 	if c.Host == "" {
 		return ErrHostMissing
+	}
+
+	if _, err := util.ParseURLPort(c.Port); err != nil {
+		return fmt.Errorf("port: %w", err)
 	}
 
 	// The webhook URL needs both the integration ID and the token.

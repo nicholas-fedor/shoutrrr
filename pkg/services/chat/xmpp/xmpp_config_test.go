@@ -112,13 +112,11 @@ func TestConfigSetURL(t *testing.T) {
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
-	// tests lists invalid service URLs with the error each should match, or
-	// the text it should contain when wantErr is nil.
+	// tests lists invalid service URLs with the error each should match.
 	tests := []struct {
-		wantErr  error
-		name     string
-		rawURL   string
-		wantText string
+		wantErr error
+		name    string
+		rawURL  string
 	}{
 		{name: "missing targets", rawURL: "xmpp://alice:secret@xmpp.example.com/", wantErr: ErrMissingTargets},
 		{name: "missing password", rawURL: "xmpp://alice@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingPassword},
@@ -131,21 +129,15 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid auth JID", rawURL: "xmpp://alice%40:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrInvalidUserJID},
 		{name: "unsupported scheme", rawURL: "http://alice:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrUnsupportedScheme},
 		{name: "unknown prop", rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&notakey=1", wantErr: format.ErrInvalidConfigKey},
-		{name: "port out of range", rawURL: "xmpp://alice:secret@xmpp.example.com:70000/?to=bob@example.com", wantText: "parsing port"},
+		{name: "port out of range", rawURL: "xmpp://alice:secret@xmpp.example.com:70000/?to=bob@example.com", wantErr: util.ErrInvalidPort},
+		{name: "port 0", rawURL: "xmpp://alice:secret@xmpp.example.com:0/?to=bob@example.com", wantErr: util.ErrInvalidPort},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (&Config{}).SetURL(parseTestURL(t, tt.rawURL))
-
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantText)
-			}
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
 		})
 	}
 

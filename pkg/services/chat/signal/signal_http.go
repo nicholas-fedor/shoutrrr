@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Settings for requests to the REST API.
@@ -47,7 +46,7 @@ func (s *Service) buildAPIURL(config *Config) string {
 
 	return (&url.URL{
 		Scheme: scheme,
-		Host:   net.JoinHostPort(config.Host, strconv.Itoa(config.Port)),
+		Host:   util.JoinURLHostPort(config.Host, config.Port),
 		Path:   "/v2/send",
 	}).String()
 }

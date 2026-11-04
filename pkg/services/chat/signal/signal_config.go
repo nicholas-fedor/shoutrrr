@@ -2,9 +2,7 @@ package signal
 
 import (
 	"fmt"
-	"net"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -56,8 +54,6 @@ const (
 	DefaultHost = "localhost"
 	// defaultPort is the Signal REST API port a URL without a port uses.
 	defaultPort = 8080
-	// maxPort is the highest TCP port number.
-	maxPort = 65535
 	// minPathParts is the minimum number of path parts required (source + at least one recipient).
 	minPathParts = 2
 )
@@ -117,9 +113,11 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		query.Del(key)
 	}
 
+	// A config built in code without a port writes none, so its URL reads
+	// back with the default port.
 	result := &url.URL{
 		Scheme:   Scheme,
-		Host:     net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
+		Host:     util.JoinURLHostPort(c.Host, c.Port),
 		Path:     path,
 		RawPath:  rawPath,
 		RawQuery: query.Encode(),
@@ -149,34 +147,24 @@ func (c *Config) parseAuth(serviceURL *url.URL) {
 	}
 }
 
-// parseHostPort extracts host and port from the URL. An IPv6 host must be in
-// brackets. A URL without a port leaves the port unset.
+// parseHostPort extracts host and port from the URL.
+//
+// An IPv6 host must be in brackets. A URL without a port leaves the port unset.
 //
 // Parameters:
 //   - serviceURL: the URL to extract host and port from
 //
 // Returns:
-//   - error: [util.ErrInvalidHost] or [util.ErrInvalidPort] for an authority
-//     that does not split into a hostname and port, or a parse error for a
-//     port above 65535.
+//   - error: [util.ErrInvalidHost] for an authority that does not split into a
+//     hostname and port, or an error wrapping [util.ErrInvalidPort] for a port
+//     that is not a number from 1 to 65535.
 func (c *Config) parseHostPort(serviceURL *url.URL) error {
-	host, portStr, err := util.SplitURLHost(serviceURL)
+	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
-	c.Port = 0
-
-	if portStr == "" {
-		return nil
-	}
-
-	port, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return fmt.Errorf("parsing port: %w", err)
-	}
-
 	c.Port = int(port)
 
 	return nil
@@ -315,8 +303,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //     wrapping [format.ErrInvalidEnumValue] for a text mode that is not one
 //     of its values. Otherwise nil.
 func (c *Config) validate() error {
-	if c.Port < 1 || c.Port > maxPort {
-		return fmt.Errorf("%w: %d", util.ErrInvalidPort, c.Port)
+	if err := util.ValidatePort(c.Port); err != nil {
+		return err
 	}
 
 	if !isValidPhoneNumber(c.Source) {
