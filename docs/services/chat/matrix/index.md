@@ -116,8 +116,10 @@ Rooms specified in `rooms` will be treated as room IDs if they start with a `!` 
 If they have no such prefix (or use a *correctly escaped* `#`) they will instead be treated as aliases, and a directory lookup will be used to resolve their corresponding IDs.
 
 __Auto-prepending__: For convenience, rooms that don't start with `#` or `!` will automatically have `#` prepended.
+This applies to rooms from the URL and from send params alike.
 For example, `rooms=general` becomes `rooms=#general`.
 This allows you to use simple channel names without worrying about the prefix.
+Spaces around each room are removed.
 
 You can use either `rooms` (for multiple rooms) or `room` (for a single room) - both parameters work identically.
 

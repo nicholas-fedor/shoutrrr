@@ -174,7 +174,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
+	if err := cfg.prepare(); err != nil {
 		return err
 	}
 

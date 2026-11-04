@@ -26,8 +26,8 @@ import (
 type apiRequest struct {
 	// method is the request method.
 	method string
-	// path is the decoded request path. For a message send it ends at the event
-	// type, without the transaction ID.
+	// path is the escaped request path, as the client sent it. For a message
+	// send it ends at the event type, without the transaction ID.
 	path string
 	// auth is the Authorization header.
 	auth string
@@ -116,9 +116,9 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 //   - w: the response writer.
 //   - r: the request.
 func (h *homeserver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	recorded := apiRequest{method: r.Method, path: r.URL.Path, auth: r.Header.Get("Authorization")}
+	recorded := apiRequest{method: r.Method, path: r.URL.EscapedPath(), auth: r.Header.Get("Authorization")}
 
-	if prefix, _, ok := strings.Cut(r.URL.Path, sendPathSuffix+"/"); ok {
+	if prefix, _, ok := strings.Cut(recorded.path, sendPathSuffix+"/"); ok {
 		recorded.path = prefix + sendPathSuffix
 	}
 
@@ -201,10 +201,18 @@ func (*homeserver) defaultReply(req *apiRequest, fields map[string]any) apiReply
 	switch {
 	case req.method == http.MethodGet && req.path == joinedRoomsPath:
 		return apiReply{statusCode: http.StatusOK, body: `{"joined_rooms":["` + joinedRoomA + `","` + joinedRoomB + `"]}`}
-	case req.method == http.MethodPost && strings.HasPrefix(req.path, joinPathPrefix+"#"):
-		roomID := "!" + strings.TrimPrefix(req.path, joinPathPrefix+"#")
+	case req.method == http.MethodPost && strings.HasPrefix(req.path, joinPathPrefix):
+		alias, err := url.PathUnescape(strings.TrimPrefix(req.path, joinPathPrefix))
+		if err != nil || !strings.HasPrefix(alias, "#") {
+			return apiReply{statusCode: http.StatusNotFound, body: `{"errcode":"M_NOT_FOUND","error":"Room alias not found"}`}
+		}
 
-		return apiReply{statusCode: http.StatusOK, body: `{"room_id":"` + roomID + `"}`}
+		body, err := json.Marshal(map[string]string{"room_id": "!" + strings.TrimPrefix(alias, "#")})
+		if err != nil {
+			return apiReply{statusCode: http.StatusInternalServerError, body: `{"errcode":"M_UNKNOWN","error":"Internal error"}`}
+		}
+
+		return apiReply{statusCode: http.StatusOK, body: string(body)}
 	case req.method == http.MethodPut && strings.HasPrefix(req.path, roomsPathPrefix) && strings.HasSuffix(req.path, sendPathSuffix):
 		return apiReply{statusCode: http.StatusOK, body: `{"event_id":"$event"}`}
 	default:
@@ -252,15 +260,15 @@ func writeReply(w http.ResponseWriter, reply apiReply) {
 	_, _ = io.WriteString(w, reply.body)
 }
 
-// joinPath returns the path that joins room.
+// joinPath returns the escaped path that joins room.
 //
 // Parameters:
 //   - room: the room alias.
 //
 // Returns:
-//   - string: the path.
+//   - string: the path, with the room escaped as one segment.
 func joinPath(room string) string {
-	return joinPathPrefix + room
+	return joinPathPrefix + url.PathEscape(room)
 }
 
 // sendPath returns the recorded path of a message send to room.
@@ -269,9 +277,10 @@ func joinPath(room string) string {
 //   - room: the room ID.
 //
 // Returns:
-//   - string: the path, without the transaction ID.
+//   - string: the path, with the room ID after its ! sigil escaped as one
+//     segment and without the transaction ID.
 func sendPath(room string) string {
-	return roomsPathPrefix + room + sendPathSuffix
+	return roomsPathPrefix + "!" + url.PathEscape(strings.TrimPrefix(room, "!")) + sendPathSuffix
 }
 
 // messageBody returns the JSON body of a text message send.
@@ -441,6 +450,63 @@ func TestIntegrationSend(t *testing.T) {
 			},
 		},
 		{
+			name:     "alias with slashes and dot segments",
+			userInfo: ":" + accessToken,
+			query:    "&rooms=%23team%2F..%2F..%2Fadmin:example.com",
+			message:  "Hello",
+			want: func(t *testing.T) []apiRequest {
+				t.Helper()
+
+				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("#team/../../admin:example.com"), auth: "Bearer " + accessToken, body: `{}`},
+					{method: http.MethodPut, path: sendPath("!team/../../admin:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
+				}
+			},
+		},
+		{
+			name:     "alias with query, fragment, percent, and non-ASCII characters",
+			userInfo: ":" + accessToken,
+			query:    "&rooms=%23caf%C3%A9%3Fx%3D1%23top%25:example.com",
+			message:  "Hello",
+			want: func(t *testing.T) []apiRequest {
+				t.Helper()
+
+				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("#café?x=1#top%:example.com"), auth: "Bearer " + accessToken, body: `{}`},
+					{method: http.MethodPut, path: sendPath("!café?x=1#top%:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
+				}
+			},
+		},
+		{
+			name:     "room ID with slashes and dot segments",
+			userInfo: ":" + accessToken,
+			query:    "&rooms=%21ops%2F..%2F..%2Fadmin",
+			message:  "Hello",
+			want: func(t *testing.T) []apiRequest {
+				t.Helper()
+
+				return []apiRequest{
+					{method: http.MethodPut, path: sendPath("!ops/../../admin"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
+				}
+			},
+		},
+		{
+			name:     "rooms from params without sigils",
+			userInfo: ":" + accessToken,
+			params:   &types.Params{"rooms": " general:example.com ,.."},
+			message:  "Hello",
+			want: func(t *testing.T) []apiRequest {
+				t.Helper()
+
+				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("#general:example.com"), auth: "Bearer " + accessToken, body: `{}`},
+					{method: http.MethodPut, path: sendPath("!general:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
+					{method: http.MethodPost, path: joinPath("#.."), auth: "Bearer " + accessToken, body: `{}`},
+					{method: http.MethodPut, path: sendPath("!.."), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
+				}
+			},
+		},
+		{
 			name:     "special characters",
 			userInfo: ":" + accessToken,
 			query:    "&rooms=!ops:example.com",
@@ -602,6 +668,25 @@ func TestIntegrationSendErrors(t *testing.T) {
 				"failed to send message to room '!b:example.com'",
 			},
 			wantRequests: 2,
+		},
+		{
+			name:         "joined room IDs without the sigil",
+			userInfo:     ":" + accessToken,
+			overrides:    map[string]apiReply{http.MethodGet + " " + joinedRoomsPath: {statusCode: http.StatusOK, body: `{"joined_rooms":["..",""]}`}},
+			wantErr:      matrix.ErrInvalidRoomID,
+			wantText:     []string{"failed to send message to room '..'", "failed to send message to room ''"},
+			wantRequests: 1,
+		},
+		{
+			name:     "joined alias resolves to a room ID without the sigil",
+			userInfo: ":" + accessToken,
+			query:    "&rooms=%23ops:example.com",
+			overrides: map[string]apiReply{
+				http.MethodPost + " " + joinPath("#ops:example.com"): {statusCode: http.StatusOK, body: `{"room_id":".."}`},
+			},
+			wantErr:      matrix.ErrInvalidRoomID,
+			wantText:     []string{"failed to send message to room '..'"},
+			wantRequests: 1,
 		},
 		{
 			name:     "blank room param",

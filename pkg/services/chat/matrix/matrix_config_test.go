@@ -53,6 +53,57 @@ func TestConfigGetURL(t *testing.T) {
 	})
 }
 
+// TestConfigPrepare verifies that prepare trims each room and starts a room
+// without a sigil with #. Sends run it on a copy of the stored config, so its
+// subtest checks that the copy's changed rooms leave the stored rooms as they
+// were.
+func TestConfigPrepare(t *testing.T) {
+	t.Parallel()
+
+	// tests lists rooms with the rooms each should become.
+	tests := []struct {
+		name  string
+		rooms []string
+		want  []string
+	}{
+		{name: "no rooms", rooms: nil, want: nil},
+		{name: "alias without sigil", rooms: []string{"general:example.com"}, want: []string{"#general:example.com"}},
+		{name: "alias", rooms: []string{"#general:example.com"}, want: []string{"#general:example.com"}},
+		{name: "room ID", rooms: []string{"!ops:example.com"}, want: []string{"!ops:example.com"}},
+		{name: "surrounding spaces", rooms: []string{"  !ops:example.com  ", " general "}, want: []string{"!ops:example.com", "#general"}},
+		{name: "dot segments", rooms: []string{".", ".."}, want: []string{"#.", "#.."}},
+		{name: "empty and blank rooms", rooms: []string{"", "   "}, want: []string{"", ""}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{Host: "matrix.example.com", Password: "token", Rooms: tt.rooms}
+
+			require.NoError(t, config.prepare())
+			assert.Equal(t, tt.want, config.Rooms)
+		})
+	}
+
+	t.Run("stored rooms unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		stored := &Config{Host: "matrix.example.com", Password: "token", Rooms: []string{"!ops:example.com", "general"}}
+		send := *stored
+
+		require.NoError(t, send.prepare())
+		assert.Equal(t, []string{"!ops:example.com", "#general"}, send.Rooms)
+		assert.Equal(t, []string{"!ops:example.com", "general"}, stored.Rooms)
+	})
+
+	t.Run("missing credentials", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, (&Config{Host: "matrix.example.com"}).prepare(), ErrMissingCredentials)
+	})
+}
+
 // TestConfigSetURL verifies that SetURL reads the host and credentials and
 // prefixes room aliases with # unless they already start with # or !.
 func TestConfigSetURL(t *testing.T) {

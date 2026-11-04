@@ -20,6 +20,11 @@ var (
 	// send to, because Initialize failed or the Config was set without it.
 	ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
 
+	// ErrInvalidRoomID is returned when a room ID to send to does not start
+	// with the ! sigil that every Matrix room ID starts with. The room ID may
+	// come from the config or from the homeserver's reply.
+	ErrInvalidRoomID = errors.New("room ID lacks the ! sigil")
+
 	// ErrLoginReplyWithoutToken is returned when the homeserver's reply to a
 	// login holds no access token, which the Matrix API requires in every
 	// successful login reply.
