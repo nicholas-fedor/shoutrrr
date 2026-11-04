@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -159,8 +160,8 @@ type configVariant struct {
 // pathReference holds what the path_segments check compares a request with,
 // taken from the baseline send of one field.
 type pathReference struct {
-	// queryKeys holds the query keys of the baseline requests.
-	queryKeys map[string]bool
+	// queryKeys holds the sorted query keys of each baseline request.
+	queryKeys [][]string
 	// urls holds the URLs of the baseline requests.
 	urls []*url.URL
 	// hostField reports whether the field names the server, which changes the
@@ -1797,11 +1798,11 @@ func runSendLikeReadBack(t *testing.T, fx *fixture) failure {
 // request URL is skipped, and so is a field whose plain value is a whole
 // request URL. The field is then set to "." and "..", and to the plain value
 // followed by each of [pathSegmentSuffixes]. Every request of such a send
-// must keep the baseline's host, unless the field names the server, and must
-// add no query key or fragment. Its escaped path must hold no "." or ".."
-// segment, and the same number of segments as a baseline request, unless
-// [subpathFields] lists the field. A send that fails before any request
-// passes.
+// must keep the baseline's host, unless the field names the server. Its query
+// keys must be exactly those of one baseline request, and it must add no
+// fragment. Its escaped path must hold no "." or ".." segment, and the same
+// number of segments as a baseline request, unless [subpathFields] lists the
+// field. A send that fails before any request passes.
 func runPathSegments(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -1834,16 +1835,14 @@ func runPathSegments(t *testing.T, fx *fixture) failure {
 
 		reference := pathReference{
 			urls:      baseline.urls,
-			queryKeys: map[string]bool{},
+			queryKeys: nil,
 			// A field that names the server sends its baseline to that host.
 			hostField: slices.ContainsFunc(baseline.urls, func(base *url.URL) bool { return base.Hostname() == plain }),
 			subpath:   slices.Contains(subpathFields[fx.scheme], structField.Name),
 		}
 
 		for _, base := range baseline.urls {
-			for key := range base.Query() {
-				reference.queryKeys[key] = true
-			}
+			reference.queryKeys = append(reference.queryKeys, sortedQueryKeys(base))
 		}
 
 		texts := []string{".", ".."}
@@ -1980,13 +1979,22 @@ func (r *pathReference) leftSegment(requestURL *url.URL) string {
 		return fmt.Sprintf("sent the path %q, which has another number of segments", path)
 	}
 
-	for key := range requestURL.Query() {
-		if !r.queryKeys[key] {
-			return fmt.Sprintf("sent the query key %q", key)
-		}
+	if keys := sortedQueryKeys(requestURL); !slices.ContainsFunc(r.queryKeys, func(base []string) bool { return slices.Equal(base, keys) }) {
+		return fmt.Sprintf("sent the query keys %q, which no baseline request has", keys)
 	}
 
 	return ""
+}
+
+// sortedQueryKeys returns the query keys of a URL, sorted.
+//
+// Parameters:
+//   - requestURL: the URL.
+//
+// Returns:
+//   - []string: the keys.
+func sortedQueryKeys(requestURL *url.URL) []string {
+	return slices.Sorted(maps.Keys(requestURL.Query()))
 }
 
 // runParamsDoNotPersist verifies that params passed to Send apply to that send
