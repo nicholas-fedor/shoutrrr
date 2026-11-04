@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Mark the v0.23.0 deprecations with their release by @nicholas-fedor in [#2046](https://github.com/nicholas-fedor/shoutrrr/pull/2046)
 
+### Chores
+
+- Update binwiederhier/ntfy:latest docker digest to 1875ddc by @renovate[bot] in [#2050](https://github.com/nicholas-fedor/shoutrrr/pull/2050)
+
 ## [0.23.0] - 2026-11-03
 
 ### Added
