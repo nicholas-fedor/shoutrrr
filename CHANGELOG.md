@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.3 by @renovate[bot] in [#2071](https://github.com/nicholas-fedor/shoutrrr/pull/2071)
+- Update dependency platformdirs to v4.14.5 by @renovate[bot] in [#2069](https://github.com/nicholas-fedor/shoutrrr/pull/2069)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to c6c1ca9 by @renovate[bot] in [#2068](https://github.com/nicholas-fedor/shoutrrr/pull/2068)
 - Update dependency platformdirs to v4.14.4 by @renovate[bot] in [#2056](https://github.com/nicholas-fedor/shoutrrr/pull/2056)
 - Update binwiederhier/ntfy:latest docker digest to 1875ddc by @renovate[bot] in [#2050](https://github.com/nicholas-fedor/shoutrrr/pull/2050)
