@@ -242,7 +242,8 @@ Every service follows the same rules, so services behave alike for users and for
   Both reject a port outside 1 to 65535, so every service reads ports by one rule.
   Both also reject an IPv6 address without brackets and brackets around anything else.
   They reject characters that a URL host cannot hold too.
-  Write the host and port back with `util.JoinURLHostPort`, which leaves out a port of 0, so a config built in code without a port reads back with the default port.
+  Write them back with `util.JoinURLHost`, which takes the port as text, or with `util.JoinURLHostPort`, which takes a port number.
+  `util.JoinURLHostPort` leaves out a port of 0, so a config built in code without a port reads back with the default port.
 - Check the host of a config built in code before each send, with the rule that reading its URL applies.
   Split a host that holds its port with `util.SplitURLHost`, and check that a hostname remains.
   Check a host that the config keeps apart from its port with `util.ValidateHostName`.

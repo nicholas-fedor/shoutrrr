@@ -160,6 +160,7 @@ func TestSplitURLHost(t *testing.T) {
 		{name: "bracketed IPv6 and empty port", host: "[::1]:", wantHost: "::1"},
 		{name: "bracketed IPv6 with a zone", host: "[fe80::1%en0]:80", wantHost: "fe80::1%en0", wantPort: "80"},
 		{name: "bracketed IPv6 with a VLAN zone", host: "[fe80::1%eth0.10]", wantHost: "fe80::1%eth0.10"},
+		{name: "bracketed IPv6 with a space in its zone", host: "[fe80::1%Ethernet 2]:80", wantHost: "fe80::1%Ethernet 2", wantPort: "80"},
 		{name: "bracketed IPv6 with a slash in its zone", host: "[fe80::1%a/b]:80", wantErr: ErrInvalidHost},
 		{name: "bracketed IPv6 with a non-ASCII zone", host: "[fe80::1%\u00fc]", wantErr: ErrInvalidHost},
 		{name: "unbracketed IPv6", host: "::1", wantErr: ErrInvalidHost},
@@ -197,6 +198,22 @@ func TestSplitURLHost(t *testing.T) {
 			assert.Equal(t, tt.wantPort, port)
 		})
 	}
+}
+
+// TestSplitURLHostEscapedZone verifies that SplitURLHost accepts an IPv6 zone
+// with a space read from a URL, where it is written as %20.
+//
+// Windows interface names hold spaces, and url.Parse decodes the escape.
+func TestSplitURLHostEscapedZone(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse("svc://[fe80::1%25Ethernet%202]:80/")
+	require.NoError(t, err)
+
+	host, port, err := SplitURLHost(serviceURL)
+	require.NoError(t, err)
+	assert.Equal(t, "fe80::1%Ethernet 2", host)
+	assert.Equal(t, "80", port)
 }
 
 // TestSplitURLHostPort verifies that SplitURLHostPort reads a URL's authority
@@ -251,7 +268,7 @@ func TestSplitURLHostPort(t *testing.T) {
 func TestValidateHostName(t *testing.T) {
 	t.Parallel()
 
-	for _, host := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "fe80::1%en0", "fe80::1%eth0.10"} {
+	for _, host := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "fe80::1%en0", "fe80::1%eth0.10", "fe80::1%Ethernet 2"} {
 		require.NoError(t, ValidateHostName(host), host)
 	}
 

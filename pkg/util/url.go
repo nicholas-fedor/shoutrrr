@@ -484,11 +484,12 @@ func isIPv6(host string) bool {
 	}
 
 	// netip accepts any text as a zone, but url.Parse reads back only a zone of
-	// ASCII characters that a host holds unescaped. A zone with a slash or a
-	// character outside ASCII makes the URL fail to parse.
+	// ASCII characters that a host holds unescaped, and spaces, which Windows
+	// interface names hold. A zone with a slash or a character outside ASCII
+	// makes the URL fail to parse.
 	zone := addr.Zone()
 	for i := range len(zone) {
-		if c := zone[i]; c >= utf8.RuneSelf || !isHostTokenByte(c) {
+		if c := zone[i]; c >= utf8.RuneSelf || c != ' ' && !isHostTokenByte(c) {
 			return false
 		}
 	}
