@@ -122,8 +122,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     a query parameter error. Otherwise the error from the config's checks,
 //     such as [ErrHostMissing] for a URL without a host.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// The path holds the token and an optional channel.
-	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+	// The path holds the token and an optional channel. An escaped slash stays
+	// in its segment, so a token holding one is rejected.
+	path := util.SplitEscapedPath(strings.Trim(serviceURL.EscapedPath(), "/"))
 
 	// The host and token are checked on a copy first, so a URL without them
 	// leaves the config unchanged.

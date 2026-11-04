@@ -109,7 +109,9 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
-	path := strings.Split(serviceURL.Path, "/")
+	// An escaped slash stays in its segment, so a token or channel holding one
+	// is rejected.
+	path := util.SplitEscapedPath(serviceURL.EscapedPath())
 
 	// A URL without a channel segment, or with an empty one, names no channel.
 	var channel string
