@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Check url host syntax in every service by @nicholas-fedor in [#2066](https://github.com/nicholas-fedor/shoutrrr/pull/2066)
 - Apply one URL port rule across services by @nicholas-fedor in [#2064](https://github.com/nicholas-fedor/shoutrrr/pull/2064)
 - Reject undefined enum values in configs built in code by @nicholas-fedor in [#2060](https://github.com/nicholas-fedor/shoutrrr/pull/2060)
 - Drop empty elements from list settings by @nicholas-fedor in [#2058](https://github.com/nicholas-fedor/shoutrrr/pull/2058)
