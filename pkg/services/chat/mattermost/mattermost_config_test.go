@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -114,8 +115,8 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL rejects a URL without a token
-// and a URL with an unknown query prop.
+// TestConfigSetURLErrors verifies that SetURL rejects a URL without a token, a
+// token of ".." or with an escaped slash, and a URL with an unknown query prop.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -126,6 +127,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "missing token", rawURL: "mattermost://mattermost.my-domain.com", wantErr: ErrNotEnoughArguments},
+		{name: "dot-dot token", rawURL: "mattermost://mattermost.my-domain.com/%2E%2E", wantErr: util.ErrInvalidPathSegment},
+		{name: "token with an escaped slash", rawURL: "mattermost://mattermost.my-domain.com/a%2Fb", wantErr: util.ErrInvalidPathSegment},
 		{name: "missing host", rawURL: "mattermost:///atoken", wantErr: ErrHostMissing},
 		{name: "port without a host", rawURL: "mattermost://:8065/atoken", wantErr: ErrHostMissing},
 		{name: "unknown prop", rawURL: "mattermost://user@mockserver/atoken?foo=bar", wantErr: format.ErrInvalidConfigKey},

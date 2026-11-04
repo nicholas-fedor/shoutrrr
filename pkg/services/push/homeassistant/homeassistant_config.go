@@ -265,8 +265,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // default port.
 //
 // Returns:
-//   - error: [ErrTokenMissing], [ErrHostMissing], [ErrInvalidPort] for a port
-//     outside 0 to 65535, [ErrInvalidService], or nil.
+//   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field.
+//     [ErrInvalidPort] for a port outside 0 to 65535. An error wrapping
+//     [util.ErrInvalidPathSegment] for a path prefix with a "." or ".."
+//     segment. [ErrInvalidService] for an invalid notify service. Otherwise
+//     nil.
 func (c *Config) validate() error {
 	if c.Token == "" {
 		return ErrTokenMissing
@@ -278,6 +281,10 @@ func (c *Config) validate() error {
 
 	if c.Port < 0 || c.Port > 65535 {
 		return fmt.Errorf("%w: %d", ErrInvalidPort, c.Port)
+	}
+
+	if err := util.ValidatePathSegments(c.Path); err != nil {
+		return fmt.Errorf("path prefix: %w", err)
 	}
 
 	_, _, err := c.domainService()

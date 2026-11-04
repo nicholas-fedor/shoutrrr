@@ -23,7 +23,8 @@ var (
 	// semicolon separator.
 	ErrInvalidQuery = errors.New("invalid URL query")
 	// ErrInvalidPathSegment indicates a value that a request path cannot carry
-	// as one segment. Such a value is empty or holds a slash. The values "."
+	// as one segment, or a path with a "." or ".." segment. A value for one
+	// segment is invalid when it is empty or holds a slash, and the values "."
 	// and ".." are invalid too.
 	ErrInvalidPathSegment = errors.New("invalid URL path segment")
 )
@@ -161,6 +162,59 @@ func ValidateHostToken(token string) error {
 func ValidatePathSegment(value string) error {
 	if value == "" || value == "." || value == ".." || strings.IndexByte(value, '/') >= 0 {
 		return ErrInvalidPathSegment
+	}
+
+	return nil
+}
+
+// SplitEscapedPath splits an escaped URL path, such as the one
+// [url.URL.EscapedPath] returns, at its slashes and decodes each segment. An
+// escaped slash, %2F, stays inside its segment, where splitting the decoded
+// path would read it as a separator. A leading slash gives an empty first
+// segment, as [strings.Split] does.
+//
+// Parameters:
+//   - escapedPath: the escaped path.
+//
+// Returns:
+//   - []string: the decoded segments. A segment with a malformed escape is
+//     kept as written.
+func SplitEscapedPath(escapedPath string) []string {
+	segments := strings.Split(escapedPath, "/")
+
+	for i, segment := range segments {
+		if decoded, err := url.PathUnescape(segment); err == nil {
+			segments[i] = decoded
+		}
+	}
+
+	return segments
+}
+
+// ValidatePathSegments checks a path that a service puts into a request path
+// as several segments, such as a server's base path. Each "." or ".." segment
+// would walk the request path, so the path may hold neither. Empty segments,
+// such as those a leading or trailing slash gives, are accepted.
+//
+// Parameters:
+//   - path: the path, with its segments separated by slashes.
+//
+// Returns:
+//   - error: [ErrInvalidPathSegment] for a path with a "." or ".." segment, or
+//     nil.
+func ValidatePathSegments(path string) error {
+	// A path without a dot has no "." or ".." segment.
+	if strings.IndexByte(path, '.') < 0 {
+		return nil
+	}
+
+	for path != "" {
+		segment, rest, _ := strings.Cut(path, "/")
+		if segment == "." || segment == ".." {
+			return ErrInvalidPathSegment
+		}
+
+		path = rest
 	}
 
 	return nil

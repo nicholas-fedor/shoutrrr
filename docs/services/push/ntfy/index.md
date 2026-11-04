@@ -26,6 +26,7 @@ A URL without a host, such as `ntfy:///mytopic`, uses `ntfy.sh`.
 
 Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy [requires](https://docs.ntfy.sh/publish/#picking-a-topic).
 For a server behind a reverse proxy, put its base path before the topic, as in `ntfy://example.com/ntfy/mytopic`.
+The base path cannot hold a `.` or `..` segment.
 If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
 
 !!! note

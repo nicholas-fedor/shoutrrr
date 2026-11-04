@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -180,13 +181,16 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // validate checks the webhook ID, token, and thread ID.
 //
 // Surrounding whitespace is ignored. The webhook ID is a Discord snowflake, a
-// number of up to 64 bits. The token can be any text that is not blank.
-// The thread ID is empty or a snowflake.
+// number of up to 64 bits. The token is one segment of the webhook URL's path,
+// so it holds no slash and is not "." or "..". The thread ID is empty or a
+// snowflake.
 //
 // Returns:
 //   - error: [ErrMissingWebhookID] or [ErrMissingToken] for a blank webhook
 //     ID or token. [ErrInvalidWebhookID] or [ErrInvalidThreadID] for a webhook
-//     ID or thread ID that is not a snowflake. Otherwise nil.
+//     ID or thread ID that is not a snowflake. An error wrapping
+//     [util.ErrInvalidPathSegment] for a token that is not one path segment.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	webhookID := strings.TrimSpace(c.WebhookID)
 	if webhookID == "" {
@@ -197,8 +201,13 @@ func (c *Config) validate() error {
 		return ErrInvalidWebhookID
 	}
 
-	if strings.TrimSpace(c.Token) == "" {
+	token := strings.TrimSpace(c.Token)
+	if token == "" {
 		return ErrMissingToken
+	}
+
+	if err := util.ValidatePathSegment(token); err != nil {
+		return fmt.Errorf("token: %w", err)
 	}
 
 	if threadID := strings.TrimSpace(c.ThreadID); threadID != "" && !isSnowflake(threadID) {

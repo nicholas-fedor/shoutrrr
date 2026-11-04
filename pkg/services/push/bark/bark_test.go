@@ -23,6 +23,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -223,7 +224,7 @@ func TestSend(t *testing.T) {
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does, so a config without a device key or a host fails before
-// any request.
+// any request. So does a server path with a ".." segment.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -235,6 +236,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingDeviceKey},
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+		{name: "server path that walks up", change: func(config *Config) { config.Path = "/base/../.." }, wantErr: util.ErrInvalidPathSegment},
 	}
 
 	for _, tt := range tests {

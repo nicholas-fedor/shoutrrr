@@ -435,8 +435,8 @@ func TestSendEscapesAPIKey(t *testing.T) {
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does, so a config without an API key fails before any request.
-// A config without an app name sends Shoutrrr, the name a URL without one
-// gets.
+// So does an API key that is not a host or is "..". A config without an app
+// name sends Shoutrrr, the name a URL without one gets.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -449,6 +449,7 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "no API key", change: func(config *Config) { *config = Config{} }, wantErr: ErrAPIKeyMissing},
 		{name: "port alone as the API key", change: func(config *Config) { config.APIKey = ":8080" }, wantErr: ErrAPIKeyMissing},
 		{name: "API key with a port", change: func(config *Config) { config.APIKey = "key:443" }, wantErr: util.ErrInvalidHost},
+		{name: "dot-dot API key", change: func(config *Config) { config.APIKey = ".." }, wantErr: util.ErrInvalidPathSegment},
 	}
 
 	for _, tt := range rejected {

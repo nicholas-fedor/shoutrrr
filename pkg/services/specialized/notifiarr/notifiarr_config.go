@@ -175,9 +175,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
-//     query prop error, or [ErrAPIKeyMissing] when neither the host, other
-//     than a port alone, nor the query sets an API key.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query prop error. Otherwise the error from the config's checks, such
+//     as [ErrAPIKeyMissing] when neither the host, other than a port alone,
+//     nor the query sets an API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
 
@@ -202,7 +203,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // Returns:
 //   - error: [ErrAPIKeyMissing] for a config without an API key. A port
 //     alone, such as :8080, counts as no API key. A key that a URL host cannot
-//     hold gives an error wrapping [util.ErrInvalidHost]. Otherwise nil.
+//     hold gives an error wrapping [util.ErrInvalidHost], and a key of "." or
+//     "..", which would walk the request path, gives an error wrapping
+//     [util.ErrInvalidPathSegment]. Otherwise nil.
 func (c *Config) validate() error {
 	// The key is read from the URL host, so a port alone, as in
 	// notifiarr://:8080, is not an API key.
@@ -211,6 +214,10 @@ func (c *Config) validate() error {
 	}
 
 	if err := util.ValidateHostToken(c.APIKey); err != nil {
+		return fmt.Errorf("API key: %w", err)
+	}
+
+	if err := util.ValidatePathSegment(c.APIKey); err != nil {
 		return fmt.Errorf("API key: %w", err)
 	}
 

@@ -236,6 +236,44 @@ func TestValidatePathSegment(t *testing.T) {
 	}
 }
 
+// TestSplitEscapedPath verifies that an escaped path is split at its slashes
+// before each segment is decoded, so an escaped slash stays in its segment. A
+// segment with a malformed escape is kept as written.
+func TestSplitEscapedPath(t *testing.T) {
+	t.Parallel()
+
+	// tests lists escaped paths with the segments each should give.
+	tests := []struct {
+		path string
+		want []string
+	}{
+		{path: "", want: []string{""}},
+		{path: "/a/b", want: []string{"", "a", "b"}},
+		{path: "/a%2Fb/c", want: []string{"", "a/b", "c"}},
+		{path: "/%23room/caf%C3%A9", want: []string{"", "#room", "caf\u00e9"}},
+		{path: "/a%zz/b", want: []string{"", "a%zz", "b"}},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, SplitEscapedPath(tt.path), tt.path)
+	}
+}
+
+// TestValidatePathSegments verifies that a path is accepted unless one of its
+// segments is "." or "..". Empty segments and names that only start or end
+// with a dot are accepted.
+func TestValidatePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"", "/", "base", "/base/path/", "a//b", ".a/b.", "...", "a?b#c"} {
+		require.NoError(t, ValidatePathSegments(path), path)
+	}
+
+	for _, path := range []string{".", "..", "/..", "../x", "a/./b", "a/../b", "a/..", "/./"} {
+		require.ErrorIs(t, ValidatePathSegments(path), ErrInvalidPathSegment, path)
+	}
+}
+
 // TestValidateHostToken verifies that a token is accepted unless it would not
 // read back unchanged from a URL host. A colon or a bracket reads back as a
 // port or an IPv6 address. A slash, a space, or @ makes the URL fail to parse.

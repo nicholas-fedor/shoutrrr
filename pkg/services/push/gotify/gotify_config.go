@@ -191,9 +191,9 @@ func (c *Config) processQueryParameters(
 //   - url: The URL to parse configuration values from
 //
 // Returns:
-//   - error: [ErrHostMissing] for a URL without a host, [ErrInvalidToken] for a
-//     missing token or one in neither Gotify token format, an error wrapping
-//     [util.ErrInvalidQuery] for a malformed query, or a query parameter error.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query parameter error. Otherwise the error from the config's checks,
+//     such as [ErrInvalidToken] for a missing token.
 func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
@@ -244,12 +244,17 @@ func (c *Config) tokenPath() string {
 // request. A Gotify server has no default host.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a config without a host name. Otherwise
-//     [ErrInvalidToken] for a missing token or one in neither Gotify token
-//     format, or nil.
+//   - error: [ErrHostMissing] for a config without a host name. An error
+//     wrapping [util.ErrInvalidPathSegment] for a subpath with a "." or ".."
+//     segment. [ErrInvalidToken] for a missing token or one in neither Gotify
+//     token format. Otherwise nil.
 func (c *Config) validate() error {
 	if (&url.URL{Host: c.Host}).Hostname() == "" {
 		return ErrHostMissing
+	}
+
+	if err := util.ValidatePathSegments(c.Path); err != nil {
+		return fmt.Errorf("subpath: %w", err)
 	}
 
 	if !(&DefaultValidator{}).ValidateToken(c.Token) {

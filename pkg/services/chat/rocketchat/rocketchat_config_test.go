@@ -263,16 +263,16 @@ func parseURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
-// TestConfigSetURLInvalidChannel verifies that SetURL rejects a channel given
-// as a URL fragment with a slash and path segments after the channel, neither
-// of which the channel path segment GetURL writes can hold, while a trailing
-// slash after the channel is accepted.
+// TestConfigSetURLInvalidChannel verifies that SetURL rejects a channel with a
+// slash, given as a URL fragment or escaped in its path segment, and path
+// segments after the channel. The channel path segment GetURL writes can hold
+// none of them, while a trailing slash after the channel is accepted.
 func TestConfigSetURLInvalidChannel(t *testing.T) {
 	t.Parallel()
 
 	base := "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB
 
-	for _, rawURL := range []string{base + "/#/", base + "/#team/general", base + "/general/other", base + "//other"} {
+	for _, rawURL := range []string{base + "/#/", base + "/#team/general", base + "/general/other", base + "//other", base + "/team%2Fgeneral"} {
 		require.ErrorIs(t, (&Config{}).SetURL(parseURL(t, rawURL)), ErrInvalidChannel, rawURL)
 	}
 
@@ -284,6 +284,20 @@ func TestConfigSetURLInvalidChannel(t *testing.T) {
 	before := *config
 	require.ErrorIs(t, config.SetURL(parseURL(t, "rocketchat://bot@other.example.com/a/b/general/other")), ErrInvalidChannel)
 	assert.Equal(t, before, *config)
+}
+
+// TestConfigSetURLEscapedSlashInToken verifies that an escaped slash in the
+// integration ID or token stays in its path segment and is rejected, rather
+// than read as the boundary to the next segment.
+func TestConfigSetURLEscapedSlashInToken(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{
+		"rocketchat://rocketchat.my-domain.com/a%2Fb/" + testTokenB,
+		"rocketchat://rocketchat.my-domain.com/" + testTokenA + "/a%2Fb",
+	} {
+		require.ErrorIs(t, (&Config{}).SetURL(parseURL(t, rawURL)), util.ErrInvalidPathSegment, rawURL)
+	}
 }
 
 // TestConfigSetURLQuery verifies that SetURL reads the TLS keys from the

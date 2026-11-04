@@ -227,6 +227,10 @@ Every service follows the same rules, so services behave alike for users and for
   A config built in code then fails before any request or dial, as a bad URL does.
 - Apply the defaults that reading a URL fills in, such as a default host, to each send's config too.
   Use one method for both, so a config built in code reaches the endpoint its URL would.
+- Escape a config value that fills one segment of a request path, such as with `url.PathEscape` or through `url.URL`, and check it with `util.ValidatePathSegment`.
+  Escaping keeps `?` and `#` in the segment, but `.` and `..` pass through it unchanged and would walk the path.
+  `url.URL` also keeps a slash as a separator, so the check rejects a slash too.
+- Check a value that fills several segments by design, such as a server's base path, with `util.ValidatePathSegments`, which rejects a `.` or `..` segment.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
@@ -299,6 +303,13 @@ Every service follows the same rules, so services behave alike for users and for
   When reading such a config's own URL fails, a service passes only if the send returns an error before any request or dial.
 - The `send_like_read_back` contract check sends with the same configs when their URLs read back.
   A service passes when the send reaches the same endpoints as a send with the config read back from its URL.
+- The `path_segments` contract check sets each string config field to values with slashes, dot segments, `?`, and `#`.
+  It builds them on a plain value that reaches a request URL.
+  That value is a marker, or the fixture's own value for a field that rejects the marker.
+  A field whose values never reach a request URL is skipped.
+  Each request must keep the host and query keys of a send with the plain value, and must add no fragment.
+  Its path must hold no `.` or `..` segment, written as is or percent-encoded.
+  The path must also keep its number of segments, unless the check's list of server subpath fields names the field.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

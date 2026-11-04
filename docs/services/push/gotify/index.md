@@ -171,6 +171,8 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
     gotify://example.com:443/path/to/gotify/AzyoeNS.D4iJLVa?title=Great+News&priority=1
     ```
 
+    The subpath cannot hold a `.` or `..` segment.
+
 !!! Example "With all parameters"
     ```uri
     gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D

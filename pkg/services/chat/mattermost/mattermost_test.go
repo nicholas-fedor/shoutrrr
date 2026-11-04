@@ -20,6 +20,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client or
@@ -271,7 +272,7 @@ func TestSend(t *testing.T) {
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does, so a config without a server host or a token fails
-// before any request.
+// before any request. So does a token that is not one path segment.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -284,6 +285,8 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
 		{name: "port without a host", change: func(config *Config) { config.Host = ":8065" }, wantErr: ErrHostMissing},
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrNotEnoughArguments},
+		{name: "dot-dot token", change: func(config *Config) { config.Token = ".." }, wantErr: util.ErrInvalidPathSegment},
+		{name: "token with slashes", change: func(config *Config) { config.Token = "x/../../evil" }, wantErr: util.ErrInvalidPathSegment},
 	}
 
 	for _, tt := range tests {

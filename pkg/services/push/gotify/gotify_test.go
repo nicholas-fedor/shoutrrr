@@ -29,6 +29,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -427,6 +428,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrHostMissing},
 		{name: "port without a host", change: func(config *Config) { config.Host = ":8080" }, wantErr: ErrHostMissing},
+		{name: "subpath that walks up", change: func(config *Config) { config.Path = "gotify/.." }, wantErr: util.ErrInvalidPathSegment},
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrInvalidToken},
 		{name: "short token", change: func(config *Config) { config.Token = "Aaa" }, wantErr: ErrInvalidToken},
 	}

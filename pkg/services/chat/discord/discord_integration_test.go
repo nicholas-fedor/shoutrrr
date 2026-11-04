@@ -280,9 +280,9 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 		},
 		{
 			name:     "token with reserved characters",
-			rawURL:   "discord://a%2Fb%3Fc%25zz@456",
+			rawURL:   "discord://a%3Fc%23d%25zz@456",
 			message:  testMessage,
-			wantURL:  testHooksBaseURL + "/456/a%2Fb%3Fc%25zz",
+			wantURL:  testHooksBaseURL + "/456/a%3Fc%23d%25zz",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{

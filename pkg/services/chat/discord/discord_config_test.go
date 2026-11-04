@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Webhook API URLs for the test webhook ID and token.
@@ -189,8 +190,8 @@ func TestConfigGetURLWithoutValues(t *testing.T) {
 }
 
 // TestConfigSetURLRejectsInvalidURLs verifies that SetURL requires a webhook ID
-// that is a snowflake and a token that is not blank, and rejects extra path
-// segments and unknown query keys.
+// that is a snowflake and a token that is one path segment, and rejects extra
+// path segments and unknown query keys.
 func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +209,7 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 		{name: "thread ID not a number", rawURL: "discord://token@123?thread_id=thread-123", wantErr: ErrInvalidThreadID},
 		{name: "no token", rawURL: "discord://@123", wantErr: ErrMissingToken},
 		{name: "blank token", rawURL: "discord://%20%20@123", wantErr: ErrMissingToken},
+		{name: "dot-dot token", rawURL: "discord://..@123", wantErr: util.ErrInvalidPathSegment},
 		{name: "extra path", rawURL: "discord://token@123/invalid", wantErr: ErrIllegalURLArgument},
 		{name: "unknown query key", rawURL: "discord://token@123?invalid_key=value"},
 	}
@@ -227,9 +229,9 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 }
 
 // TestConfigValidate verifies the webhook ID, token, and thread ID rules. The
-// webhook ID must be a number of up to 64 bits. The token must not be blank.
-// The thread ID must be empty or a number of up to 64 bits. Surrounding
-// spaces are ignored.
+// webhook ID must be a number of up to 64 bits. The token must be one path
+// segment. The thread ID must be empty or a number of up to 64 bits.
+// Surrounding spaces are ignored.
 func TestConfigValidate(t *testing.T) {
 	t.Parallel()
 
@@ -250,6 +252,9 @@ func TestConfigValidate(t *testing.T) {
 		{name: "webhook ID past 64 bits", config: Config{WebhookID: "18446744073709551616", Token: "test-token"}, wantErr: ErrInvalidWebhookID},
 		{name: "no token", config: Config{WebhookID: "123456789"}, wantErr: ErrMissingToken},
 		{name: "blank token", config: Config{WebhookID: "123456789", Token: "  "}, wantErr: ErrMissingToken},
+		{name: "dot token", config: Config{WebhookID: "123456789", Token: " . "}, wantErr: util.ErrInvalidPathSegment},
+		{name: "dot-dot token", config: Config{WebhookID: "123456789", Token: ".."}, wantErr: util.ErrInvalidPathSegment},
+		{name: "token with a slash", config: Config{WebhookID: "123456789", Token: "a/b"}, wantErr: util.ErrInvalidPathSegment},
 		{name: "thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: " 987654321 "}},
 		{name: "blank thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}},
 		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "thread-1"}, wantErr: ErrInvalidThreadID},
@@ -291,7 +296,8 @@ func TestCreatePostURLFromConfig(t *testing.T) {
 		{name: "no webhook ID or token", config: Config{}, want: ""},
 		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "a b&c"}, want: ""},
 		{name: "blank thread", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}, want: testWebhookURL},
-		{name: "token with reserved characters", config: Config{WebhookID: "123456789", Token: "a/b?c#d%"}, want: testHooksBaseURL + "/123456789/a%2Fb%3Fc%23d%25"},
+		{name: "token with reserved characters", config: Config{WebhookID: "123456789", Token: "a?c#d%"}, want: testHooksBaseURL + "/123456789/a%3Fc%23d%25"},
+		{name: "dot-dot token", config: Config{WebhookID: "123456789", Token: ".."}, want: ""},
 		{name: "webhook ID not a number", config: Config{WebhookID: "webhook", Token: "test-token"}, want: ""},
 		{name: "blank token", config: Config{WebhookID: "123456789", Token: "  "}, want: ""},
 		{name: "longest webhook ID and a long token", config: Config{WebhookID: longID, Token: longToken}, want: testHooksBaseURL + "/" + longID + "/" + longToken},

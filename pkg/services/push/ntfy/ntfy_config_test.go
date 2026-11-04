@@ -248,6 +248,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "leading empty segment", rawURL: "ntfy://ntfy.sh//SECRETtopic", wantErr: ErrInvalidTopic},
 		{name: "empty base path segment", rawURL: "ntfy://ntfy.sh/ntfy//SECRETtopic", wantErr: ErrInvalidTopic},
 		{name: "trailing slash", rawURL: "ntfy://ntfy.sh/SECRETtopic/", wantErr: ErrInvalidTopic},
+		{name: "base path that walks up", rawURL: "ntfy://ntfy.sh/base/../../SECRETtopic", wantErr: util.ErrInvalidPathSegment},
+		{name: "dot base path", rawURL: "ntfy://ntfy.sh/./SECRETtopic", wantErr: util.ErrInvalidPathSegment},
 		{name: "space in the topic", rawURL: "ntfy://ntfy.sh/SECRET%20topic", wantErr: ErrInvalidTopic},
 		{name: "dot in the topic", rawURL: "ntfy://ntfy.sh/SECRET.topic", wantErr: ErrInvalidTopic},
 		{name: "topic over 64 characters", rawURL: "ntfy://ntfy.sh/SECRET" + strings.Repeat("a", 59), wantErr: ErrInvalidTopic},
