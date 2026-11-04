@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"slices"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -170,7 +169,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //     [ErrTitleMessageConflict]. A missing field gives [ErrMissingEvents] or
 //     [ErrMissingWebhookID]. An empty event name gives [ErrEmptyEventName]. A
 //     webhook ID that a URL host cannot hold gives an error wrapping
-//     [util.ErrInvalidHost].
+//     [util.ErrInvalidHost]. An event name or webhook ID that is not one
+//     segment of the trigger URL's path gives an error wrapping
+//     [util.ErrInvalidPathSegment].
 func (c *Config) validate() error {
 	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
 		return ErrInvalidMessageValue
@@ -189,8 +190,14 @@ func (c *Config) validate() error {
 		return ErrMissingEvents
 	}
 
-	if slices.Contains(c.Events, "") {
-		return ErrEmptyEventName
+	for _, event := range c.Events {
+		if event == "" {
+			return ErrEmptyEventName
+		}
+
+		if err := util.ValidatePathSegment(event); err != nil {
+			return fmt.Errorf("event name: %w", err)
+		}
 	}
 
 	if len(c.WebHookID) < MinLength {
@@ -198,6 +205,10 @@ func (c *Config) validate() error {
 	}
 
 	if err := util.ValidateHostToken(c.WebHookID); err != nil {
+		return fmt.Errorf("webhook ID: %w", err)
+	}
+
+	if err := util.ValidatePathSegment(c.WebHookID); err != nil {
 		return fmt.Errorf("webhook ID: %w", err)
 	}
 

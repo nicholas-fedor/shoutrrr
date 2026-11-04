@@ -22,6 +22,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // roundTripFunc adapts a function to http.RoundTripper.
@@ -407,7 +408,8 @@ func TestSendUnknownParam(t *testing.T) {
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does. A config without a host, an integration ID, or a token
-// fails before any request. So does a config with a slash in its channel.
+// fails before any request. So does an integration ID or token that is not
+// one path segment, and a channel with a slash.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -420,6 +422,9 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
 		{name: "no integration ID", change: func(config *Config) { config.TokenA = "" }, wantErr: ErrNotEnoughArguments},
 		{name: "no token", change: func(config *Config) { config.TokenB = "" }, wantErr: ErrNotEnoughArguments},
+		{name: "dot-dot integration ID", change: func(config *Config) { config.TokenA = ".." }, wantErr: util.ErrInvalidPathSegment},
+		{name: "dot token", change: func(config *Config) { config.TokenB = "." }, wantErr: util.ErrInvalidPathSegment},
+		{name: "token with a slash", change: func(config *Config) { config.TokenB = "a/../b" }, wantErr: util.ErrInvalidPathSegment},
 		{name: "channel with a slash", change: func(config *Config) { config.Channel = "#team/general" }, wantErr: ErrInvalidChannel},
 	}
 

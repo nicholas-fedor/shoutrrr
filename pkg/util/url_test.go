@@ -236,6 +236,21 @@ func TestValidatePathSegment(t *testing.T) {
 	}
 }
 
+// TestValidatePathSegments verifies that a path is accepted unless one of its
+// segments is "." or "..". Empty segments and names that only start or end
+// with a dot are accepted.
+func TestValidatePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"", "/", "base", "/base/path/", "a//b", ".a/b.", "...", "a?b#c"} {
+		require.NoError(t, ValidatePathSegments(path), path)
+	}
+
+	for _, path := range []string{".", "..", "/..", "../x", "a/./b", "a/../b", "a/..", "/./"} {
+		require.ErrorIs(t, ValidatePathSegments(path), ErrInvalidPathSegment, path)
+	}
+}
+
 // TestValidateHostToken verifies that a token is accepted unless it would not
 // read back unchanged from a URL host. A colon or a bracket reads back as a
 // port or an IPv6 address. A slash, a space, or @ makes the URL fail to parse.

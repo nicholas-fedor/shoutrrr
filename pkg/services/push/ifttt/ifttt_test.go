@@ -188,9 +188,9 @@ func TestSend(t *testing.T) {
 		},
 		{
 			name:   "event names escaped",
-			rawURL: "ifttt://dummy/?events=a%2Fb,c%3Fd,%25zz",
+			rawURL: "ifttt://dummy/?events=a%23b,c%3Fd,%25zz",
 			wantURLs: []string{
-				"https://maker.ifttt.com/trigger/a%2Fb/with/key/dummy",
+				"https://maker.ifttt.com/trigger/a%23b/with/key/dummy",
 				"https://maker.ifttt.com/trigger/c%3Fd/with/key/dummy",
 				"https://maker.ifttt.com/trigger/%25zz/with/key/dummy",
 			},
@@ -378,6 +378,7 @@ func TestSendContextErrors(t *testing.T) {
 		{name: "titlevalue equals messagevalue", params: &types.Params{"titlevalue": "2"}, wantErr: ErrTitleMessageConflict},
 		{name: "events cleared", params: &types.Params{"events": ""}, wantErr: ErrMissingEvents},
 		{name: "empty event name", params: &types.Params{"events": "a,"}, wantErr: ErrEmptyEventName},
+		{name: "dot-dot event name", params: &types.Params{"events": ".."}, wantErr: util.ErrInvalidPathSegment},
 	}
 
 	for _, tt := range rejectedParams {

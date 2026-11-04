@@ -193,9 +193,10 @@ func (c *Config) normalizeScheme() {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a malformed query ([util.ErrInvalidQuery]), a query parameter
-//     error, [ErrInvalidScheme], or [ErrMissingDeviceKey] or [ErrMissingHost]
-//     for a missing field.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query parameter error. [ErrInvalidScheme] for a scheme other than http
+//     or https. Otherwise the error from the config's checks, such as
+//     [ErrMissingDeviceKey] for a missing device key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.DeviceKey = password
@@ -232,8 +233,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // fails before a request.
 //
 // Returns:
-//   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field, or
-//     nil.
+//   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field. An
+//     error wrapping [util.ErrInvalidPathSegment] for a server path with a "."
+//     or ".." segment. Otherwise nil.
 func (c *Config) validate() error {
 	if c.DeviceKey == "" {
 		return ErrMissingDeviceKey
@@ -241,6 +243,10 @@ func (c *Config) validate() error {
 
 	if c.Host == "" {
 		return ErrMissingHost
+	}
+
+	if err := util.ValidatePathSegments(c.Path); err != nil {
+		return fmt.Errorf("server path: %w", err)
 	}
 
 	return nil

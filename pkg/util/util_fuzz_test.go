@@ -253,3 +253,21 @@ func FuzzValidateHostToken(f *testing.F) {
 		assert.Equal(t, want, ValidateHostToken(token) == nil, "%q", token)
 	})
 }
+
+// FuzzValidatePathSegments checks that ValidatePathSegments rejects a path
+// exactly when splitting it at every slash gives a "." or ".." segment. Seeds
+// hold paths with and without dots, empty segments, and dot segments at the
+// start, middle, and end.
+func FuzzValidatePathSegments(f *testing.F) {
+	for _, seed := range []string{"", "/", "base/path", "a//b", ".a/b.", "...", ".", "..", "/..", "a/./b", "a/..", "../x"} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, path string) {
+		want := !slices.ContainsFunc(strings.Split(path, "/"), func(segment string) bool {
+			return segment == "." || segment == ".."
+		})
+
+		assert.Equal(t, want, ValidatePathSegments(path) == nil, "%q", path)
+	})
+}

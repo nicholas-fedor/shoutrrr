@@ -156,6 +156,20 @@ type configVariant struct {
 	name string
 }
 
+// pathReference holds what the path_segments check compares a request with,
+// taken from the baseline send of one field.
+type pathReference struct {
+	// queryKeys holds the query keys of the baseline requests.
+	queryKeys map[string]bool
+	// urls holds the URLs of the baseline requests.
+	urls []*url.URL
+	// hostField reports whether the field names the server, which changes the
+	// request host.
+	hostField bool
+	// subpath reports whether the field holds several path segments by design.
+	subpath bool
+}
+
 // variantSend records what a send with a config variant did.
 type variantSend struct {
 	// err is the send's error.
@@ -164,6 +178,9 @@ type variantSend struct {
 	// injected client in order. The distinct addresses the send dialed follow,
 	// sorted.
 	endpoints []string
+	// urls holds the URL of each request through the injected client, in
+	// order.
+	urls []*url.URL
 	// requests counts requests through the injected client,
 	// http.DefaultTransport, or another transport.
 	requests int64
@@ -235,6 +252,9 @@ const (
 	// checkSendLikeReadBack verifies that a send with a config whose URL reads
 	// back reaches the endpoints that the read-back config reaches.
 	checkSendLikeReadBack = "send_like_read_back"
+	// checkPathSegments verifies that a config value stays in its segments of
+	// each request path, whatever slashes, dots, or URL delimiters it holds.
+	checkPathSegments = "path_segments"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -286,6 +306,7 @@ const (
 	failUnknownParamAccepted                    // a send with an unknown param did not fail as an unknown config key
 	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
 	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
+	failPathSegmentLeft                         // a config value left its segment of a request path
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -294,6 +315,29 @@ const cancelAfter = time.Second
 // oversizedBodySize is the size of the response bodies served by
 // TestIntegrationResponseBodyLimit, far past [httpbody.MaxSize].
 const oversizedBodySize = 8 * httpbody.MaxSize
+
+// pathSegmentMarker is the plain value the path_segments check first sets a
+// string config field to. It is distinct, so the check can find it in a
+// request URL.
+const pathSegmentMarker = "pathsegx"
+
+// pathSegmentSuffixes follow a field's plain value in the values the
+// path_segments check sends. Each would leave its segment of a request path
+// that a service built from the value without escaping and checking it.
+var pathSegmentSuffixes = []string{"/../../evil", "/evil", "?evil=1", "#evil"}
+
+// subpathFields lists, by scheme, the config fields that hold several
+// segments of a request path by design, such as a server's base path. The
+// path_segments check lets them change the number of segments, but not hold a
+// "." or ".." segment.
+var subpathFields = map[string][]string{
+	"bark":          {"Path"},
+	"googlechat":    {"Path"},
+	"gotify":        {"Path"},
+	"hangouts":      {"Path"},
+	"homeassistant": {"Path"},
+	"ntfy":          {"Topic"},
+}
 
 // fixtures covers every scheme returned by router.SupportedSchemas.
 // Configurable hosts use the reserved .invalid TLD.
@@ -362,8 +406,8 @@ var fixtures = []fixture{
 	},
 	{
 		scheme:  "matrix",
-		url:     "matrix://contract:SECRETmatrixPASSWORD@matrix.example.invalid",
-		secrets: []string{"SECRETmatrixPASSWORD"},
+		url:     "matrix://:SECRETmatrixTOKEN@matrix.example.invalid/?rooms=!ops:example.invalid",
+		secrets: []string{"SECRETmatrixTOKEN"},
 	},
 	{
 		scheme:  "mattermost",
@@ -523,11 +567,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"generic":   {"Generic passes a key in another case through to the webhook as a custom query parameter", failConflictAccepted},
 		"notifiarr": {"Notifiarr passes a key in another case through to the webhook as a custom query parameter", failConflictAccepted},
 	},
-	checkLeveledLogs: {
-		// The fixture's password URL needs a login exchange, which one canned
-		// response cannot answer, so the check sees only failed Matrix sends.
-		"matrix": {"Matrix logs in first, which the fixture's single response cannot answer", failSendFailed},
-	},
 	checkSendKeepsDeadline: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.
@@ -634,6 +673,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkUnknownParams, runUnknownParams},
 		{checkCheckedConfig, runCheckedConfig},
 		{checkSendLikeReadBack, runSendLikeReadBack},
+		{checkPathSegments, runPathSegments},
 	}
 
 	for _, check := range checks {
@@ -1750,6 +1790,205 @@ func runSendLikeReadBack(t *testing.T, fx *fixture) failure {
 	return failure{}
 }
 
+// runPathSegments verifies that each string config value stays in its part of
+// the request paths. For each exported string or string-list field of the
+// fixture's config, [pathBaseline] finds a plain value that reaches a request
+// URL, and that send is the baseline. A field whose values never reach a
+// request URL is skipped, and so is a field whose plain value is a whole
+// request URL. The field is then set to "." and "..", and to the plain value
+// followed by each of [pathSegmentSuffixes]. Every request of such a send
+// must keep the baseline's host, unless the field names the server, and must
+// add no query key or fragment. Its escaped path must hold no "." or ".."
+// segment, and the same number of segments as a baseline request, unless
+// [subpathFields] lists the field. A send that fails before any request
+// passes.
+func runPathSegments(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind != netHTTP {
+		return failure{}
+	}
+
+	config, result := fixtureConfig(t, fx.url)
+	if result.kind != failNone {
+		return result
+	}
+
+	for structField, value := range reflect.ValueOf(config).Elem().Fields() {
+		isText := value.Kind() == reflect.String ||
+			value.Kind() == reflect.Slice && value.Type().Elem().Kind() == reflect.String
+		if !structField.IsExported() || !isText {
+			continue
+		}
+
+		plain, baseline, result := pathBaseline(t, fx, config, structField.Index, value)
+		if result.kind != failNone {
+			return result
+		}
+
+		// A field that is a whole request URL, such as a workflow webhook,
+		// chooses every part of the request by design.
+		if plain == "" || slices.ContainsFunc(baseline.urls, func(base *url.URL) bool { return base.String() == plain }) {
+			continue
+		}
+
+		reference := pathReference{
+			urls:      baseline.urls,
+			queryKeys: map[string]bool{},
+			// A field that names the server sends its baseline to that host.
+			hostField: slices.ContainsFunc(baseline.urls, func(base *url.URL) bool { return base.Hostname() == plain }),
+			subpath:   slices.Contains(subpathFields[fx.scheme], structField.Name),
+		}
+
+		for _, base := range baseline.urls {
+			for key := range base.Query() {
+				reference.queryKeys[key] = true
+			}
+		}
+
+		texts := []string{".", ".."}
+		for _, suffix := range pathSegmentSuffixes {
+			texts = append(texts, plain+suffix)
+		}
+
+		for _, text := range texts {
+			send, result := sendVariant(t, fx, withText(t, config, structField.Index, text))
+			if result.kind != failNone {
+				return result
+			}
+
+			for _, requestURL := range send.urls {
+				if reason := reference.leftSegment(requestURL); reason != "" {
+					return fail(failPathSegmentLeft, "a send with %s set to %q %s", structField.Name, text, reason)
+				}
+			}
+		}
+	}
+
+	return failure{}
+}
+
+// pathBaseline finds the plain value that the path_segments check builds a
+// field's other values on. It tries [pathSegmentMarker] first, then the
+// fixture's own value for a field whose format rejects the marker, such as a
+// token. It picks the first one that a request URL of its send holds.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture.
+//   - config: the fixture's config.
+//   - index: the index of the string or string-list field.
+//   - value: the field's value in the fixture's config.
+//
+// Returns:
+//   - string: the plain value, or "" when no request URL holds either one.
+//   - variantSend: the send with the plain value.
+//   - failure: a failInit or failPanic failure, or none.
+func pathBaseline(t *testing.T, fx *fixture, config types.ServiceConfig, index []int, value reflect.Value) (string, variantSend, failure) {
+	t.Helper()
+
+	candidates := []string{pathSegmentMarker}
+
+	if value.Kind() == reflect.String && value.Len() > 0 {
+		candidates = append(candidates, value.String())
+	} else if value.Kind() == reflect.Slice && value.Len() > 0 {
+		candidates = append(candidates, value.Index(0).String())
+	}
+
+	for _, candidate := range candidates {
+		send, result := sendVariant(t, fx, withText(t, config, index, candidate))
+		if result.kind != failNone {
+			return "", variantSend{}, result
+		}
+
+		escapes := []string{candidate, url.PathEscape(candidate), url.QueryEscape(candidate)}
+		if slices.ContainsFunc(send.urls, func(requestURL *url.URL) bool {
+			full := requestURL.String()
+
+			return slices.ContainsFunc(escapes, func(escaped string) bool { return strings.Contains(full, escaped) })
+		}) {
+			return candidate, send, failure{}
+		}
+	}
+
+	return "", variantSend{}, failure{}
+}
+
+// withText returns a copy of config whose field holds text, as the only
+// element of a string-list field.
+//
+// Parameters:
+//   - t: the test.
+//   - config: the config to copy.
+//   - index: the index of the string or string-list field to set.
+//   - text: the text.
+//
+// Returns:
+//   - types.ServiceConfig: the copy.
+func withText(t *testing.T, config types.ServiceConfig, index []int, text string) types.ServiceConfig {
+	t.Helper()
+
+	changed := cloneConfig(t, config)
+	value := reflect.ValueOf(changed).Elem().FieldByIndex(index)
+
+	if value.Kind() == reflect.String {
+		value.SetString(text)
+	} else {
+		value.Set(reflect.ValueOf([]string{text}).Convert(value.Type()))
+	}
+
+	return changed
+}
+
+// leftSegment reports how a request URL differs from every baseline request
+// in a way that shows a config value left its segment. A dot segment counts
+// whether it is written as is or percent-encoded, since a server may decode it
+// before routing. A fragment that no baseline request has counts too, since a
+// value cut off at a # never reaches the server. The dot segments are checked
+// here, without the util helpers the services call, so a fault in those
+// helpers fails the check.
+//
+// Parameters:
+//   - requestURL: the request URL to judge.
+//
+// Returns:
+//   - string: what differs, or "" when the request stays within its parts.
+func (r *pathReference) leftSegment(requestURL *url.URL) string {
+	path := requestURL.EscapedPath()
+
+	for segment := range strings.SplitSeq(path, "/") {
+		decoded, err := url.PathUnescape(segment)
+		if err != nil {
+			decoded = segment
+		}
+
+		if decoded == "." || decoded == ".." {
+			return fmt.Sprintf("sent the path %q, which holds a dot segment", path)
+		}
+	}
+
+	if requestURL.Fragment != "" && !slices.ContainsFunc(r.urls, func(base *url.URL) bool { return base.Fragment == requestURL.Fragment }) {
+		return fmt.Sprintf("sent the fragment %q, which cut the value off", requestURL.Fragment)
+	}
+
+	if !r.hostField && !slices.ContainsFunc(r.urls, func(base *url.URL) bool { return base.Host == requestURL.Host }) {
+		return fmt.Sprintf("sent a request to the host %q", requestURL.Host)
+	}
+
+	segments := strings.Count(path, "/")
+	if !r.subpath && !slices.ContainsFunc(r.urls, func(base *url.URL) bool { return strings.Count(base.EscapedPath(), "/") == segments }) {
+		return fmt.Sprintf("sent the path %q, which has another number of segments", path)
+	}
+
+	for key := range requestURL.Query() {
+		if !r.queryKeys[key] {
+			return fmt.Sprintf("sent the query key %q", key)
+		}
+	}
+
+	return ""
+}
+
 // runParamsDoNotPersist verifies that params passed to Send apply to that send
 // only: the service's exported Config is the same before and after the send.
 // Services without an exported Config field are not checked.
@@ -2218,6 +2457,7 @@ func sendVariant(t *testing.T, fx *fixture, config types.ServiceConfig) (variant
 		for i := range env.client.Calls {
 			if req, ok := env.client.Calls[i].Arguments.Get(0).(*http.Request); ok {
 				send.endpoints = append(send.endpoints, req.URL.Scheme+"://"+req.URL.Host+req.URL.Path)
+				send.urls = append(send.urls, req.URL)
 			}
 		}
 

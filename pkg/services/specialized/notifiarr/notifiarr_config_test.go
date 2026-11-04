@@ -192,6 +192,19 @@ func TestConfigSetURLMissingAPIKey(t *testing.T) {
 	assert.Equal(t, testAPIKey, config.APIKey)
 }
 
+// TestConfigSetURLDotKey verifies that SetURL rejects an API key of "." or
+// "..", from the host or the apikey query parameter, since the key is one
+// segment of the request path.
+func TestConfigSetURLDotKey(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{"notifiarr://..", "notifiarr://.", "notifiarr://?apikey=.."} {
+		config, resolver := DefaultConfig()
+
+		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), util.ErrInvalidPathSegment, rawURL)
+	}
+}
+
 // TestConfigSetURLKeyNotAHost verifies that SetURL rejects an API key that the
 // URL GetURL writes would not read back unchanged. A colon or brackets would
 // read back as a host and port. A slash or a question mark from the apikey

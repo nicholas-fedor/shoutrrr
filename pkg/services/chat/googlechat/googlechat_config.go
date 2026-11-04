@@ -2,6 +2,7 @@ package googlechat
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -121,8 +122,10 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 // each send run this check, so a config built in code fails before a request.
 //
 // Returns:
-//   - error: [ErrMissingKey] or [ErrMissingToken] for an empty key or token,
-//     or [ErrMissingPath] for a path without a segment. Otherwise nil.
+//   - error: [ErrMissingKey] or [ErrMissingToken] for an empty key or token.
+//     [ErrMissingPath] for a path without a segment. An error wrapping
+//     [util.ErrInvalidPathSegment] for a path with a "." or ".." segment.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	if c.Key == "" {
 		return ErrMissingKey
@@ -134,6 +137,10 @@ func (c *Config) validate() error {
 
 	if strings.Trim(c.Path, "/") == "" {
 		return ErrMissingPath
+	}
+
+	if err := util.ValidatePathSegments(c.Path); err != nil {
+		return fmt.Errorf("space path: %w", err)
 	}
 
 	return nil

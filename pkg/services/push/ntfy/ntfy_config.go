@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -265,10 +264,11 @@ func (c *Config) serverHost() string {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a host error such as [util.ErrInvalidHost], a malformed query
-//     ([util.ErrInvalidQuery]) or query parameter error, [ErrInvalidScheme],
-//     [ErrTopicRequired] for a missing topic, or [ErrInvalidTopic] for an
-//     invalid topic name or an empty path segment.
+//   - error: a host error such as [util.ErrInvalidHost]. An error wrapping
+//     [util.ErrInvalidQuery] for a malformed query or a query parameter error.
+//     [ErrInvalidScheme] for a scheme other than http or https. Otherwise the
+//     error from the config's checks, such as [ErrInvalidTopic] for an invalid
+//     topic name.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -324,9 +324,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: a host error such as [util.ErrInvalidHost] for a host that is not
-//     a hostname or a bracketed IPv6 address, [ErrTopicRequired] for a
-//     missing topic, [ErrInvalidTopic] for an invalid topic name or an empty
-//     path segment, or nil.
+//     a hostname or a bracketed IPv6 address. [ErrTopicRequired] for a missing
+//     topic. [ErrInvalidTopic] for an invalid topic name or an empty path
+//     segment. An error wrapping [util.ErrInvalidPathSegment] for a base path
+//     with a "." or ".." segment. Otherwise nil.
 func (c *Config) validate() error {
 	if _, _, err := util.SplitURLHost(&url.URL{Host: c.Host}); err != nil {
 		return fmt.Errorf("parsing host: %w", err)
@@ -336,11 +337,7 @@ func (c *Config) validate() error {
 		return ErrTopicRequired
 	}
 
-	if !isValidTopicPath(c.Topic) {
-		return ErrInvalidTopic
-	}
-
-	return nil
+	return validateTopicPath(c.Topic)
 }
 
 // hasQueryKey reports whether query sets key, matched case-insensitively as
@@ -362,21 +359,36 @@ func hasQueryKey(query url.Values, key string) bool {
 	return false
 }
 
-// isValidTopicPath reports whether topicPath is a topic name, optionally after
-// a base path, with no empty segment. The topic name follows ntfy's rule of up
-// to 64 letters, digits, underscores, and dashes.
+// validateTopicPath checks a topic name, optionally after a server's base path.
+// The topic name follows ntfy's rule of up to 64 letters, digits, underscores,
+// and dashes. The base path has no empty segment, and no "." or ".." segment.
 //
 // Parameters:
 //   - topicPath: the URL path without its first slash.
 //
 // Returns:
-//   - bool: true when every segment is non-empty and the last one is a valid
-//     topic name.
-func isValidTopicPath(topicPath string) bool {
-	segments := strings.Split(topicPath, "/")
-	if slices.Contains(segments, "") {
-		return false
+//   - error: [ErrInvalidTopic] for an invalid topic name or an empty segment.
+//     An error wrapping [util.ErrInvalidPathSegment] for a base path with a
+//     "." or ".." segment. Otherwise nil.
+func validateTopicPath(topicPath string) error {
+	slash := strings.LastIndexByte(topicPath, '/')
+	if !topicNamePattern.MatchString(topicPath[slash+1:]) {
+		return ErrInvalidTopic
 	}
 
-	return topicNamePattern.MatchString(segments[len(segments)-1])
+	if slash < 0 {
+		return nil
+	}
+
+	// A leading, trailing, or doubled slash leaves an empty segment.
+	base := topicPath[:slash]
+	if base == "" || base[0] == '/' || base[len(base)-1] == '/' || strings.Contains(base, "//") {
+		return ErrInvalidTopic
+	}
+
+	if err := util.ValidatePathSegments(base); err != nil {
+		return fmt.Errorf("topic base path: %w", err)
+	}
+
+	return nil
 }

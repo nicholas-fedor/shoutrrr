@@ -18,6 +18,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // roundTripFunc adapts a function to [http.RoundTripper].
@@ -184,7 +185,8 @@ func TestServiceSendRequest(t *testing.T) {
 
 // TestServiceSendChecksConfig verifies that a send checks a config built in
 // code as reading a URL does. A config without a key, token, or webhook path
-// fails before any request. A config without a host posts to [DefaultHost].
+// fails before any request, and so does a path with a ".." segment. A config
+// without a host posts to [DefaultHost].
 func TestServiceSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +199,7 @@ func TestServiceSendChecksConfig(t *testing.T) {
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingKey},
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrMissingToken},
 		{name: "no path", change: func(config *Config) { config.Path = "" }, wantErr: ErrMissingPath},
+		{name: "path that walks up", change: func(config *Config) { config.Path = "/v1/spaces/../../evil" }, wantErr: util.ErrInvalidPathSegment},
 	}
 
 	for _, tt := range tests {

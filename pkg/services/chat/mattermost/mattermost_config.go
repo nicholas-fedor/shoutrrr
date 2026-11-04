@@ -1,6 +1,7 @@
 package mattermost
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -117,9 +118,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a URL without a host, [ErrNotEnoughArguments]
-//     for a path without a token, an error wrapping [util.ErrInvalidQuery] for
-//     a malformed query, or a query parameter error.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query parameter error. Otherwise the error from the config's checks,
+//     such as [ErrHostMissing] for a URL without a host.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// The path holds the token and an optional channel.
 	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
@@ -158,8 +159,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: [ErrHostMissing] for a host without a hostname, such as an empty
-//     host or a port alone, [ErrNotEnoughArguments] for a config without a
-//     token, or nil.
+//     host or a port alone. [ErrNotEnoughArguments] for a config without a
+//     token. An error wrapping [util.ErrInvalidPathSegment] for a token that
+//     is not one segment of the webhook path. Otherwise nil.
 func (c *Config) validate() error {
 	// A Mattermost server has no default host.
 	if (&url.URL{Host: c.Host}).Hostname() == "" {
@@ -168,6 +170,10 @@ func (c *Config) validate() error {
 
 	if c.Token == "" {
 		return ErrNotEnoughArguments
+	}
+
+	if err := util.ValidatePathSegment(c.Token); err != nil {
+		return fmt.Errorf("token: %w", err)
 	}
 
 	return nil

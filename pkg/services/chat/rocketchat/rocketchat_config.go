@@ -182,9 +182,11 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // fails before a request.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a config without a host,
-//     [ErrNotEnoughArguments] without the integration ID or the token,
-//     [ErrInvalidChannel] for a channel with a slash, or nil.
+//   - error: [ErrHostMissing] for a config without a host.
+//     [ErrNotEnoughArguments] without the integration ID or the token. An error
+//     wrapping [util.ErrInvalidPathSegment] for an integration ID or token that
+//     is not one segment of the webhook path. [ErrInvalidChannel] for a channel
+//     with a slash. Otherwise nil.
 func (c *Config) validate() error {
 	// A Rocket.Chat server has no default host.
 	if c.Host == "" {
@@ -194,6 +196,14 @@ func (c *Config) validate() error {
 	// The webhook URL needs both the integration ID and the token.
 	if c.TokenA == "" || c.TokenB == "" {
 		return ErrNotEnoughArguments
+	}
+
+	if err := util.ValidatePathSegment(c.TokenA); err != nil {
+		return fmt.Errorf("integration ID: %w", err)
+	}
+
+	if err := util.ValidatePathSegment(c.TokenB); err != nil {
+		return fmt.Errorf("token: %w", err)
 	}
 
 	// A channel name cannot hold a slash, which only a URL fragment can carry.

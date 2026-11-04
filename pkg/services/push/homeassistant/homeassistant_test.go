@@ -22,6 +22,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -296,7 +297,8 @@ func TestSendOversizedBody(t *testing.T) {
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does. A config without a token or a host fails before any
-// request. So do a port out of range and an invalid notify service.
+// request. So do a port out of range, a path prefix with a ".." segment, and
+// an invalid notify service.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -308,6 +310,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrTokenMissing},
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrHostMissing},
+		{name: "path prefix that walks up", change: func(config *Config) { config.Path = "/ha/../../evil" }, wantErr: util.ErrInvalidPathSegment},
 		{name: "negative port", change: func(config *Config) { config.Port = -1 }, wantErr: ErrInvalidPort},
 		{name: "port above 65535", change: func(config *Config) { config.Port = 65536 }, wantErr: ErrInvalidPort},
 		{name: "invalid service", change: func(config *Config) { config.Service = "not a service" }, wantErr: ErrInvalidService},
