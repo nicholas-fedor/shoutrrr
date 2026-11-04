@@ -28,7 +28,8 @@ const EnumInvalid = -1
 //
 // Aliases match in any case, as names do. An exact alias match wins, and
 // aliases that differ only in case otherwise resolve to the first of them in
-// sorted order.
+// sorted order. The formatter keeps its own copy of the names, so changing the
+// given slice later leaves it unchanged.
 //
 // Parameters:
 //   - names: the enum names by value, with leading empty names left out of the listed names.
@@ -37,6 +38,9 @@ const EnumInvalid = -1
 // Returns:
 //   - types.EnumFormatter: the formatter.
 func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.EnumFormatter {
+	// The names are copied, so the caller cannot change them out from under
+	// the parse results recorded below.
+	names = slices.Clone(names)
 	aliases := map[string]int{}
 	foldedAliases := map[string]int{}
 
@@ -121,8 +125,13 @@ func invalidEnumValue(formatter types.EnumFormatter) error {
 }
 
 // Names is the list of the valid Enum string values.
+//
+// It returns a copy, so changing the list leaves the enum unchanged.
+//
+// Returns:
+//   - []string: the names, in value order, without leading empty names.
 func (ef EnumFormatter) Names() []string {
-	return ef.names[ef.firstOffset:]
+	return slices.Clone(ef.names[ef.firstOffset:])
 }
 
 // Parse takes an enum mapped string and returns it's int representation or EnumInvalid (-1).

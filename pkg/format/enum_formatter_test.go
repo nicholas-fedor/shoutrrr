@@ -28,6 +28,25 @@ func TestCreateEnumFormatter(t *testing.T) {
 	assert.Equal(t, []string{"None", "Foo", "Bar"}, testEnum.Names())
 }
 
+// TestEnumFormatterKeepsNames verifies that changing the slice of names given
+// to the formatter, or the one Names returns, leaves the enum unchanged.
+//
+// Print, Parse, and CheckEnumValue then keep agreeing.
+func TestEnumFormatterKeepsNames(t *testing.T) {
+	t.Parallel()
+
+	names := []string{"Low", "High"}
+	formatter := CreateEnumFormatter(names)
+
+	names[1] = "Low"
+	formatter.Names()[0] = "High"
+
+	assert.Equal(t, []string{"Low", "High"}, formatter.Names())
+	assert.Equal(t, "High", formatter.Print(1))
+	assert.Equal(t, 1, formatter.Parse("High"))
+	require.NoError(t, CheckEnumValue(formatter, 1))
+}
+
 // TestEnumFormatterParse verifies that names and aliases match in any case,
 // that aliases map to their index, and that anything else is invalid.
 func TestEnumFormatterParse(t *testing.T) {
