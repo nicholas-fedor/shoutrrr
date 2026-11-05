@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/login-action action to v4.8.0 by @renovate[bot] in [#2077](https://github.com/nicholas-fedor/shoutrrr/pull/2077)
+- Update sigstore/cosign-installer action to v4.1.3 by @renovate[bot] in [#2072](https://github.com/nicholas-fedor/shoutrrr/pull/2072)
 - Update github/codeql-action action to v4.39.3 by @renovate[bot] in [#2071](https://github.com/nicholas-fedor/shoutrrr/pull/2071)
 - Update dependency platformdirs to v4.14.5 by @renovate[bot] in [#2069](https://github.com/nicholas-fedor/shoutrrr/pull/2069)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to c6c1ca9 by @renovate[bot] in [#2068](https://github.com/nicholas-fedor/shoutrrr/pull/2068)
