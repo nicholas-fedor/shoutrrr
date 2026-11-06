@@ -10,7 +10,7 @@ require (
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-colorable v0.1.16
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.49.0
