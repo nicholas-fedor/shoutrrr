@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.4 docker digest to 93b41ef by @renovate[bot] in [#2082](https://github.com/nicholas-fedor/shoutrrr/pull/2082)
+- Update dependency markdown to v3.11.3 by @renovate[bot] in [#2080](https://github.com/nicholas-fedor/shoutrrr/pull/2080)
 - Update alpine docker tag to v3.24.4 by @renovate[bot] in [#2079](https://github.com/nicholas-fedor/shoutrrr/pull/2079)
 - Update dependency watchdog to v7.1.0 by @renovate[bot] in [#2076](https://github.com/nicholas-fedor/shoutrrr/pull/2076)
 - Update docker/login-action action to v4.8.0 by @renovate[bot] in [#2077](https://github.com/nicholas-fedor/shoutrrr/pull/2077)
