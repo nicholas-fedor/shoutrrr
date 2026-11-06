@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/spf13/pflag to v1.1.0 by @renovate[bot] in [#2083](https://github.com/nicholas-fedor/shoutrrr/pull/2083)
 - Update alpine:3.24.4 docker digest to 93b41ef by @renovate[bot] in [#2082](https://github.com/nicholas-fedor/shoutrrr/pull/2082)
 - Update dependency markdown to v3.11.3 by @renovate[bot] in [#2080](https://github.com/nicholas-fedor/shoutrrr/pull/2080)
 - Update alpine docker tag to v3.24.4 by @renovate[bot] in [#2079](https://github.com/nicholas-fedor/shoutrrr/pull/2079)
