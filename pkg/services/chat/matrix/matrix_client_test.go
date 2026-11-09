@@ -1061,10 +1061,15 @@ func TestGenerateTransactionID(t *testing.T) {
 
 // TestGenerateDeviceID verifies that device IDs are deterministic per user and
 // host, use the SH-prefixed alphanumeric format, and ignore default ports.
+//
+// An IPv6 host gives one ID with or without a default port. The IDs of a
+// hostname and of IPv6 hosts written without a default port are pinned, so a
+// change to the normalization cannot give those configs a new device.
 func TestGenerateDeviceID(t *testing.T) {
 	t.Parallel()
 
 	base := generateDeviceID("user", "matrix.example.com")
+	assert.Equal(t, "SHSAXwDDjT", base, "a hostname's ID does not change")
 
 	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com"), "the same user and host give the same ID")
 	assert.NotEqual(t, base, generateDeviceID("user1", "matrix.example.com"), "users get different IDs")
@@ -1079,6 +1084,13 @@ func TestGenerateDeviceID(t *testing.T) {
 	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com:443"), "the default HTTPS port is ignored")
 	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com:80"), "the default HTTP port is ignored")
 	assert.NotEqual(t, base, generateDeviceID("user", "matrix.example.com:8008"), "other ports change the ID")
+
+	ipv6 := generateDeviceID("user", "[2001:db8::1]")
+	assert.Equal(t, "SHCa3HbB8l", ipv6, "an IPv6 host without a port keeps its ID")
+	assert.Equal(t, "SHCdhptpoL", generateDeviceID("user", "[2001:db8::1]:8448"), "an IPv6 host with another port keeps its ID")
+	assert.Equal(t, ipv6, generateDeviceID("user", "[2001:db8::1]:443"), "the default HTTPS port is ignored for IPv6")
+	assert.Equal(t, ipv6, generateDeviceID("user", "[2001:db8::1]:80"), "the default HTTP port is ignored for IPv6")
+	assert.NotEqual(t, ipv6, generateDeviceID("user", "[2001:db8::1]:8448"), "other ports change the ID for IPv6")
 }
 
 // TestCreateMessage verifies that a non-blank title is trimmed and prepended to

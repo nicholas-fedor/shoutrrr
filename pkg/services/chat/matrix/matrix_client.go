@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -27,6 +26,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // HTTPClient defines the interface for HTTP operations.
@@ -625,31 +625,31 @@ func generateDeviceID(user, host string) string {
 }
 
 // normalizeHostForDeviceID normalizes a host string by removing default ports.
+//
 // This prevents device churn when the port is omitted or explicitly included
-// in the URL (e.g., "matrix.example.com:443" vs "matrix.example.com").
+// in the URL, as in matrix.example.com:443 and matrix.example.com. An IPv6
+// host keeps its brackets either way, so [2001:db8::1]:443 and [2001:db8::1]
+// give the same host.
 //
 // Parameters:
 //   - host: the host, with an optional port.
 //
 // Returns:
-//   - string: the host without a default port.
+//   - string: the host without a default port, or the host as given when it
+//     does not split.
 func normalizeHostForDeviceID(host string) string {
-	// Check for explicit port using net.SplitHostPort.
-	// If no port is present, return the host as-is.
-	hostname, port, err := net.SplitHostPort(host)
+	hostname, port, err := util.SplitURLHost(&url.URL{Host: host})
 	if err != nil {
-		// No port present, return host as-is.
 		return host
 	}
 
-	// Remove default ports to normalize the host.
-	// Port 443 is the default for HTTPS, 80 for HTTP.
+	// Port 443 is the default for HTTPS and 80 for HTTP. Both are dropped
+	// whatever the scheme, so existing device IDs stay the same.
 	if port == "443" || port == "80" {
-		return hostname
+		port = ""
 	}
 
-	// Non-default port, keep it for uniqueness.
-	return host
+	return util.JoinURLHost(hostname, port)
 }
 
 // retryFits reports whether a retry may follow a wait. It may when the
