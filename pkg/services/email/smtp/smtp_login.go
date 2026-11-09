@@ -66,8 +66,9 @@ func isLocalhost(name string) bool {
 //
 // When more is true, the next credential is returned by step order (username,
 // then password). Challenge bytes from the server are ignored. An extra
-// challenge after the password step returns an error so net/smtp aborts AUTH
-// instead of sending a dummy client response.
+// challenge after the password step returns an error, so net/smtp cancels the
+// exchange and quits. A nil response would instead end the exchange as if it
+// had succeeded, with the server still waiting for an answer.
 //
 // Parameters:
 //   - fromServer: The decoded server challenge payload (ignored for LOGIN).
