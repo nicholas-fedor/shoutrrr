@@ -68,6 +68,9 @@
 // exceeds this limit, the service automatically truncates the message to use
 // as the alert title, while using the full message as the description.
 //
+// OpsGenie requires an alert message, so a send without a title or a message
+// fails with [ErrMessageMissing] before the request.
+//
 // # API Endpoints
 //
 // The service sends alerts to the OpsGenie Create Alert API:

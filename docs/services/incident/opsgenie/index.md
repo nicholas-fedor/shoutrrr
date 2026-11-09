@@ -56,13 +56,17 @@ service.Send("An example alert message", &types.Params{
 - `responders` and `visibleTo` are comma-separated `type:identifier` entries.
   An identifier in the OpsGenie ID format, such as `4513b7ea-3b91-438f-b7e4-e3e54af9147c`, is sent as the ID.
   Otherwise it is sent as the username for `user` and as the name for `team`, `escalation`, and `schedule`.
-  `visibleTo` accepts only `team` and `user` entries, as OpsGenie requires, and any other type fails the send.
+  `visibleTo` accepts only `team` and `user` entries, as OpsGenie requires.
+  Any other type fails, whether it is set in the URL, in code, or in the send params.
 - `actions` and `tags` are comma-separated lists.
 - `details` is a comma-separated list of `key:value` pairs.
   Each pair splits at its first colon, so values can contain colons, as in `runbook:https://wiki.example.com/disk`, while keys cannot.
   Neither keys nor values can contain commas.
+- `priority` is `P1` to `P5` in any case, and is sent in upper case.
+  Any other value fails, and an unset priority leaves OpsGenie's default of `P3`.
 - The alert message is the title when one is set, and the notification message otherwise, cut to 130 characters.
   The notification message is sent as the description when a title is set or when it is cut.
+  OpsGenie requires an alert message, so a send without a title or a message fails before the request.
 
 See the [OpsGenie Alert API documentation](https://docs.opsgenie.com/docs/alert-api#create-alert) for the limits of each field.
 

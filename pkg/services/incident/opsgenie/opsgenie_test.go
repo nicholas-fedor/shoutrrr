@@ -331,8 +331,10 @@ func TestSend(t *testing.T) {
 // TestSendChecksConfig verifies that a send checks a config built in code as
 // reading a URL does.
 //
-// A config without an API key fails before any request, and so does a host
-// that holds a port. One without a host or port posts to the default API.
+// A config without an API key fails before any request, and so do a host that
+// holds a port, a priority other than P1 to P5, and a send without a title or
+// a message. One without a host or port posts to the default API. A lower-case
+// priority is sent in upper case, and a title alone becomes the alert message.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -356,6 +358,50 @@ func TestSendChecksConfig(t *testing.T) {
 		service.Config.Host = "api.opsgenie.com:443"
 
 		require.ErrorIs(t, service.Send("Message", nil), util.ErrInvalidHost)
+	})
+
+	t.Run("invalid priority", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		service.Config.Priority = "P0"
+
+		require.ErrorIs(t, service.Send("Message", nil), ErrInvalidPriority)
+	})
+
+	t.Run("lower-case priority", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		client, captured := newRespondingClient(t, http.StatusAccepted, "")
+		service.SetHTTPClient(client)
+		service.Config.Priority = "p3"
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Contains(t, captured.body, `"priority":"P3"`)
+	})
+
+	t.Run("no title or message", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.Send("", nil), ErrMessageMissing)
+	})
+
+	t.Run("title without a message", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey+"?title=Disk+full")
+		client, captured := newRespondingClient(t, http.StatusAccepted, "")
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send("", nil))
+		assert.Contains(t, captured.body, `"message":"Disk full"`)
 	})
 
 	t.Run("no host or port", func(t *testing.T) {
@@ -452,6 +498,7 @@ func TestSendContextErrors(t *testing.T) {
 		{name: "invalid responder", params: &types.Params{"responders": "NOC"}, wantErr: ErrInvalidEntityFormat},
 		{name: "responder without an identifier", params: &types.Params{"responders": "team:"}, wantErr: ErrMissingEntityIdentity},
 		{name: "visibleTo entry without an identifier", params: &types.Params{"visibleTo": "user:"}, wantErr: ErrMissingEntityIdentity},
+		{name: "priority past P5", params: &types.Params{"priority": "P9"}, wantErr: ErrInvalidPriority},
 		{name: "escalation name in visibleTo", params: &types.Params{"visibleTo": "escalation:Nightwatch Escalation"}, wantErr: ErrUnexpectedEntityType},
 		{
 			name:    "schedule ID in visibleTo",
@@ -599,6 +646,8 @@ func TestSendLevelPriority(t *testing.T) {
 		"error":               {rawURL: rawURL, params: &types.Params{"level": "Error"}, wantPriority: "P2"},
 		"priority in the URL": {rawURL: rawURL + "?priority=P1", params: &types.Params{"level": "Debug"}, wantPriority: "P1"},
 		"priority param":      {rawURL: rawURL, params: &types.Params{"level": "Error", "priority": "P4"}, wantPriority: "P4"},
+		"lower-case priority": {rawURL: rawURL + "?priority=p1", params: nil, wantPriority: "P1"},
+		"lower-case param":    {rawURL: rawURL, params: &types.Params{"priority": "p2"}, wantPriority: "P2"},
 		"unknown level":       {rawURL: rawURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
 		"no params":           {rawURL: rawURL, params: nil, wantPriority: nil},
 	}

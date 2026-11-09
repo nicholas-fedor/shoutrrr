@@ -44,8 +44,15 @@ const (
 	httpSuccessMax = 299
 )
 
-// ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
-var ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected HTTP status code")
+// Errors for a send that fails.
+var (
+	// ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP
+	// status code.
+	ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected HTTP status code")
+	// ErrMessageMissing indicates a send with neither a title nor a message,
+	// which leaves the alert without the message the Alert API requires.
+	ErrMessageMissing = errors.New("alert has no title or message")
+)
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -99,17 +106,19 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, a payload error, the request
-//     error, or [ErrUnexpectedStatus] for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     error from the params or the config's checks. [ErrMessageMissing] for a
+//     send without a title or a message. The request error, or
+//     [ErrUnexpectedStatus] for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
 // SendContext delivers a notification message to OpsGenie as a new alert.
-// See: https://docs.opsgenie.com/docs/alert-api#create-alert
+//
 // A context without a deadline is bounded by the budget that
-// [Service.ServiceTimeout] reports.
+// [Service.ServiceTimeout] reports. The alert follows the Create Alert API at
+// https://docs.opsgenie.com/docs/alert-api#create-alert.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -117,10 +126,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, a payload error, the request
-//     error, or [ErrUnexpectedStatus] for a non-success status. A request
-//     error matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     error from the params or the config's checks. [ErrMessageMissing] for a
+//     send without a title or a message. The request error, or
+//     [ErrUnexpectedStatus] for a non-success status. A request error matches
+//     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -146,9 +156,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	payload, err := newAlertPayload(message, &config)
-	if err != nil {
-		return err
+	payload := newAlertPayload(message, &config)
+
+	// The Alert API requires an alert message.
+	if payload.Message == "" {
+		return ErrMessageMissing
 	}
 
 	serviceURL := (&url.URL{
@@ -199,17 +211,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 //
 // Returns:
 //   - AlertPayload: the alert.
-//   - error: [ErrUnexpectedEntityType] for a visibleTo entry that is not a
-//     team or user.
-func newAlertPayload(message string, payloadFields *Config) (AlertPayload, error) {
-	// The Alert API accepts only teams and users in visibleTo, while responders
-	// may also be escalations and schedules.
-	for _, entity := range payloadFields.VisibleTo {
-		if entity.Type != "team" && entity.Type != "user" {
-			return AlertPayload{}, fmt.Errorf("%w: visibleTo cannot include %q", ErrUnexpectedEntityType, entity.Type)
-		}
-	}
-
+func newAlertPayload(message string, payloadFields *Config) AlertPayload {
 	// Use `Message` for the title if available, or if the message is too long
 	// Use `Description` for the message in these scenarios
 	title := payloadFields.Title
@@ -248,7 +250,7 @@ func newAlertPayload(message string, payloadFields *Config) (AlertPayload, error
 		Note:        payloadFields.Note,
 	}
 
-	return result, nil
+	return result
 }
 
 // sendAlert sends an alert to OpsGenie using the specified URL and API key.
