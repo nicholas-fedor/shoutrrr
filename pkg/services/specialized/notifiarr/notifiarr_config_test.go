@@ -119,16 +119,6 @@ func TestConfigFromWebhookURL(t *testing.T) {
 			wantAPIKey: testAPIKey,
 			wantURL:    "notifiarr://" + testAPIKey,
 		},
-		{
-			name:       "other endpoint keeps custom query values",
-			webhookURL: "https://notifiarr.com/api/v1/notification/watchtower?template=json&extra=param",
-			wantURL:    "notifiarr:?extra=param&template=json",
-		},
-		{
-			name:       "header and extra data keys",
-			webhookURL: "https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue",
-			wantURL:    "notifiarr:?%24extraKey=extraValue&%40Authorization=Bearer+token",
-		},
 	}
 
 	for _, tt := range tests {
@@ -141,6 +131,41 @@ func TestConfigFromWebhookURL(t *testing.T) {
 			assert.Equal(t, tt.wantAPIKey, config.APIKey)
 			assert.Equal(t, tt.wantChannel, config.Channel)
 			assert.Equal(t, tt.wantURL, config.GetURL().String())
+		})
+	}
+}
+
+// TestConfigFromWebhookURLRejectsUnknownKeys verifies that a webhook URL with a
+// query key that is not a Notifiarr setting fails, instead of the key being
+// dropped.
+//
+// The passthrough API reads no query parameters. A key given in two spellings
+// fails too, since neither spelling is clearly the one meant.
+func TestConfigFromWebhookURLRejectsUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	base := "https://notifiarr.com/api/v1/notification/passthrough/" + testAPIKey
+
+	// tests lists webhook query strings with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		query   string
+	}{
+		{name: "unknown key", query: "?custom=1", wantErr: format.ErrInvalidConfigKey},
+		{name: "misspelled key", query: "?chanel=123456789", wantErr: format.ErrInvalidConfigKey},
+		{name: "payload param", query: "?update=yes", wantErr: format.ErrInvalidConfigKey},
+		{name: "key in two spellings", query: "?channel=1&Channel=2", wantErr: format.ErrConflictingKeys},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := (&Service{}).GetServiceURLFromCustom(parseTestURL(t, "notifiarr+"+base+tt.query))
+			require.ErrorIs(t, err, tt.wantErr)
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "notifiarr://"+testAPIKey+tt.query)), tt.wantErr)
 		})
 	}
 }

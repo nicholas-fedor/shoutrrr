@@ -24,6 +24,9 @@
 //   - image: Image URL for Discord notifications (optional)
 //   - color: Color for Discord notifications (optional)
 //
+// A URL with any other query key is rejected, since the passthrough API reads
+// no query parameters.
+//
 // # Event ID for Message Updates
 //
 // You can specify an event ID to enable message updates:

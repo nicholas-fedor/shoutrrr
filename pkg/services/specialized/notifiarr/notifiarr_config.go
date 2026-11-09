@@ -17,9 +17,6 @@ type Config struct {
 	// fields.
 	standard.EnumlessConfig
 
-	// webhookQuery holds the custom query parameters from the webhook URL.
-	webhookQuery url.Values
-
 	// APIKey is the API key for Notifiarr authentication.
 	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true" sensitive:"true"`
 	// Name is the name of the app or script the notifications come from.
@@ -71,24 +68,21 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 //   - *Config: the config, or nil on error.
 //   - format.PropKeyResolver: the resolver bound to the config.
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, or
-//     a query prop error.
+//     the error of [format.ApplyQuery], such as a key that is not a Notifiarr
+//     setting.
 func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	config, pkr := DefaultConfig()
 
-	// Extract query parameters
 	webhookQuery, err := util.ParseURLQuery(webhookURL)
 	if err != nil {
 		return nil, pkr, err
 	}
 
-	// Set config properties from query params
-	customQuery, err := format.SetConfigPropsFromQuery(&pkr, webhookQuery)
-	if err != nil {
+	// The passthrough API reads no query parameters, so a key that is not a
+	// setting is an error rather than something to forward.
+	if err := format.ApplyQuery(&pkr, webhookQuery); err != nil {
 		return nil, pkr, fmt.Errorf("setting config properties from query: %w", err)
 	}
-
-	// Store custom query parameters
-	config.webhookQuery = customQuery
 
 	// Handle service URLs (scheme = notifiarr)
 	if webhookURL.Scheme == Scheme {
@@ -146,16 +140,10 @@ func (c *Config) appName() string {
 //   - resolver: the resolver that builds the config props into the query.
 //
 // Returns:
-//   - *url.URL: the service URL, with the API key as the host and the
-//     webhook query and config props, without the API key, in its query.
+//   - *url.URL: the service URL, with the API key as the host and the config
+//     props, without the API key, in its query.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	var query url.Values
-	if c.webhookQuery == nil {
-		query = format.BuildQueryWithCustomFields(resolver, url.Values{})
-	} else {
-		query = format.BuildQueryWithCustomFields(resolver, c.webhookQuery)
-	}
-
+	query := format.BuildQueryWithCustomFields(resolver, url.Values{})
 	query.Del("apikey")
 	serviceURL := &url.URL{
 		Scheme:   Scheme,
@@ -175,21 +163,20 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
-//     a query prop error. Otherwise the error from the config's checks, such
-//     as [ErrAPIKeyMissing] when neither the host, other than a port alone,
-//     nor the query sets an API key.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, or
+//     the error of [format.ApplyQuery], such as a key that is not a Notifiarr
+//     setting. Otherwise the error from the config's checks, such as
+//     [ErrAPIKeyMissing] when neither the host, other than a port alone, nor
+//     the query sets an API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
 
-	// Set config properties from query
 	serviceQuery, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
 		return err
 	}
 
-	_, err = format.SetConfigPropsFromQuery(resolver, serviceQuery)
-	if err != nil {
+	if err := format.ApplyQuery(resolver, serviceQuery); err != nil {
 		return fmt.Errorf("setting config properties from service URL query: %w", err)
 	}
 
