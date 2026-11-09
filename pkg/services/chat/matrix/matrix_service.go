@@ -135,19 +135,22 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, the login or send failure, or
-//     nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, also wrapping
+//     [ErrClientNotInitialized] after a failed Initialize or for a service
+//     built with only a Config. The error from the params or the config's
+//     checks, the login or send failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Matrix rooms. The router calls it
-// with its send deadline, and a context without a deadline is bounded by the
-// budget that [Service.ServiceTimeout] reports. With a user configured, a send
-// logs in unless an earlier login was made for the same homeserver, user, and
-// password. The first send without TLS logs a warning, and so does the first
-// send that skips certificate verification through the default client.
+// SendContext delivers a notification message to Matrix rooms.
+//
+// The router calls it with its send deadline, and a context without a deadline
+// is bounded by the budget that [Service.ServiceTimeout] reports. With a user
+// configured, a send logs in unless an earlier login was made for the same
+// homeserver, user, and password. The first send without TLS logs a warning,
+// and so does the first send that skips certificate verification through the
+// default client.
 //
 // Parameters:
 //   - ctx: bounds the login and the room requests.
@@ -155,16 +158,19 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, the login or send failure, or
-//     nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, also wrapping
+//     [ErrClientNotInitialized] after a failed Initialize or for a service
+//     built with only a Config. The error from the params or the config's
+//     checks, the login or send failure, or nil on success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
 	}
 
+	// A service whose Initialize failed, or that was built with only a Config,
+	// has no homeserver it may send to.
 	if !s.ready {
-		return ErrClientNotInitialized
+		return fmt.Errorf("%w: %w", types.ErrServiceNotInitialized, ErrClientNotInitialized)
 	}
 
 	// Make a per-call copy of the config to avoid mutating the shared s.Config
