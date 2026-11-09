@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep one device id for an ipv6 homeserver by @nicholas-fedor in [#2113](https://github.com/nicholas-fedor/shoutrrr/pull/2113)
+- Reject query keys that are not settings by @nicholas-fedor in [#2111](https://github.com/nicholas-fedor/shoutrrr/pull/2111)
 - Check alert fields before sending by @nicholas-fedor in [#2106](https://github.com/nicholas-fedor/shoutrrr/pull/2106)
 - Match url defaults in configs built in code by @nicholas-fedor in [#2099](https://github.com/nicholas-fedor/shoutrrr/pull/2099)
 - Select tls from the disabletls setting by @nicholas-fedor in [#2094](https://github.com/nicholas-fedor/shoutrrr/pull/2094)
