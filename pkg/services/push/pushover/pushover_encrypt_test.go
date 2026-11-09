@@ -10,8 +10,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,6 +167,66 @@ func TestEncryptField(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, first, second)
+}
+
+// TestEncryptFieldConcurrent verifies that fields encrypted at the same time
+// each decrypt to their own plaintext.
+//
+// The gzip writers are shared through a pool, so a writer reset for one field
+// must never write into another field's buffer.
+func TestEncryptFieldConcurrent(t *testing.T) {
+	t.Parallel()
+
+	key := testKey(t)
+
+	const workers, rounds = 32, 20
+
+	// encrypted holds each worker's fields, which the test decrypts once the
+	// workers are done, since require cannot stop a test from another goroutine.
+	encrypted := make([][]string, workers)
+	errs := make([]error, workers)
+
+	var wg sync.WaitGroup
+
+	for i := range workers {
+		wg.Go(func() {
+			for range rounds {
+				field, err := encryptField(workerPlaintext(i), key)
+				if err != nil {
+					errs[i] = err
+
+					return
+				}
+
+				encrypted[i] = append(encrypted[i], field)
+			}
+		})
+	}
+
+	wg.Wait()
+
+	for i := range workers {
+		require.NoError(t, errs[i])
+		require.Len(t, encrypted[i], rounds)
+
+		for _, field := range encrypted[i] {
+			decrypted, err := decryptField(t, field, key)
+			require.NoError(t, err)
+			assert.Equal(t, workerPlaintext(i), decrypted)
+		}
+	}
+}
+
+// workerPlaintext returns the plaintext a worker of TestEncryptFieldConcurrent
+// encrypts, which differs in content and length for each worker.
+//
+// Parameters:
+//   - worker: the worker's index.
+//
+// Returns:
+//   - string: the plaintext.
+func workerPlaintext(worker int) string {
+	return fmt.Sprintf("message %d %s", worker, strings.Repeat("x", worker*10))
 }
 
 // TestEncryptFieldInvalidKey verifies that encryptField fails with
