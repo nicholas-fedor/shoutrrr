@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep config values in their request path segments by @nicholas-fedor in [#2052](https://github.com/nicholas-fedor/shoutrrr/pull/2052)
 - Keep each room in its own request path segment by @nicholas-fedor in [#2048](https://github.com/nicholas-fedor/shoutrrr/pull/2048)
 
+### Performance
+
+- Reuse gzip writers for encrypted fields by @nicholas-fedor in [#2119](https://github.com/nicholas-fedor/shoutrrr/pull/2119)
+
 ### Changed
 
 - Apply defaults and checks in one prepare method by @nicholas-fedor in [#2062](https://github.com/nicholas-fedor/shoutrrr/pull/2062)
