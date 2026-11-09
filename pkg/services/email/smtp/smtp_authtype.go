@@ -27,15 +27,18 @@ type authTypeVals struct {
 }
 
 // Authentication methods, in [AuthTypes] order.
+//
+// AuthUnknown is the zero value, so a config built in code that leaves Auth
+// unset infers its method as a URL without the auth key does.
 const (
+	// AuthUnknown means the method has not been set or could not be parsed.
+	AuthUnknown authType = iota
 	// AuthNone disables SMTP authentication.
-	AuthNone authType = iota
+	AuthNone
 	// AuthPlain uses AUTH PLAIN.
 	AuthPlain
 	// AuthCRAMMD5 uses AUTH CRAM-MD5.
 	AuthCRAMMD5
-	// AuthUnknown means the method has not been set or could not be parsed.
-	AuthUnknown
 	// AuthOAuth2 uses SASL XOAUTH2.
 	AuthOAuth2
 	// AuthLogin uses SASL LOGIN.
@@ -52,10 +55,10 @@ var AuthTypes = &authTypeVals{
 	Login:   AuthLogin,
 	Enum: format.CreateEnumFormatter(
 		[]string{
+			"Unknown",
 			"None",
 			"Plain",
 			"CRAMMD5",
-			"Unknown",
 			"OAuth2",
 			"Login",
 		},

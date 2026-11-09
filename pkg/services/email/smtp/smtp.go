@@ -90,13 +90,13 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.warnings.Reset()
+	// The zero values of Auth and Encryption are the defaults a URL without
+	// their keys gets, but STARTTLS is on unless the URL turns it off.
 	s.Config = &Config{
 		ToAddresses: nil,
 		Subject:     "",
-		Auth:        AuthTypes.Unknown,
 		UseStartTLS: true,
 		UseHTML:     false,
-		Encryption:  EncMethods.Auto,
 		Timeout:     defaultTimeout,
 	}
 

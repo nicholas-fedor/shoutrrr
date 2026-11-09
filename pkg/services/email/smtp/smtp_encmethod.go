@@ -23,15 +23,18 @@ type encMethodVals struct {
 }
 
 // Encryption methods, in [EncMethods] order.
+//
+// EncAuto is the zero value, so a config built in code that leaves Encryption
+// unset chooses TLS by its port as a URL without the encryption key does.
 const (
+	// EncAuto represents automatic TLS selection based on port.
+	EncAuto encMethod = iota
 	// EncNone represents no encryption.
-	EncNone encMethod = iota
+	EncNone
 	// EncExplicitTLS represents explicit TLS initiated with STARTTLS.
 	EncExplicitTLS
 	// EncImplicitTLS represents implicit TLS used throughout the session.
 	EncImplicitTLS
-	// EncAuto represents automatic TLS selection based on port.
-	EncAuto
 )
 
 // ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
@@ -46,10 +49,10 @@ var EncMethods = &encMethodVals{
 
 	Enum: format.CreateEnumFormatter(
 		[]string{
+			"Auto",
 			"None",
 			"ExplicitTLS",
 			"ImplicitTLS",
-			"Auto",
 		},
 	),
 }
