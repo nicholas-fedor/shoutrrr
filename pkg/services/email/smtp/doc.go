@@ -55,9 +55,14 @@
 //   - FromAddress and FromName: The sender's email address and display name.
 //   - ToAddresses: A list of recipient email addresses.
 //   - Subject: The email subject (empty when omitted).
-//   - Auth: The authentication method (None, Plain, Login, CRAMMD5, OAuth2, or Unknown).
-//   - Encryption: The encryption method (None, ExplicitTLS, ImplicitTLS, or Auto).
-//   - UseStartTLS: Whether to use STARTTLS for encryption (default: true).
+//   - Auth: The authentication method (None, Plain, Login, CRAMMD5, OAuth2, or
+//     Unknown). Unknown, the zero value, infers the method from the other
+//     settings.
+//   - Encryption: The encryption method (None, ExplicitTLS, ImplicitTLS, or
+//     Auto). Auto is the zero value.
+//   - UseStartTLS: Whether to use STARTTLS for encryption (default: true in a
+//     URL). Its zero value turns STARTTLS off, so a config built in code sets
+//     it to use STARTTLS.
 //   - UseHTML: Whether to send the message as HTML (default: false).
 //   - ClientHost: The client hostname used in the SMTP handshake (default: "localhost").
 //   - RequireStartTLS: Whether to fail if StartTLS is enabled but unsupported (default: false).

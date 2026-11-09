@@ -52,6 +52,9 @@ type Config struct {
 	// Port is the SMTP server port. Common values are 25, 465, 587, and 2525.
 	Port uint16 `default:"25" desc:"SMTP server port, common ones are 25, 465, 587 or 2525" url:"Port"`
 	// UseStartTLS controls whether STARTTLS is attempted on non-implicit-TLS connections.
+	//
+	// A URL without the usestarttls key turns it on, but its zero value turns
+	// STARTTLS off. A config built in code sets it to use STARTTLS.
 	UseStartTLS bool `default:"Yes" desc:"Whether to use StartTLS encryption" key:"usestarttls,starttls"`
 	// UseHTML sends the message as multipart/alternative with an HTML part when true.
 	UseHTML bool `default:"No" desc:"Whether the message being sent is in HTML" key:"usehtml"`

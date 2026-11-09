@@ -376,6 +376,80 @@ func TestConfigDefaults(t *testing.T) {
 	assert.Equal(t, "1m30s", config.GetURL().Query().Get("timeout"))
 }
 
+// TestConfigBuiltInCodeDefaults verifies that a config built in code that
+// leaves Auth and Encryption unset gets the defaults a URL without those keys
+// gets.
+//
+// The auth method is inferred from the credentials, and the encryption is
+// Auto, which uses implicit TLS on port 465.
+func TestConfigBuiltInCodeDefaults(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs built in code with the auth method each should get.
+	tests := []struct {
+		name     string
+		config   Config
+		wantAuth authType
+	}{
+		{name: "username", config: Config{Username: "user", Password: "pass"}, wantAuth: AuthTypes.Plain},
+		{name: "no username", config: Config{}, wantAuth: AuthTypes.None},
+		{
+			name: "refresh token",
+			config: Config{
+				Username: "user", ClientID: "id", ClientSecret: "secret", RefreshToken: "token",
+				TokenURL: "https://oauth.example.com/token",
+			},
+			wantAuth: AuthTypes.OAuth2,
+		},
+		{name: "explicit method", config: Config{Username: "user", Auth: AuthTypes.Login}, wantAuth: AuthTypes.Login},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := tt.config
+			config.applyDefaults()
+
+			assert.Equal(t, tt.wantAuth, config.Auth)
+			assert.Equal(t, EncMethods.Auto, config.Encryption)
+		})
+	}
+
+	t.Run("implicit TLS port", func(t *testing.T) {
+		t.Parallel()
+
+		config := Config{Port: ImplicitTLSPort}
+		config.applyDefaults()
+
+		assert.True(t, useImplicitTLS(config.Encryption, config.Port))
+	})
+}
+
+// TestConfigBuiltInCodeMatchesURL verifies that a config built in code reads
+// the same auth method and encryption as the URL that carries its values, so
+// both connect alike.
+func TestConfigBuiltInCodeMatchesURL(t *testing.T) {
+	t.Parallel()
+
+	built := Config{
+		Host: "mail.example.com", Port: 587, Username: "user", Password: "pass",
+		FromAddress: "sender@example.com", ToAddresses: []string{"rec@example.com"}, UseStartTLS: true,
+	}
+	require.NoError(t, built.prepare())
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseConfigURL(t,
+		"smtp://user:pass@mail.example.com:587/?fromaddress=sender@example.com&toaddresses=rec@example.com"), nil))
+
+	read := service.Config
+	require.NoError(t, read.prepare())
+
+	assert.Equal(t, read.Auth, built.Auth)
+	assert.Equal(t, read.Encryption, built.Encryption)
+	assert.Equal(t, read.UseStartTLS, built.UseStartTLS)
+}
+
 // TestRestorePlusAddress verifies that spaces in the local part of an
 // address, which query decoding makes from plus signs, become plus signs
 // again, leaving the domain and any display name unchanged. Whitespace around

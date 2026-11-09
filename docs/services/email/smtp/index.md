@@ -186,6 +186,13 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 - When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning once and continues unencrypted unless `requirestarttls` is set.
 - Shoutrrr also logs a warning the first time a session sends without TLS, whatever the reason.
 
+!!! Note "Configs built in Go"
+
+    A `smtp.Config` built in Go gets the URL defaults for the fields it leaves unset, except STARTTLS.
+    An unset `Auth` is `Unknown`, which picks the method from the credentials, and an unset `Encryption` is `Auto`.
+    An unset `UseStartTLS` is false, so set it to `true` to use STARTTLS.
+    Without TLS, the `Plain` and `Login` methods refuse to send credentials to a server other than localhost.
+
 !!! Example "Disable STARTTLS"
 
     ```uri
