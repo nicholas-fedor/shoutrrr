@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Select tls from the disabletls setting by @nicholas-fedor in [#2094](https://github.com/nicholas-fedor/shoutrrr/pull/2094)
 - Check url host syntax in every service by @nicholas-fedor in [#2066](https://github.com/nicholas-fedor/shoutrrr/pull/2066)
 - Apply one URL port rule across services by @nicholas-fedor in [#2064](https://github.com/nicholas-fedor/shoutrrr/pull/2064)
 - Reject undefined enum values in configs built in code by @nicholas-fedor in [#2060](https://github.com/nicholas-fedor/shoutrrr/pull/2060)
@@ -28,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sync to v0.25.0 by @renovate[bot] in [#2095](https://github.com/nicholas-fedor/shoutrrr/pull/2095)
+- Update dependency mkdocs-git-revision-date-localized-plugin to v1.7.0 by @renovate[bot] in [#2093](https://github.com/nicholas-fedor/shoutrrr/pull/2093)
+- Update peter-evans/create-pull-request action to v8.1.2 by @renovate[bot] in [#2092](https://github.com/nicholas-fedor/shoutrrr/pull/2092)
+- Update dependency pymdown-extensions to v13 by @renovate[bot] in [#2091](https://github.com/nicholas-fedor/shoutrrr/pull/2091)
+- Update alpine:3.24.4 docker digest to f59abe6 by @renovate[bot] in [#2090](https://github.com/nicholas-fedor/shoutrrr/pull/2090)
+- Update axllent/mailpit docker tag to v1.33.1 by @renovate[bot] in [#2089](https://github.com/nicholas-fedor/shoutrrr/pull/2089)
+- Update dependency mkdocs-material to v9.8.1 by @renovate[bot] in [#2088](https://github.com/nicholas-fedor/shoutrrr/pull/2088)
 - Update step-security/harden-runner action to v2.22.4 by @renovate[bot] in [#2086](https://github.com/nicholas-fedor/shoutrrr/pull/2086)
 - Update dependency click to v8.5.1 by @renovate[bot] in [#2085](https://github.com/nicholas-fedor/shoutrrr/pull/2085)
 - Update module github.com/spf13/pflag to v1.1.0 by @renovate[bot] in [#2083](https://github.com/nicholas-fedor/shoutrrr/pull/2083)
