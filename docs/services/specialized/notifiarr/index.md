@@ -38,6 +38,9 @@ notifiarr://[apikey]?name=[app_name]&channel=[channel_id]&thumbnail=[thumbnail_u
 - `image` (optional): Image URL for Discord notifications
 - `color` (optional): Color for Discord embed as 6-digit hex code (without # prefix) or color name
 
+A URL with any other query key is rejected, so a misspelled key is reported instead of ignored.
+The same holds for a Notifiarr webhook URL given with the `notifiarr+` prefix, since the passthrough API reads no query parameters.
+
 --8<-- "docs/services/specialized/notifiarr/config.md"
 
 ## Send Params
