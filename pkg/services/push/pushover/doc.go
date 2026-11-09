@@ -23,7 +23,11 @@
 // The following query parameters can be used to configure the service:
 //
 //   - devices: comma-separated list of target device names (optional, sends to all devices if not specified)
-//   - priority: message priority (-2 to 1, default: 0)
+//   - priority: message priority (-2 to 2, default: 0)
+//   - retry: time between repeats of an emergency notification, at least 30s
+//     (default: 15m)
+//   - expire: how long an emergency notification repeats, at most 3h
+//     (default: 1h)
 //   - title: notification title (optional, defaults to application name)
 //   - encryptionkey: 64-character hex AES-256 key for end-to-end encryption (optional, alias: key)
 //   - timestamp: Unix time in seconds to show instead of when Pushover received the message (optional)
@@ -33,6 +37,8 @@
 //   - -1: low - no sound, vibration only
 //   - 0: normal (default) - normal notification behavior
 //   - 1: high - bypasses quiet hours, plays sound
+//   - 2: emergency - repeats every retry until acknowledged or until expire
+//     passes, and stops after 50 repeats
 //
 // A send with a level param and no priority set uses the priority for its
 // level: debug -1, info and warning 0, and error 1.
@@ -149,9 +155,9 @@
 //
 // # Limitations and Behaviors
 //
-// - Message content cannot be empty
-// - Priority can be set to values between -2 and 1
-//   - Priority 2 (emergency) requires additional parameters (retry, expire) which are not currently supported
+// - Message content cannot be empty, and a send with an empty message fails before any request
+// - Priority can be set to values between -2 and 2, and other values are rejected
+// - Retry and expire are durations in whole seconds, such as 30s or 1h, and are sent only with emergency priority
 //
 // - Device names must match exactly how they appear in your Pushover account
 // - A send without a deadline is bounded by a 10 second budget

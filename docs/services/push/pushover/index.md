@@ -26,8 +26,23 @@ The __`apiToken`__ is displayed at the top of the application page.
 You can optionally specify the __`title`__ and __`priority`__ parameters in the URL:
 _pushover://shoutrrr:__`token`__@__`userKey`__/?devices=__`device`__&title=Custom+Title&priority=1_
 
-!!! note
-    Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.
+The priority is a number from -2 (lowest) to 2 (emergency), and other values are rejected.
+
+### Emergency priority
+
+Priority 2 sends an emergency notification, which Pushover repeats until the user acknowledges it.
+The `retry` param sets the time between repeats and the `expire` param sets how long they continue.
+Both are durations in whole seconds, such as `30s`, `15m`, or `1h`.
+`retry` must be at least `30s` and defaults to `15m`.
+`expire` must be at most `3h` and defaults to `1h`.
+Pushover stops after 50 repeats, whatever `expire` says.
+They are sent only with emergency priority.
+
+!!! Example "Emergency notification that repeats every minute for half an hour"
+
+    ```uri
+    pushover://shoutrrr:token@userKey/?priority=2&retry=1m&expire=30m
+    ```
 
 ### Message time
 

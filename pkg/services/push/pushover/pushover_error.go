@@ -21,4 +21,20 @@ var (
 
 	// ErrInvalidTimestamp indicates a timestamp that is not a positive Unix time.
 	ErrInvalidTimestamp = errors.New("timestamp must be a positive Unix time in seconds")
+
+	// ErrInvalidPriority indicates a priority outside -2 to 2, which the
+	// Message API rejects.
+	ErrInvalidPriority = errors.New("priority must be from -2 to 2")
+
+	// ErrInvalidRetry indicates an emergency retry interval shorter than 30
+	// seconds or not in whole seconds.
+	ErrInvalidRetry = errors.New("retry must be whole seconds and at least 30s")
+
+	// ErrInvalidExpire indicates an emergency expiry longer than 3 hours, not
+	// positive, or not in whole seconds.
+	ErrInvalidExpire = errors.New("expire must be whole seconds from 1s to 3h")
+
+	// ErrMessageMissing indicates an empty message, which the Message API
+	// rejects.
+	ErrMessageMissing = errors.New("message missing")
 )

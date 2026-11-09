@@ -99,6 +99,15 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing token", rawURL: "pushover://Token:@user", wantErr: ErrTokenMissing},
 		{name: "unknown prop", rawURL: "pushover://:token@user?devicey=a", wantErr: format.ErrInvalidConfigKey},
 		{name: "priority not a number", rawURL: "pushover://:token@user?priority=super-duper", wantErr: format.ErrParseIntFailed},
+		{name: "priority above emergency", rawURL: "pushover://:token@user?priority=3", wantErr: ErrInvalidPriority},
+		{name: "priority below lowest", rawURL: "pushover://:token@user?priority=-3", wantErr: ErrInvalidPriority},
+		{name: "retry too short", rawURL: "pushover://:token@user?retry=29s", wantErr: ErrInvalidRetry},
+		{name: "retry not whole seconds", rawURL: "pushover://:token@user?retry=30500ms", wantErr: ErrInvalidRetry},
+		{name: "retry negative", rawURL: "pushover://:token@user?retry=-1m", wantErr: ErrInvalidRetry},
+		{name: "expire too long", rawURL: "pushover://:token@user?expire=3h1s", wantErr: ErrInvalidExpire},
+		{name: "expire negative", rawURL: "pushover://:token@user?expire=-1s", wantErr: ErrInvalidExpire},
+		{name: "expire not whole seconds", rawURL: "pushover://:token@user?expire=1500ms", wantErr: ErrInvalidExpire},
+		{name: "retry without a unit", rawURL: "pushover://:token@user?retry=60", wantErr: format.ErrParseDurationFailed},
 		{name: "short encryption key", rawURL: "pushover://:token@user?encryptionkey=0123456789abcdef", wantErr: ErrInvalidEncryptionKey},
 		{name: "long encryption key", rawURL: "pushover://:token@user?encryptionkey=" + testEncryptionKey + "ab", wantErr: ErrInvalidEncryptionKey},
 		{
@@ -180,7 +189,7 @@ func TestConfigQueryResolver(t *testing.T) {
 
 		assert.Empty(t, config.Enums())
 		assert.Equal(t,
-			[]string{"devices", "encryptionkey", "key", "priority", "timestamp", "title"},
+			[]string{"devices", "encryptionkey", "expire", "key", "priority", "retry", "timestamp", "title"},
 			format.GetConfigQueryResolver(config).QueryFields())
 	})
 }
