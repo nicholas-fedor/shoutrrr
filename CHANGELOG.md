@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/mod to v0.43.0 by @renovate[bot] in [#2103](https://github.com/nicholas-fedor/shoutrrr/pull/2103)
+- Update module golang.org/x/text to v0.44.0 by @renovate[bot] in [#2104](https://github.com/nicholas-fedor/shoutrrr/pull/2104)
 - Update module golang.org/x/oauth2 to v0.38.0 by @renovate[bot] in [#2096](https://github.com/nicholas-fedor/shoutrrr/pull/2096)
 - Update module golang.org/x/sync to v0.25.0 by @renovate[bot] in [#2095](https://github.com/nicholas-fedor/shoutrrr/pull/2095)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.7.0 by @renovate[bot] in [#2093](https://github.com/nicholas-fedor/shoutrrr/pull/2093)
