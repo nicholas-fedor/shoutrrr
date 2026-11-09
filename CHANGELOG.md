@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Match the shared not initialized error by @nicholas-fedor in [#2115](https://github.com/nicholas-fedor/shoutrrr/pull/2115)
 - Keep one device id for an ipv6 homeserver by @nicholas-fedor in [#2113](https://github.com/nicholas-fedor/shoutrrr/pull/2113)
 - Reject query keys that are not settings by @nicholas-fedor in [#2111](https://github.com/nicholas-fedor/shoutrrr/pull/2111)
 - Check alert fields before sending by @nicholas-fedor in [#2106](https://github.com/nicholas-fedor/shoutrrr/pull/2106)
