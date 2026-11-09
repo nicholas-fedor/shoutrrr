@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.50.0 by @renovate[bot] in [#2108](https://github.com/nicholas-fedor/shoutrrr/pull/2108)
 - Update module golang.org/x/mod to v0.43.0 by @renovate[bot] in [#2103](https://github.com/nicholas-fedor/shoutrrr/pull/2103)
 - Update module golang.org/x/text to v0.44.0 by @renovate[bot] in [#2104](https://github.com/nicholas-fedor/shoutrrr/pull/2104)
 - Update module golang.org/x/oauth2 to v0.38.0 by @renovate[bot] in [#2096](https://github.com/nicholas-fedor/shoutrrr/pull/2096)
