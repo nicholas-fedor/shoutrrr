@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support emergency priority by @nicholas-fedor in [#2101](https://github.com/nicholas-fedor/shoutrrr/pull/2101)
+
 ### Fixed
 
 - Match url defaults in configs built in code by @nicholas-fedor in [#2099](https://github.com/nicholas-fedor/shoutrrr/pull/2099)
