@@ -72,9 +72,9 @@ var (
 	// value field as messagevalue.
 	ErrTitleMessageConflict = errors.New("titlevalue cannot use the same number as messagevalue")
 	// ErrMissingEvents indicates a config without events.
-	ErrMissingEvents = errors.New("events missing from config URL")
+	ErrMissingEvents = errors.New("events missing from config")
 	// ErrMissingWebhookID indicates a config without a webhook ID.
-	ErrMissingWebhookID = errors.New("webhook ID missing from config URL")
+	ErrMissingWebhookID = errors.New("webhook ID missing from config")
 )
 
 // GetURL generates a URL from the current configuration values.

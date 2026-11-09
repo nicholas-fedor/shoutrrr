@@ -54,8 +54,8 @@ var (
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
 	// ErrTemplateNotLoaded indicates that the configured template is not loaded.
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
-	// ErrHostMissing indicates that the service URL has no webhook host.
-	ErrHostMissing = errors.New("host missing from service URL")
+	// ErrHostMissing indicates a config without a webhook host.
+	ErrHostMissing = errors.New("host missing from config")
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.

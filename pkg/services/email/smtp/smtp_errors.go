@@ -8,13 +8,13 @@ var (
 	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
 
 	// ErrFromAddressMissing is returned when the config has no [Config.FromAddress].
-	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
+	ErrFromAddressMissing = errors.New("fromAddress missing from config")
 
 	// ErrToAddressMissing is returned when the config has no [Config.ToAddresses].
-	ErrToAddressMissing = errors.New("toAddress missing from config URL")
+	ErrToAddressMissing = errors.New("toAddress missing from config")
 
 	// ErrHostMissing is returned when the config has no SMTP server host.
-	ErrHostMissing = errors.New("host missing from config URL")
+	ErrHostMissing = errors.New("host missing from config")
 
 	// ErrInvalidOAuth2Refresh is returned when the OAuth2 refresh settings are
 	// incomplete, are set without OAuth2 authentication, or name a token URL

@@ -30,9 +30,9 @@ var (
 	// ErrIllegalURLArgument indicates an illegal argument in config URL.
 	ErrIllegalURLArgument = errors.New("illegal argument in config URL")
 
-	// ErrMissingWebhookID indicates webhook ID missing from config URL.
-	ErrMissingWebhookID = errors.New("webhook ID missing from config URL")
+	// ErrMissingWebhookID indicates a config without a webhook ID.
+	ErrMissingWebhookID = errors.New("webhook ID missing from config")
 
-	// ErrMissingToken indicates token missing from config URL.
-	ErrMissingToken = errors.New("token missing from config URL")
+	// ErrMissingToken indicates a config without a token.
+	ErrMissingToken = errors.New("token missing from config")
 )
