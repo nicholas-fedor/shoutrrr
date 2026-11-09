@@ -32,8 +32,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 // TestConfigPrepareDefaults verifies that prepare gives a config without a
 // host or port the defaults a URL without them gets.
 //
-// That is localhost, and the TLS port only for a config read from an mqtts URL.
-// A set host and port are kept.
+// That is localhost, and the TLS port unless TLS is disabled, so a config built
+// in code connects with TLS as an mqtts URL does. A set host and port are kept.
 func TestConfigPrepareDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -44,11 +44,9 @@ func TestConfigPrepareDefaults(t *testing.T) {
 		wantHost string
 		wantPort int
 	}{
-		{name: "topic only", config: Config{Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "mqtt scheme", config: Config{scheme: Scheme, Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "mqtts scheme", config: Config{scheme: SchemeTLS, Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultTLSPort},
-		{name: "other scheme", config: Config{scheme: "MQTTS", Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "set host and port", config: Config{scheme: SchemeTLS, Topic: "t", Host: "broker", Port: 1884}, wantHost: "broker", wantPort: 1884},
+		{name: "topic only", config: Config{Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultTLSPort},
+		{name: "TLS disabled", config: Config{Topic: "t", DisableTLS: true}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "set host and port", config: Config{Topic: "t", Host: "broker", Port: 1884}, wantHost: "broker", wantPort: 1884},
 	}
 
 	for _, tt := range tests {
@@ -67,6 +65,8 @@ func TestConfigPrepareDefaults(t *testing.T) {
 // TestConfigGetURL verifies that GetURL encodes every field in the URL, omits
 // absent credentials and settings at their defaults, and keeps a password
 // without a username so that SetURL restores it.
+//
+// The scheme carries DisableTLS, so the query never holds the disabletls key.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +77,11 @@ func TestConfigGetURL(t *testing.T) {
 		resolver := format.NewPropKeyResolver(config)
 		require.NoError(t, resolver.SetDefaultProps(config))
 
-		config.Host, config.Port, config.Topic = "broker.example.com", 1883, "notifications/alerts"
+		config.Host, config.Port, config.Topic = "broker.example.com", 8883, "notifications/alerts"
+
+		assert.Equal(t, "mqtts://broker.example.com:8883/notifications/alerts?", config.GetURL().String())
+
+		config.DisableTLS, config.Port = true, 1883
 
 		assert.Equal(t, "mqtt://broker.example.com:1883/notifications/alerts?", config.GetURL().String())
 	})
@@ -117,7 +121,6 @@ func TestConfigGetURL(t *testing.T) {
 			"qos":           {"AtLeastOnce"},
 			"retained":      {"Yes"},
 			"cleansession":  {"No"},
-			"disabletls":    {"Yes"},
 			"skiptlsverify": {"Yes"},
 		}, result.Query())
 	})
@@ -243,7 +246,7 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "omitted host",
 			rawURL: "mqtt:///notifications/alerts",
-			want:   Config{Host: "localhost", Port: 1883, Topic: "notifications/alerts"},
+			want:   Config{Host: "localhost", Port: 1883, Topic: "notifications/alerts", DisableTLS: true},
 		},
 		{
 			name:   "omitted host with a port",
@@ -253,22 +256,22 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "no credentials",
 			rawURL: "mqtt://broker.example.com:1883/notifications/alerts",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts"},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts", DisableTLS: true},
 		},
 		{
 			name:   "username only",
 			rawURL: "mqtt://testuser@broker.example.com:1883/test/topic",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", Username: "testuser"},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", Username: "testuser", DisableTLS: true},
 		},
 		{
 			name:   "nested topic",
 			rawURL: "mqtt://broker.example.com:1883/level1/level2/level3",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "level1/level2/level3"},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "level1/level2/level3", DisableTLS: true},
 		},
 		{
 			name:   "escaped topic",
 			rawURL: "mqtt://broker.example.com:1883/sensor%20device/temp%C3%A9rature",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "sensor device/température"},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "sensor device/température", DisableTLS: true},
 		},
 		{
 			name:   "default mqtts port",
@@ -278,12 +281,12 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "QoS by number",
 			rawURL: "mqtt://broker.example.com:1883/test/topic?qos=2",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSExactlyOnce},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSExactlyOnce, DisableTLS: true},
 		},
 		{
 			name:   "QoS by name",
 			rawURL: "mqtt://broker.example.com:1883/test/topic?qos=AtLeastOnce",
-			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSAtLeastOnce},
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSAtLeastOnce, DisableTLS: true},
 		},
 	}
 
@@ -294,9 +297,39 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			got := *config
-			got.scheme = ""
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, *config)
+		})
+	}
+}
+
+// TestConfigSetURLSchemeSelectsTLS verifies that the scheme of the URL sets
+// DisableTLS, so mqtts uses TLS and mqtt does not.
+//
+// A scheme is matched in any case, since a URL built in code need not lowercase
+// it as url.Parse does. A disabletls key overrides the scheme either way.
+func TestConfigSetURLSchemeSelectsTLS(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with the DisableTLS value each should read as.
+	tests := []struct {
+		serviceURL     *url.URL
+		name           string
+		wantDisableTLS bool
+	}{
+		{name: "mqtt", serviceURL: &url.URL{Scheme: Scheme, Host: "broker", Path: "/t"}, wantDisableTLS: true},
+		{name: "mqtts", serviceURL: &url.URL{Scheme: SchemeTLS, Host: "broker", Path: "/t"}},
+		{name: "uppercase mqtts", serviceURL: &url.URL{Scheme: "MQTTS", Host: "broker", Path: "/t"}},
+		{name: "mqtt with TLS on", serviceURL: &url.URL{Scheme: Scheme, Host: "broker", Path: "/t", RawQuery: "disabletls=no"}},
+		{name: "mqtts with TLS off", serviceURL: &url.URL{Scheme: SchemeTLS, Host: "broker", Path: "/t", RawQuery: "disabletls=yes"}, wantDisableTLS: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(tt.serviceURL))
+			assert.Equal(t, tt.wantDisableTLS, config.DisableTLS)
 		})
 	}
 }
@@ -326,8 +359,30 @@ func TestConfigPreparePort(t *testing.T) {
 	}
 }
 
+// TestConfigPortField verifies that the port field has no fixed default and is
+// optional.
+//
+// The default port depends on whether the connection uses TLS. A generator that
+// offered a fixed default would write a port for the other kind of connection.
+func TestConfigPortField(t *testing.T) {
+	t.Parallel()
+
+	for _, node := range format.GetConfigFormat(&Config{}).Items {
+		if field := node.Field(); field.Name == "Port" {
+			assert.Empty(t, field.DefaultValue)
+			assert.False(t, field.Required)
+
+			return
+		}
+	}
+
+	t.Fatal("the config has no Port field")
+}
+
 // TestConfigGetURLZeroPort verifies that a config built in code without a port
 // writes a URL without one, which reads back with the default port.
+//
+// Such a config uses TLS, so the default is the TLS port.
 func TestConfigGetURLZeroPort(t *testing.T) {
 	t.Parallel()
 
@@ -338,7 +393,7 @@ func TestConfigGetURLZeroPort(t *testing.T) {
 
 	restored := &Config{}
 	require.NoError(t, restored.SetURL(configURL))
-	assert.Equal(t, DefaultPort, restored.Port)
+	assert.Equal(t, DefaultTLSPort, restored.Port)
 }
 
 // TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic

@@ -531,34 +531,32 @@ func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFun
 //
 //nolint:contextcheck // The connection outlives the send, so its lifetime starts from the background context.
 func (s *Service) openConnectionLocked(ctx context.Context, config *Config) error {
-	// The scheme decides TLS. The port is the configured or default port.
-	scheme := config.brokerScheme()
+	// DisableTLS decides TLS. The port is the configured or default port.
+	useTLS := !config.DisableTLS
 	port := config.Port
 
-	// Handle scheme/port mismatches with warnings (but don't change the scheme).
-	// Each is logged once, since reconnecting after an idle teardown opens the
-	// connection again.
-	if scheme == SchemeTLS && !config.DisableTLS && port == DefaultPort {
-		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
+	// A port that belongs to the other kind of connection is kept, with a
+	// warning. Each is logged once, since reconnecting after an idle teardown
+	// opens the connection again.
+	if useTLS && port == DefaultPort {
 		s.warnings.Do("mqtts-port", func() {
-			s.LogAttrs(ctx, slog.LevelWarn, "mqtts scheme on the plain MQTT port, attempting TLS",
+			s.LogAttrs(ctx, slog.LevelWarn, "TLS on the plain MQTT port",
 				slog.Int(logging.KeyPort, port))
 		})
-	} else if scheme == Scheme && port == DefaultTLSPort {
-		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
+	} else if !useTLS && port == DefaultTLSPort {
 		s.warnings.Do("mqtt-port", func() {
-			s.LogAttrs(ctx, slog.LevelWarn, "mqtt scheme on the TLS port, not using TLS",
+			s.LogAttrs(ctx, slog.LevelWarn, "no TLS on the MQTT TLS port",
 				slog.Int(logging.KeyPort, port))
 		})
 	}
 
-	// Enable TLS when using secure scheme and TLS is not disabled
-	useTLS := scheme == SchemeTLS && !config.DisableTLS
 	if !useTLS {
 		s.warnings.Plaintext(ctx, s)
 	}
 
-	serverURL := &url.URL{Scheme: scheme, Host: util.JoinURLHostPort(config.Host, port)}
+	// autopaho dials TLS for an mqtts server URL whatever its TLS settings, so
+	// the scheme must match the choice above.
+	serverURL := &url.URL{Scheme: config.brokerScheme(), Host: util.JoinURLHostPort(config.Host, port)}
 
 	// The connection lives until Close, an idle teardown, or a replacement after
 	// it ends, so its lifetime does not derive from the send's context. Its
@@ -599,7 +597,6 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		cliCfg.ConnectPassword = []byte(config.Password)
 	}
 
-	// Configure TLS based on scheme and DisableTLS setting
 	if useTLS {
 		cliCfg.TlsCfg = s.createTLSConfig(ctx, config)
 	}

@@ -680,7 +680,7 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 		{
 			name:     "mqtts with TLS disabled",
 			rawURL:   "mqtts://broker.example.invalid/test/topic?disabletls=yes",
-			wantAddr: "broker.example.invalid:8883",
+			wantAddr: "broker.example.invalid:1883",
 			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
 		},
 	}

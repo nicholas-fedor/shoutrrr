@@ -66,7 +66,7 @@ func TestInitialize(t *testing.T) {
 	// defaults is the config for a URL without credentials or query parameters.
 	defaults := Config{
 		Host: "broker.example.com", Port: 1883, Topic: "test/topic",
-		ClientID: "shoutrrr", QoS: QoSAtMostOnce, CleanSession: true,
+		ClientID: "shoutrrr", QoS: QoSAtMostOnce, CleanSession: true, DisableTLS: true,
 	}
 
 	// with returns defaults changed by change.
@@ -77,15 +77,14 @@ func TestInitialize(t *testing.T) {
 		return config
 	}
 
-	// tests lists service URLs with the config Initialize should produce. The
-	// unexported scheme is checked against the URL's scheme on its own.
+	// tests lists service URLs with the config Initialize should produce.
 	tests := []struct {
 		name   string
 		rawURL string
 		want   Config
 	}{
 		{name: "defaults", rawURL: "mqtt://broker.example.com:1883/test/topic", want: defaults},
-		{name: "mqtts port", rawURL: "mqtts://broker.example.com:8883/test/topic", want: with(func(c *Config) { c.Port = 8883 })},
+		{name: "mqtts port", rawURL: "mqtts://broker.example.com:8883/test/topic", want: with(func(c *Config) { c.Port, c.DisableTLS = 8883, false })},
 		{name: "custom port", rawURL: "mqtt://broker.example.com:9999/test/topic", want: with(func(c *Config) { c.Port = 9999 })},
 		{
 			name:   "query parameters",
@@ -109,12 +108,12 @@ func TestInitialize(t *testing.T) {
 		{
 			name:   "TLS verification skipped",
 			rawURL: "mqtts://broker.example.com:8883/test/topic?skiptlsverify=yes",
-			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify = 8883, true }),
+			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify, c.DisableTLS = 8883, true, false }),
 		},
 		{
 			name:   "deprecated verification key",
 			rawURL: "mqtts://broker.example.com:8883/test/topic?disabletlsverification=yes",
-			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify = 8883, true }),
+			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify, c.DisableTLS = 8883, true, false }),
 		},
 		{name: "persistent session", rawURL: "mqtt://broker.example.com:1883/test/topic?cleansession=no", want: with(func(c *Config) { c.CleanSession = false })},
 		{name: "deeply nested topic", rawURL: "mqtt://broker.example.com:1883/l1/l2/l3/l4/l5", want: with(func(c *Config) { c.Topic = "l1/l2/l3/l4/l5" })},
@@ -129,11 +128,7 @@ func TestInitialize(t *testing.T) {
 			service := &Service{}
 			require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 			require.NotNil(t, service.Config)
-			assert.Equal(t, serviceURL.Scheme, service.Config.scheme, "Initialize must keep the URL scheme")
-
-			got := *service.Config
-			got.scheme = ""
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, *service.Config)
 			assert.Nil(t, service.connectionManager, "Initialize must not connect")
 			assert.False(t, service.ownedConnection)
 		})

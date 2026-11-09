@@ -55,6 +55,9 @@ type fakeConnector struct {
 	tlsConfigs []*tls.Config
 	// servers holds the broker host and port of each connection.
 	servers []string
+	// schemes holds the scheme of each connection's broker URL, which decides
+	// whether autopaho dials TLS.
+	schemes []string
 }
 
 // warningContexts records the test value of the context each warning was
@@ -431,14 +434,14 @@ func TestSendWarnings(t *testing.T) {
 			name:   "mqtt scheme on the TLS port",
 			rawURL: "mqtt://broker.example.invalid:8883/t",
 			want: []string{
-				"WARN mqtt scheme on the TLS port, not using TLS port=8883",
+				"WARN no TLS on the MQTT TLS port port=8883",
 				"WARN sending without TLS",
 			},
 		},
 		{
 			name:   "mqtts scheme on the plain port",
 			rawURL: "mqtts://broker.example.invalid:1883/t",
-			want:   []string{"WARN mqtts scheme on the plain MQTT port, attempting TLS port=1883"},
+			want:   []string{"WARN TLS on the plain MQTT port port=1883"},
 		},
 	}
 
@@ -585,9 +588,13 @@ func TestInitializeWarnings(t *testing.T) {
 }
 
 // TestSendTLSSettings verifies the TLS settings of the connection a send
-// opens. They require TLS 1.2 and skip verification only when the URL, the
-// params, or the deprecated field ask for it. A connection without TLS has
-// none.
+// opens.
+//
+// They require TLS 1.2 and skip verification only when the URL, the params, or
+// the deprecated field ask for it. A connection without TLS has none.
+//
+// The broker URL's scheme must match, since autopaho dials TLS for any mqtts
+// URL. A config built in code uses TLS unless it disables it.
 func TestSendTLSSettings(t *testing.T) {
 	t.Parallel()
 
@@ -601,7 +608,22 @@ func TestSendTLSSettings(t *testing.T) {
 	}{
 		{name: "plain", rawURL: "mqtt://broker.example.invalid/t"},
 		{name: "TLS disabled", rawURL: "mqtts://broker.example.invalid/t?disabletls=yes"},
+		{name: "TLS disabled in params", rawURL: "mqtts://broker.example.invalid/t", params: &types.Params{"disabletls": "yes"}},
+		{name: "TLS enabled on mqtt", rawURL: "mqtt://broker.example.invalid/t?disabletls=no", wantTLS: true},
 		{name: "verified", rawURL: "mqtts://broker.example.invalid/t", wantTLS: true},
+		{
+			name:    "built in code",
+			rawURL:  "mqtt://broker.example.invalid/t",
+			setup:   func(service *Service) { service.Config = &Config{Host: "broker.example.invalid", Topic: "t"} },
+			wantTLS: true,
+		},
+		{
+			name:   "built in code without TLS",
+			rawURL: "mqtts://broker.example.invalid/t",
+			setup: func(service *Service) {
+				service.Config = &Config{Host: "broker.example.invalid", Topic: "t", DisableTLS: true}
+			},
+		},
 		{name: "skipped in the URL", rawURL: "mqtts://broker.example.invalid/t?skiptlsverify=yes", wantTLS: true, wantSkip: true},
 		{
 			name:     "skipped in params",
@@ -641,6 +663,13 @@ func TestSendTLSSettings(t *testing.T) {
 
 				require.NoError(t, service.Send("hello", tt.params))
 				require.Len(t, connector.tlsConfigs, 1)
+
+				wantScheme := Scheme
+				if tt.wantTLS {
+					wantScheme = SchemeTLS
+				}
+
+				assert.Equal(t, []string{wantScheme}, connector.schemes)
 
 				tlsConfig := connector.tlsConfigs[0]
 				if !tt.wantTLS {
@@ -834,12 +863,15 @@ func (f *fakeConnection) ended() bool {
 	}
 }
 
-// connect creates a fake connection bound to ctx. It records the TLS settings
-// and gives the first connection the gateFirst gate.
+// connect creates a fake connection bound to ctx.
+//
+// It records the TLS settings and the broker URL, and gives the first
+// connection the gateFirst gate.
 //
 // Parameters:
 //   - ctx: the connection's lifetime.
-//   - cfg: the client config, whose TLS settings are recorded.
+//   - cfg: the client config, whose TLS settings and broker URL are
+//     recorded.
 //
 // Returns:
 //   - ConnectionManager: the new fake connection.
@@ -850,6 +882,7 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 	c.mu.Lock()
 	c.tlsConfigs = append(c.tlsConfigs, cfg.TlsCfg)
 	c.servers = append(c.servers, cfg.ServerUrls[0].Host)
+	c.schemes = append(c.schemes, cfg.ServerUrls[0].Scheme)
 
 	if len(c.connections) == 0 {
 		connection.gate = c.gateFirst

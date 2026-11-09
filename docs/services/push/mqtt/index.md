@@ -48,11 +48,17 @@ The MQTT service supports two URL schemes for connection security:
 
     The following options control TLS behavior:
 
-    - __`disabletls`__: When set to `yes`, forces an **unencrypted connection** even if the `mqtts://` scheme is used. This overrides the scheme's implicit TLS requirement.
+    - __`disabletls`__: When set to `yes`, forces an **unencrypted connection** even if the `mqtts://` scheme is used.
+      When set to `no`, connects with TLS even if the `mqtt://` scheme is used.
+      Either way, the key overrides the scheme, and a URL without a port uses 8883 with TLS and 1883 without it.
 
     - __`skiptlsverify`__: When set to `yes`, skips TLS certificate verification while still using encryption. This is useful for self-signed certificates.
 
     Shoutrrr logs a warning the first time it connects without TLS or without verifying the certificate.
+
+    In Go, `Config.DisableTLS` alone decides whether the connection uses TLS.
+    A `Config` built in code uses TLS unless `DisableTLS` is set, and connects to port 8883 when `Port` is 0.
+    `GetURL` writes the `mqtts://` scheme for a config that uses TLS and `mqtt://` for one that does not.
 
 !!! Danger "Security Warning: Silent TLS Downgrade"
 

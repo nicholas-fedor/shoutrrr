@@ -39,13 +39,11 @@ type Config struct {
 	// Default: "shoutrrr"
 	ClientID string `default:"shoutrrr" desc:"MQTT client identifier" key:"clientid"`
 
-	// scheme is the URL scheme the config was parsed from, mqtt or mqtts. It selects
-	// TLS for the connection and is kept by GetURL.
-	scheme string
-
 	// Port is the MQTT broker port number.
-	// Default: 1883 (standard MQTT), 8883 (MQTT over TLS)
-	Port int `default:"1883" desc:"MQTT broker port" url:"port"`
+	//
+	// Zero selects the default port for the connection, 8883 with TLS and
+	// 1883 without it.
+	Port int `desc:"MQTT broker port (default 8883 with TLS, 1883 without)" optional:"" url:"port"`
 
 	// QoS (Quality of Service) determines the message delivery guarantee level.
 	// See QoS constants for available levels and their semantics.
@@ -66,9 +64,11 @@ type Config struct {
 	// Default: true
 	CleanSession bool `default:"yes" desc:"Start with a clean session" key:"cleansession"`
 
-	// DisableTLS turns off TLS encryption for the connection.
-	// When true, connections use plain TCP which is faster but insecure.
-	// Should only be used on trusted networks or for testing.
+	// DisableTLS turns off TLS encryption, so the connection uses plain TCP.
+	//
+	// It alone decides whether the connection uses TLS. Reading an mqtt:// URL
+	// sets it and reading an mqtts:// URL clears it, unless the URL's
+	// disabletls key says otherwise. GetURL writes the scheme that matches it.
 	// Default: false (TLS enabled)
 	DisableTLS bool `default:"no" desc:"Disable TLS encryption" key:"disabletls"`
 
@@ -193,8 +193,10 @@ func (c *Config) GetURL() *url.URL {
 
 	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
 
-	// Create a new property key resolver for building the query string
-	resolver := format.NewPropKeyResolver(&synced)
+	// The scheme carries DisableTLS, so the query leaves the key out.
+	query := synced
+	query.DisableTLS = false
+	resolver := format.NewPropKeyResolver(&query)
 
 	return synced.getURL(&resolver)
 }
@@ -242,17 +244,17 @@ func (c *Config) ValidateCredentials() error {
 	return nil
 }
 
-// brokerScheme returns the scheme the connection uses. A config read from an
-// mqtts URL uses mqtts, and any other config uses mqtt.
+// brokerScheme returns the scheme of the broker URL, which says whether the
+// connection uses TLS.
 //
 // Returns:
-//   - string: [SchemeTLS] or [Scheme].
+//   - string: [Scheme] when [Config.DisableTLS] is set, otherwise [SchemeTLS].
 func (c *Config) brokerScheme() string {
-	if c.scheme == SchemeTLS {
-		return SchemeTLS
+	if c.DisableTLS {
+		return Scheme
 	}
 
-	return Scheme
+	return SchemeTLS
 }
 
 // getURL is the internal implementation of GetURL that accepts a resolver interface.
@@ -290,8 +292,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // prepare applies the defaults and checks the config.
 //
 // A config without a host gets [DefaultHost], and one without a port gets
-// [DefaultTLSPort] for mqtts and [DefaultPort] otherwise, as a URL without them
-// does. The checks then cover the host, the topic, the QoS, and the port.
+// [DefaultTLSPort], or [DefaultPort] when [Config.DisableTLS] is set, as a URL
+// without them does. The checks then cover the host, the topic, the QoS, and the port.
 // Reading a service URL and each send run it, so a config built in code
 // reaches the broker its URL would, and fails before the connection is opened
 // or a message is published.
@@ -310,9 +312,9 @@ func (c *Config) prepare() error {
 	}
 
 	if c.Port == 0 {
-		c.Port = DefaultPort
-		if c.brokerScheme() == SchemeTLS {
-			c.Port = DefaultTLSPort
+		c.Port = DefaultTLSPort
+		if c.DisableTLS {
+			c.Port = DefaultPort
 		}
 	}
 
@@ -372,7 +374,9 @@ func (c *Config) prepare() error {
 //     A config that fails its checks returns their error, such as
 //     [ErrTopicRequired].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	c.scheme = serviceURL.Scheme
+	// The scheme selects TLS, and a disabletls key in the query, applied below,
+	// overrides it.
+	c.DisableTLS = !strings.EqualFold(serviceURL.Scheme, SchemeTLS)
 
 	// Extract authentication credentials from URL user info if present
 	if serviceURL.User != nil {
