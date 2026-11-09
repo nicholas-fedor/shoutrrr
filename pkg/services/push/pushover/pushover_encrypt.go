@@ -11,10 +11,18 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"sync"
 )
 
 // encryptionKeySize is the size of an AES-256 key in bytes.
 const encryptionKeySize = 32
+
+// gzipWriters holds gzip writers at the best compression level for reuse.
+//
+// A new writer allocates about 1 MB of compression state, and a reset writer
+// gives the same output as a new one. The pool has no New function, so a
+// writer is made where its error can be returned.
+var gzipWriters sync.Pool
 
 // parseEncryptionKey decodes a 64-character hex AES-256 key.
 //
@@ -58,10 +66,20 @@ func parseEncryptionKey(hexKey string) ([]byte, error) {
 func encryptField(plaintext string, key []byte) (string, error) {
 	var compressed bytes.Buffer
 
-	writer, err := gzip.NewWriterLevel(&compressed, gzip.BestCompression)
-	if err != nil {
-		return "", fmt.Errorf("%w: gzip: %w", ErrEncryptionFailed, err)
+	writer, ok := gzipWriters.Get().(*gzip.Writer)
+	if ok {
+		writer.Reset(&compressed)
+	} else {
+		var err error
+
+		writer, err = gzip.NewWriterLevel(&compressed, gzip.BestCompression)
+		if err != nil {
+			return "", fmt.Errorf("%w: gzip: %w", ErrEncryptionFailed, err)
+		}
 	}
+
+	// The next field resets the writer, whatever state this one leaves it in.
+	defer gzipWriters.Put(writer)
 
 	if _, err := writer.Write([]byte(plaintext)); err != nil {
 		return "", fmt.Errorf("%w: gzip: %w", ErrEncryptionFailed, err)
