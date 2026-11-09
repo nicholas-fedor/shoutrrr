@@ -74,7 +74,9 @@ func TestMatrixSend(t *testing.T) {
 		// A service given only a config has no homeserver to send to.
 		service := &matrix.Service{Config: &matrix.Config{Host: "localhost"}}
 
-		require.ErrorIs(t, service.Send("This should fail", nil), matrix.ErrClientNotInitialized)
+		err := service.Send("This should fail", nil)
+		require.ErrorIs(t, err, matrix.ErrClientNotInitialized)
+		require.ErrorIs(t, err, types.ErrServiceNotInitialized)
 	})
 }
 

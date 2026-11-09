@@ -438,7 +438,9 @@ func TestFailedInitializeDropsSession(t *testing.T) {
 
 	require.ErrorIs(t, service.Initialize(parseTestURL(t, "matrix://user@matrix.example.com"), nil), ErrMissingCredentials)
 
-	require.ErrorIs(t, service.Send("message", nil), ErrClientNotInitialized)
+	err := service.Send("message", nil)
+	require.ErrorIs(t, err, ErrClientNotInitialized)
+	require.ErrorIs(t, err, types.ErrServiceNotInitialized)
 	httpClient.AssertNotCalled(t, "Do", mock.Anything)
 }
 
@@ -544,12 +546,16 @@ func TestInitializeEndsSession(t *testing.T) {
 }
 
 // TestSendWithoutClient verifies that a service without a homeserver to send
-// to reports ErrClientNotInitialized.
+// to reports ErrClientNotInitialized, wrapped with the shared
+// types.ErrServiceNotInitialized that every service returns when it cannot
+// send.
 func TestSendWithoutClient(t *testing.T) {
 	t.Parallel()
 
 	for _, config := range []*Config{{}, {Host: "matrix.example.com"}} {
-		require.ErrorIs(t, (&Service{Config: config}).Send("test message", nil), ErrClientNotInitialized)
+		err := (&Service{Config: config}).Send("test message", nil)
+		require.ErrorIs(t, err, ErrClientNotInitialized)
+		require.ErrorIs(t, err, types.ErrServiceNotInitialized)
 	}
 }
 
