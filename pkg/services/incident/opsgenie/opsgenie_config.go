@@ -30,8 +30,10 @@ type Config struct {
 	Entity string `desc:"Entity field of the alert that is generally used to specify which domain the Source field of the alert" key:"entity" optional:"true"`
 	// Source is the source of the alert.
 	Source string `desc:"Source field of the alert" key:"source" optional:"true"`
-	// Priority is the alert priority, P1 to P5. When neither the URL nor the
-	// send sets it, the level param chooses it.
+	// Priority is the alert priority, P1 to P5 in any case.
+	//
+	// It is sent in upper case. Empty leaves the API's default of P3. When
+	// neither the URL nor the send sets it, the level param chooses it.
 	Priority string `desc:"Priority level of the alert. Possible values are P1, P2, P3, P4 and P5" key:"priority" optional:"true"`
 	// Note is added to the alert when it is created.
 	Note string `desc:"Additional note that will be added while creating the alert" key:"note" optional:"true"`
@@ -72,6 +74,9 @@ var (
 	//
 	// It is [util.ErrInvalidPort], so the port rule of every service applies.
 	ErrInvalidPort = util.ErrInvalidPort
+	// ErrInvalidPriority indicates a priority other than P1 to P5, which the
+	// Alert API rejects.
+	ErrInvalidPriority = errors.New("priority must be P1, P2, P3, P4, or P5")
 )
 
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
@@ -126,17 +131,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // prepare normalizes the config and checks it.
 //
-// It drops the empty actions and tags, as reading a list setting does. It sets
-// [DefaultHost] and port 443 for a config without a host or port. Reading a
-// service URL and each send run it, so a config built in code reaches the API
-// and sends the actions and tags its URL would. It also fails before a request
-// as its URL would.
+// It drops the empty actions and tags as reading a list setting does. It
+// writes the priority in upper case. It sets [DefaultHost] and port 443 for a
+// config without a host or port. Reading a service URL and each send run it,
+// so a config built in code reaches the API and sends the actions, tags, and
+// priority its URL would. It also fails before a request as its URL would.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrAPIKeyMissing].
 func (c *Config) prepare() error {
 	c.Actions = util.NonEmpty(c.Actions)
 	c.Tags = util.NonEmpty(c.Tags)
+	c.Priority = strings.ToUpper(c.Priority)
 
 	if c.Host == "" {
 		c.Host = DefaultHost
@@ -162,7 +168,8 @@ func (c *Config) prepare() error {
 //     bracketed IPv6 address. An error wrapping [ErrInvalidPort] for a port
 //     that is not a number from 1 to 65535. An error wrapping
 //     [util.ErrInvalidQuery] for a malformed query, a query prop error, or
-//     [ErrAPIKeyMissing] for a missing or empty API key.
+//     [ErrAPIKeyMissing] for a missing or empty API key. The error from the
+//     config's checks, such as [ErrInvalidPriority].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	host, port, err := util.SplitURLHostPort(serviceURL)
 	if err != nil {
@@ -186,12 +193,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks that the config has the API key every alert request needs,
-// and a host without a port.
+// a host without a port, and the values the Alert API accepts.
 //
 // Returns:
 //   - error: [ErrAPIKeyMissing] for a config without an API key. An error
 //     wrapping [util.ErrInvalidHost] for a host that holds a port or brackets.
-//     Otherwise nil.
+//     An error wrapping [ErrInvalidPriority] for a priority other than P1 to
+//     P5, or [ErrUnexpectedEntityType] for a visibleTo entry that is not a team
+//     or a user. Otherwise nil.
 func (c *Config) validate() error {
 	if c.APIKey == "" {
 		return ErrAPIKeyMissing
@@ -199,6 +208,20 @@ func (c *Config) validate() error {
 
 	if err := util.ValidateHostName(c.Host); err != nil {
 		return fmt.Errorf("host: %w", err)
+	}
+
+	switch c.Priority {
+	case "", "P1", "P2", "P3", "P4", "P5":
+	default:
+		return fmt.Errorf("%w: %q", ErrInvalidPriority, c.Priority)
+	}
+
+	// The Alert API accepts only teams and users in visibleTo, while responders
+	// may also be escalations and schedules.
+	for _, entity := range c.VisibleTo {
+		if entity.Type != "team" && entity.Type != "user" {
+			return fmt.Errorf("%w: visibleTo cannot include %q", ErrUnexpectedEntityType, entity.Type)
+		}
 	}
 
 	return nil

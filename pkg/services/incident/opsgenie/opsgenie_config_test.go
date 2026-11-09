@@ -146,6 +146,13 @@ func TestConfigSetURLErrors(t *testing.T) {
 			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey + "?visibleTo=team:",
 			wantErr: ErrMissingEntityIdentity,
 		},
+		{
+			name:    "escalation in visibleTo",
+			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey + "?visibleTo=escalation:Nightwatch",
+			wantErr: ErrUnexpectedEntityType,
+		},
+		{name: "priority past P5", rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey + "?priority=P9", wantErr: ErrInvalidPriority},
+		{name: "priority by name", rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey + "?priority=high", wantErr: ErrInvalidPriority},
 	}
 
 	for _, tt := range tests {
