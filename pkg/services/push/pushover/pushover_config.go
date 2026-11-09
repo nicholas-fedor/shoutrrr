@@ -26,7 +26,8 @@ type Config struct {
 	// Priority is the message priority, from -2 (lowest) to 2 (emergency).
 	//
 	// Pushover repeats an emergency notification every Retry until the user
-	// acknowledges it or Expire passes.
+	// acknowledges it or Expire passes. It stops after 50 repeats, even when
+	// Expire has not passed.
 	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 2 (emergency)" key:"priority"`
 	// Timestamp is the Unix time, in seconds, that Pushover shows and orders the
 	// message by instead of when it received the message. 0 leaves it to Pushover.

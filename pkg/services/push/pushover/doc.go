@@ -38,7 +38,7 @@
 //   - 0: normal (default) - normal notification behavior
 //   - 1: high - bypasses quiet hours, plays sound
 //   - 2: emergency - repeats every retry until acknowledged or until expire
-//     passes
+//     passes, and stops after 50 repeats
 //
 // A send with a level param and no priority set uses the priority for its
 // level: debug -1, info and warning 0, and error 1.
