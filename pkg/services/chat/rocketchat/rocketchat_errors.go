@@ -12,8 +12,8 @@ var (
 	ErrInvalidURLScheme = errors.New("rocketchat: invalid URL scheme, only https is allowed")
 	// ErrNotificationFailed indicates a failure in sending the notification.
 	ErrNotificationFailed = errors.New("notification failed")
-	// ErrHostMissing indicates that the config URL has no Rocket.Chat server host.
-	ErrHostMissing = errors.New("host missing from config URL")
+	// ErrHostMissing indicates a config without a Rocket.Chat server host.
+	ErrHostMissing = errors.New("host missing from config")
 	// ErrInvalidChannel indicates a channel name with a slash, which a channel
 	// cannot contain.
 	ErrInvalidChannel = errors.New("invalid channel: a channel name cannot contain a slash")

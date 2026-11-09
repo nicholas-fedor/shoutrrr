@@ -66,10 +66,10 @@ const (
 	DefaultHost = "api.opsgenie.com"
 )
 
-// Errors for an invalid config URL.
+// Errors for an invalid config.
 var (
-	// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
-	ErrAPIKeyMissing = errors.New("API key missing from config URL path")
+	// ErrAPIKeyMissing indicates a config without an API key.
+	ErrAPIKeyMissing = errors.New("API key missing from config")
 	// ErrInvalidPort indicates a port that is not a number from 1 to 65535.
 	//
 	// It is [util.ErrInvalidPort], so the port rule of every service applies.

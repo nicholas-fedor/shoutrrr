@@ -7,11 +7,11 @@ var (
 	// ErrSendFailed indicates a failure in sending the notification to a Pushover device.
 	ErrSendFailed = errors.New("failed to send notification to pushover device")
 
-	// ErrUserMissing indicates the user key is missing from the Pushover config URL.
-	ErrUserMissing = errors.New("user missing from config URL")
+	// ErrUserMissing indicates a config without a user key.
+	ErrUserMissing = errors.New("user missing from config")
 
-	// ErrTokenMissing indicates the API token is missing from the Pushover config URL.
-	ErrTokenMissing = errors.New("token missing from config URL")
+	// ErrTokenMissing indicates a config without an API token.
+	ErrTokenMissing = errors.New("token missing from config")
 
 	// ErrInvalidEncryptionKey indicates the E2EE key is not a 64-character hex string.
 	ErrInvalidEncryptionKey = errors.New("invalid encryption key")

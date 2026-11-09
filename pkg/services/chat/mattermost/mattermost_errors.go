@@ -13,8 +13,8 @@ var (
 	)
 	// ErrInvalidURL indicates that the provided URL is invalid.
 	ErrInvalidURL = errors.New("invalid URL: scheme must be http or https and host must be present")
-	// ErrHostMissing indicates that the config URL has no Mattermost server host.
-	ErrHostMissing = errors.New("host missing from config URL")
+	// ErrHostMissing indicates a config without a Mattermost server host.
+	ErrHostMissing = errors.New("host missing from config")
 	// ErrNotEnoughArguments indicates that the API URL does not include enough arguments.
 	ErrNotEnoughArguments = errors.New(
 		"the apiURL does not include enough arguments, either provide 1 or 3 arguments (they may be empty)",

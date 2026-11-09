@@ -84,8 +84,8 @@ var (
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
 	// ErrInvalidAPIKey indicates an invalid API key was provided.
 	ErrInvalidAPIKey = errors.New("invalid API key")
-	// ErrAPIKeyMissing indicates that the service URL has no API key.
-	ErrAPIKeyMissing = errors.New("API key missing from service URL")
+	// ErrAPIKeyMissing indicates a config without an API key.
+	ErrAPIKeyMissing = errors.New("API key missing from config")
 	// ErrAuthenticationFailed indicates authentication failure (e.g., 401 response).
 	ErrAuthenticationFailed = errors.New("authentication failed")
 	// ErrEmptyMessage indicates the message is empty.
@@ -166,9 +166,8 @@ func (s *Service) GetID() string {
 //
 // Returns:
 //   - *url.URL: the service URL.
-//   - error: an error wrapping
-//     [github.com/nicholas-fedor/shoutrrr/pkg/util.ErrInvalidQuery] for a
-//     malformed query, or a query prop error.
+//   - error: an error wrapping util.ErrInvalidQuery for a malformed query, or
+//     a query prop error.
 func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 	// Copy the URL to modify
 	webhookURL := *serviceURL

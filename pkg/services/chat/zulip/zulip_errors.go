@@ -5,13 +5,13 @@ import "errors"
 // Error variables for the Zulip package.
 var (
 	// ErrMissingHost indicates the host is not specified in the configuration.
-	ErrMissingHost = errors.New("host missing from config URL")
+	ErrMissingHost = errors.New("host missing from config")
 
 	// ErrMissingAPIKey indicates the API key is missing from the configuration.
-	ErrMissingAPIKey = errors.New("API key missing from config URL")
+	ErrMissingAPIKey = errors.New("API key missing from config")
 
 	// ErrMissingBotMail indicates the bot mail address is missing from the configuration.
-	ErrMissingBotMail = errors.New("bot mail missing from config URL")
+	ErrMissingBotMail = errors.New("bot mail missing from config")
 
 	// ErrTopicTooLong indicates the topic exceeds the maximum allowed length.
 	ErrTopicTooLong = errors.New("topic exceeds max length")

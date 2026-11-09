@@ -47,8 +47,8 @@ const (
 var (
 	// ErrInvalidToken indicates an invalid Telegram token format or content.
 	ErrInvalidToken = errors.New("invalid telegram token")
-	// ErrNoChannelsDefined indicates a service URL without chats.
-	ErrNoChannelsDefined = errors.New("no channels defined in config URL")
+	// ErrNoChannelsDefined indicates a config without chats.
+	ErrNoChannelsDefined = errors.New("no channels defined in config")
 	// ErrInvalidAPIURL indicates an API URL that is not an http or https URL
 	// with a host, or that carries userinfo, a query, or a fragment.
 	ErrInvalidAPIURL = errors.New("invalid telegram API URL")
