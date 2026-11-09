@@ -213,12 +213,40 @@ func TestSend(t *testing.T) {
 			},
 		},
 		{
-			// Emergency priority needs the retry and expire parameters, which
-			// the service does not send, so the priority is left out.
-			name:   "emergency priority is left out",
+			// Emergency priority needs the retry and expire parameters, so the
+			// defaults of 15 minutes and 1 hour fill them in.
+			name:   "emergency priority",
 			rawURL: "pushover://:apptoken@usertoken?priority=2",
 			wantForm: url.Values{
 				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"2"}, "retry": {"900"}, "expire": {"3600"},
+			},
+		},
+		{
+			name:   "emergency priority with retry and expire",
+			rawURL: "pushover://:apptoken@usertoken?priority=2&retry=1m&expire=3h",
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"2"}, "retry": {"60"}, "expire": {"10800"},
+			},
+		},
+		{
+			// Only emergency notifications repeat, so other priorities leave
+			// the settings out.
+			name:   "retry and expire without emergency priority",
+			rawURL: "pushover://:apptoken@usertoken?priority=1&retry=1m&expire=30m",
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"1"},
+			},
+		},
+		{
+			name:   "emergency priority in params",
+			rawURL: "pushover://:apptoken@usertoken",
+			params: &types.Params{"priority": "2", "retry": "30s"},
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"2"}, "retry": {"30"}, "expire": {"3600"},
 			},
 		},
 		{
@@ -347,6 +375,10 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrTokenMissing},
 		{name: "invalid encryption key", change: func(config *Config) { config.EncryptionKey = "short" }, wantErr: ErrInvalidEncryptionKey},
 		{name: "negative timestamp", change: func(config *Config) { config.Timestamp = -1 }, wantErr: ErrInvalidTimestamp},
+		{name: "priority above emergency", change: func(config *Config) { config.Priority = 3 }, wantErr: ErrInvalidPriority},
+		{name: "priority below lowest", change: func(config *Config) { config.Priority = -3 }, wantErr: ErrInvalidPriority},
+		{name: "retry too short", change: func(config *Config) { config.Retry = 29 * time.Second }, wantErr: ErrInvalidRetry},
+		{name: "expire too long", change: func(config *Config) { config.Expire = 3*time.Hour + time.Second }, wantErr: ErrInvalidExpire},
 	}
 
 	for _, tt := range tests {
@@ -361,6 +393,18 @@ func TestSendChecksConfig(t *testing.T) {
 			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
 		})
 	}
+}
+
+// TestSendEmptyMessage verifies that an empty message fails before any
+// request, since the Message API requires a message.
+func TestSendEmptyMessage(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "pushover://:apptoken@usertoken?title=Title")
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send("", nil), ErrMessageMissing)
 }
 
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of

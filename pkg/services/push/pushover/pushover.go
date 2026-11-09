@@ -1,6 +1,7 @@
 package pushover
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -122,7 +124,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to the configured Pushover devices
-// in one request. A context without a deadline is bounded by the budget that
+// in one request.
+//
+// A context without a deadline is bounded by the budget that
 // [Service.ServiceTimeout] reports.
 //
 // Parameters:
@@ -131,13 +135,19 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, such as [ErrInvalidTimestamp],
-//     or the send error. A request error matches ctx's error when ctx ends the
-//     request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or
+//     [ErrMessageMissing] for an empty message. The error from the params or
+//     the config's checks, such as [ErrInvalidTimestamp], or the send error. A
+//     request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
+	}
+
+	// The Message API rejects an empty message, and it blocks an address that
+	// sends many rejected requests for a while.
+	if message == "" {
+		return ErrMessageMissing
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
@@ -246,8 +256,13 @@ func (s *Service) sendToDevice(ctx context.Context, device, message string, conf
 		data.Set("encrypted", "1")
 	}
 
-	if config.Priority >= -2 && config.Priority <= 1 {
-		data.Set("priority", strconv.FormatInt(int64(config.Priority), 10))
+	data.Set("priority", strconv.FormatInt(int64(config.Priority), 10))
+
+	// The API requires both settings for an emergency notification and takes
+	// them in seconds.
+	if config.Priority == priorityEmergency {
+		data.Set("retry", strconv.FormatInt(int64(cmp.Or(config.Retry, defaultRetry)/time.Second), 10))
+		data.Set("expire", strconv.FormatInt(int64(cmp.Or(config.Expire, defaultExpire)/time.Second), 10))
 	}
 
 	// The timestamp is not one of the fields that end-to-end encryption covers.

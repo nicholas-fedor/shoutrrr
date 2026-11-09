@@ -3,6 +3,7 @@ package pushover
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -22,13 +23,43 @@ type Config struct {
 	EncryptionKey string `desc:"256-bit AES key as 64 hex characters for end-to-end encryption" key:"encryptionkey,key" optional:"" sensitive:"true"`
 	// Devices lists the devices to send to. Empty sends to all of the user's devices.
 	Devices []string `desc:"The devices to send to, or empty for all of the user's devices" key:"devices" optional:""`
-	// Priority is the message priority, from -2 (lowest) to 1 (high). Emergency
-	// priority 2 needs retry settings, so it is left out of the request.
-	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 1 (high)" key:"priority"`
+	// Priority is the message priority, from -2 (lowest) to 2 (emergency).
+	//
+	// Pushover repeats an emergency notification every Retry until the user
+	// acknowledges it or Expire passes.
+	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 2 (emergency)" key:"priority"`
 	// Timestamp is the Unix time, in seconds, that Pushover shows and orders the
 	// message by instead of when it received the message. 0 leaves it to Pushover.
 	Timestamp int64 `default:"0" desc:"Unix time in seconds to show instead of when Pushover received the message" key:"timestamp"`
+	// Retry is how often Pushover repeats an emergency notification.
+	//
+	// It is whole seconds, at least 30 seconds. Zero uses 15 minutes.
+	Retry time.Duration `desc:"Time between repeats of an emergency notification, at least 30s (default 15m)" key:"retry" optional:""`
+	// Expire is how long Pushover keeps repeating an emergency notification.
+	//
+	// It is whole seconds, at most 3 hours. Zero uses 1 hour.
+	Expire time.Duration `desc:"How long an emergency notification repeats, at most 3h (default 1h)" key:"expire" optional:""`
 }
+
+// Priorities and emergency settings the Message API accepts.
+const (
+	// priorityLowest is the lowest priority, which sends no notification.
+	priorityLowest int8 = -2
+	// priorityEmergency is the emergency priority, which repeats the
+	// notification until the user acknowledges it.
+	priorityEmergency int8 = 2
+	// defaultRetry is the time between repeats of an emergency notification
+	// when Retry is zero.
+	defaultRetry = 15 * time.Minute
+	// defaultExpire is how long an emergency notification repeats when Expire
+	// is zero.
+	defaultExpire = time.Hour
+	// minRetry is the shortest time between repeats that the API accepts.
+	minRetry = 30 * time.Second
+	// maxExpire is the longest time a notification may repeat that the API
+	// accepts.
+	maxExpire = 3 * time.Hour
+)
 
 // Service identity and URL masking.
 const (
@@ -90,15 +121,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // prepare drops the empty devices and checks the config.
 //
-// The checks cover the encryption key, the timestamp, the user, and the token.
-// Reading a service URL and each send run it, so a config built in code sends
-// to the devices its URL would, and fails before a request as its URL would.
+// The checks cover the encryption key, the timestamp, the priority and its
+// emergency settings, the user, and the token. Reading a service URL and each
+// send run it, so a config built in code sends to the devices its URL would,
+// and fails before a request as its URL would.
 //
 // Returns:
 //   - error: an encryption key error or [ErrInvalidTimestamp] for a negative
-//     timestamp. [ErrUserMissing] or [ErrTokenMissing] when the user or the
-//     token is missing. An error wrapping [util.ErrInvalidHost] for a user key
-//     that a URL host cannot hold. Otherwise nil.
+//     timestamp. An error wrapping [ErrInvalidPriority], [ErrInvalidRetry], or
+//     [ErrInvalidExpire] for a value the Message API rejects. [ErrUserMissing]
+//     or [ErrTokenMissing] when the user or the token is missing. An error
+//     wrapping [util.ErrInvalidHost] for a user key that a URL host cannot
+//     hold. Otherwise nil.
 func (c *Config) prepare() error {
 	c.Devices = util.NonEmpty(c.Devices)
 
@@ -108,6 +142,18 @@ func (c *Config) prepare() error {
 
 	if c.Timestamp < 0 {
 		return ErrInvalidTimestamp
+	}
+
+	if c.Priority < priorityLowest || c.Priority > priorityEmergency {
+		return fmt.Errorf("%w: %d", ErrInvalidPriority, c.Priority)
+	}
+
+	if c.Retry != 0 && (c.Retry < minRetry || c.Retry%time.Second != 0) {
+		return fmt.Errorf("%w: %s", ErrInvalidRetry, c.Retry)
+	}
+
+	if c.Expire != 0 && (c.Expire < 0 || c.Expire > maxExpire || c.Expire%time.Second != 0) {
+		return fmt.Errorf("%w: %s", ErrInvalidExpire, c.Expire)
 	}
 
 	if c.User == "" {
