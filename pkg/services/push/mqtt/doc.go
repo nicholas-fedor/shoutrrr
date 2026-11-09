@@ -28,7 +28,8 @@
 //   - qos: Quality of Service level (0=at most once, 1=at least once, 2=exactly once)
 //   - retained: retain message on broker (default: no)
 //   - cleansession: start with a clean session (default: yes)
-//   - disabletls: disable TLS encryption for mqtts:// (default: no)
+//   - disabletls: connect without TLS (default: yes for mqtt://, no for
+//     mqtts://). It overrides the scheme.
 //   - skiptlsverify: skip TLS certificate verification (default: no). The
 //     deprecated disabletlsverification key sets it too.
 //
@@ -90,10 +91,13 @@
 //
 //	url := "mqtts://broker.example.com:8883/secure-topic"
 //
-// The mqtt:// scheme never uses TLS. To disable TLS when using the mqtts://
-// scheme:
+// The mqtt:// scheme connects without TLS. The disabletls key overrides the
+// scheme in either direction, so this URL connects without TLS:
 //
 //	url := "mqtts://broker.example.com:8883/secure-topic?disabletls=true"
+//
+// A [Config] built in code uses TLS unless [Config.DisableTLS] is set, and
+// connects to port 8883 when its port is 0.
 //
 // To skip TLS certificate verification (useful for testing with self-signed certs):
 //

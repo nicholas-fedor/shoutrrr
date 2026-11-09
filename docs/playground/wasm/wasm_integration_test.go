@@ -116,9 +116,10 @@ func TestAllServicesGenerateDefaultURL(t *testing.T) {
 			// if new aliases are added to the router (scheme → canonical scheme),
 			// they must be added here so checkScheme resolves to the correct
 			// canonical scheme for the prefix assertion below.
+			// A zero MQTT config uses TLS, so both MQTT schemes write mqtts.
 			aliasMap := map[string]string{
 				"hangouts": "googlechat",
-				"mqtts":    "mqtt",
+				"mqtt":     "mqtts",
 				"xmpps":    "xmpp",
 			}
 
@@ -143,9 +144,10 @@ func TestAllServicesGenerateDefaultURL(t *testing.T) {
 func TestAliasMapConsistency(t *testing.T) {
 	t.Parallel()
 
+	// A zero MQTT config uses TLS, so both MQTT schemes write mqtts.
 	aliasMap := map[string]string{
 		"hangouts": "googlechat",
-		"mqtts":    "mqtt",
+		"mqtt":     "mqtts",
 		"xmpps":    "xmpp",
 	}
 
