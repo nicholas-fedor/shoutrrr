@@ -186,6 +186,35 @@ func TestPropKeyResolverIsDefault(t *testing.T) {
 	assert.False(t, unbound.IsDefault("retries", "3"))
 }
 
+// TestPropKeyResolverDefaultsShared verifies that a resolver builds its
+// defaults once and shares them with the resolvers that Bind returns.
+func TestPropKeyResolverDefaultsShared(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
+	bound := resolver.Bind(&spelledDefaultsConfig{})
+
+	require.True(t, bound.IsDefault("level", "High"))
+
+	assert.Same(t, resolver.defaults, bound.defaults)
+	assert.True(t, resolver.defaults.value.IsValid(), "the bound copy's check built the shared defaults")
+	assert.Equal(t, map[string]bool{"Broken": true}, resolver.defaults.invalid)
+}
+
+// TestPropKeyResolverDefaultsWithoutCache verifies that a resolver without
+// shared defaults, such as one built as a struct literal with a bound config,
+// still compares values with the parsed defaults.
+func TestPropKeyResolverDefaultsWithoutCache(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
+	resolver.defaults = nil
+
+	assert.True(t, resolver.IsDefault("level", "High"))
+	assert.False(t, resolver.IsDefault("broken", "0"))
+	assert.Nil(t, resolver.defaults)
+}
+
 // TestPropKeyResolverKeepsDefault verifies that a property keeps its default
 // only when the config holds the default value and neither Set nor the params
 // set the property under any of its keys, in any case, even to the default
@@ -518,6 +547,40 @@ func TestPropKeyResolverDeprecatedParams(t *testing.T) {
 	both := &deprecatedConfig{}
 	require.NoError(t, resolver.UpdateConfigFromParams(both, &types.Params{"insecure": "yes", "SkipVerify": "no"}))
 	assert.False(t, both.SkipVerify)
+}
+
+// TestPropKeyResolverKeepsDefaultConcurrent verifies that concurrent sends can
+// check defaults with one resolver whose defaults are not yet built.
+//
+// Run it with -race.
+func TestPropKeyResolverKeepsDefaultConcurrent(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
+	params := &types.Params{types.TitleKey: "Backup"}
+
+	const sends = 8
+
+	var wg sync.WaitGroup
+
+	kept := make([]bool, sends)
+
+	for i := range sends {
+		wg.Go(func() {
+			// Broken's default does not parse, so SetDefaultProps reports an
+			// error after it has set every other default.
+			config := &spelledDefaultsConfig{}
+			_ = resolver.SetDefaultProps(config)
+
+			kept[i] = resolver.KeepsDefault(config, params, "level")
+		})
+	}
+
+	wg.Wait()
+
+	for i := range sends {
+		assert.True(t, kept[i], "send %d", i)
+	}
 }
 
 // TestPropKeyResolverDeprecatedParamsConcurrent verifies that concurrent sends

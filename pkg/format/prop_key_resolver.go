@@ -9,14 +9,13 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
-	// confValue is the config the resolver reads and sets.
-	confValue reflect.Value
 	// keyFields maps each key and deprecated key, in lower case, to its field.
 	keyFields map[string]*FieldInfo
 	// setFields holds the names of the fields that Set has set, such as from a
@@ -29,8 +28,28 @@ type PropKeyResolver struct {
 	// primarySetFields holds the names of the fields that Set has set through
 	// a key that is not deprecated, so a deprecated key no longer overrides them.
 	primarySetFields map[string]bool
+	// defaults holds the config's default values, built on first use and
+	// shared with the resolvers that Bind returns. It is nil in a resolver not
+	// made by NewPropKeyResolver, which builds the defaults on each use instead.
+	defaults *configDefaults
+	// confValue is the config the resolver reads and sets.
+	confValue reflect.Value
 	// keys lists every key and deprecated key in lower case, sorted.
 	keys []string
+}
+
+// configDefaults is a config holding the default value of each keyed field.
+//
+// It is built once and only read afterwards, so concurrent sends can share it.
+type configDefaults struct {
+	// invalid holds the names of the fields whose default tag does not parse.
+	// Such a field never holds its default, as its default cannot be compared.
+	invalid map[string]bool
+	// value is the config struct, with each keyed field set to its default and
+	// a field without a default tag left at its zero value.
+	value reflect.Value
+	// once builds the defaults on first use.
+	once sync.Once
 }
 
 // Errors returned when config props are read or set.
@@ -101,6 +120,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 		usedDeprecatedKeys: map[string]bool{},
 		primarySetFields:   map[string]bool{},
 		keys:               keys,
+		defaults:           &configDefaults{invalid: nil, value: reflect.Value{}, once: sync.Once{}},
 	}
 }
 
@@ -129,7 +149,8 @@ func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolve
 // Bind returns a copy of the resolver bound to another config.
 //
 // The config must have the same type as the one the resolver was made for. The
-// copy shares the record of set fields and deprecated keys with the original.
+// copy shares the record of set fields and deprecated keys with the original,
+// and the config's defaults.
 //
 // Parameters:
 //   - config: the config to bind.
@@ -231,27 +252,7 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 		return false
 	}
 
-	if field.DefaultValue == value {
-		return true
-	}
-
-	// A resolver without a bound config has no type to format the default with.
-	if !pkr.confValue.IsValid() {
-		return false
-	}
-
-	// A new config holds the zero value, which is the default when the tag is
-	// empty.
-	defaults := reflect.New(pkr.confValue.Type()).Elem()
-	if field.DefaultValue != "" {
-		if valid, err := SetConfigField(defaults, field, field.DefaultValue); !valid || err != nil {
-			return false
-		}
-	}
-
-	formatted, err := GetConfigFieldString(defaults, field)
-
-	return err == nil && formatted == value
+	return pkr.fieldIsDefault(field, value)
 }
 
 // KeepsDefault reports whether a send keeps the default value of the property
@@ -287,11 +288,9 @@ func (pkr *PropKeyResolver) KeepsDefault(config types.ServiceConfig, params *typ
 		}
 	}
 
-	bound := pkr.Bind(config)
+	value, err := GetConfigFieldString(configValue(config), field)
 
-	value, err := bound.Get(key)
-
-	return err == nil && bound.IsDefault(key, value)
+	return err == nil && pkr.fieldIsDefault(field, value)
 }
 
 // KeyIsPrimary returns whether the key is the primary (and not an alias or a
@@ -489,6 +488,26 @@ func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) re
 	return pkr.confValue
 }
 
+// defaultConfig returns the config's defaults, building them on first use.
+//
+// A resolver not made by [NewPropKeyResolver] has no shared defaults, so it
+// builds them on each call.
+//
+// Returns:
+//   - *configDefaults: the defaults of the resolver's config type.
+func (pkr *PropKeyResolver) defaultConfig() *configDefaults {
+	if pkr.defaults == nil {
+		defaults := &configDefaults{invalid: nil, value: reflect.Value{}, once: sync.Once{}}
+		defaults.build(pkr.confValue.Type(), pkr.keyFields)
+
+		return defaults
+	}
+
+	pkr.defaults.once.Do(func() { pkr.defaults.build(pkr.confValue.Type(), pkr.keyFields) })
+
+	return pkr.defaults
+}
+
 // deprecatedOrder sorts deprecated keys before the other keys.
 //
 // Parameters:
@@ -502,6 +521,37 @@ func (pkr *PropKeyResolver) deprecatedOrder(key string) int {
 	}
 
 	return 1
+}
+
+// fieldIsDefault reports whether a formatted value is the default of a field.
+//
+// The value matches the default as written in its tag, or as the formatter
+// prints it, as [PropKeyResolver.IsDefault] describes.
+//
+// Parameters:
+//   - field: the field to check.
+//   - value: the formatted value.
+//
+// Returns:
+//   - bool: whether value is the field's default.
+func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool {
+	if field.DefaultValue == value {
+		return true
+	}
+
+	// A resolver without a bound config has no type to format the default with.
+	if !pkr.confValue.IsValid() {
+		return false
+	}
+
+	defaults := pkr.defaultConfig()
+	if defaults.invalid[field.Name] {
+		return false
+	}
+
+	formatted, err := GetConfigFieldString(defaults.value, field)
+
+	return err == nil && formatted == value
 }
 
 // isUndeclaredReserved reports whether key is a reserved param that the config does
@@ -578,6 +628,30 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 	}
 
 	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
+}
+
+// build sets each keyed field of a new config of configType to its default.
+//
+// A field without a default tag, or with an empty one, keeps its zero value. A
+// field whose default tag does not parse is recorded as invalid.
+//
+// Parameters:
+//   - configType: the config struct type.
+//   - fields: the keyed fields of the config, by key. A field with several
+//     keys appears under each of them.
+func (d *configDefaults) build(configType reflect.Type, fields map[string]*FieldInfo) {
+	d.value = reflect.New(configType).Elem()
+	d.invalid = map[string]bool{}
+
+	for _, field := range fields {
+		if field.DefaultValue == "" {
+			continue
+		}
+
+		if valid, err := SetConfigField(d.value, field, field.DefaultValue); !valid || err != nil {
+			d.invalid[field.Name] = true
+		}
+	}
 }
 
 // configValue returns the indirect reflect.Value of the config.
