@@ -44,8 +44,9 @@ type recordedRequest struct {
 	body []byte
 }
 
-// reply is a scripted answer from the fake webhook: a response, or a
-// transport error when err is set.
+// reply is a scripted answer from the fake webhook.
+//
+// It holds a response, or a transport error when err is set.
 type reply struct {
 	// header holds the response headers.
 	header http.Header
@@ -239,10 +240,11 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // TestIntegrationSendPlainRequest verifies the request a plain Send makes for
-// a service initialized from a URL: a JSON POST with the Shoutrrr user agent
-// to the webhook API URL, with the thread, username, avatar, title, colors,
-// and line splitting from the URL and the send params, and the message text
-// carried exactly.
+// a service initialized from a URL.
+//
+// The request is a JSON POST to the webhook API URL with the Shoutrrr user
+// agent. The thread, username, avatar, title, colors, and line splitting come
+// from the URL and the send params. The message text is carried exactly.
 func TestIntegrationSendPlainRequest(t *testing.T) {
 	t.Parallel()
 
@@ -540,10 +542,11 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 }
 
 // TestIntegrationSendLongMessage verifies that a long message is spread over
-// as many requests as Discord's limits need, with no embed over the chunk
-// size, no request over the total size including its title, and no request
-// over the embed count, and that the text survives intact. A single line
-// longer than a chunk is shortened when lines are split.
+// as many requests as Discord's limits need.
+//
+// No embed goes over the chunk size. No request goes over the total size,
+// including its title, or over the embed count. The text survives intact. A
+// single line longer than a chunk is shortened when lines are split.
 func TestIntegrationSendLongMessage(t *testing.T) {
 	t.Parallel()
 
@@ -663,9 +666,12 @@ func TestIntegrationSendBatchFailure(t *testing.T) {
 }
 
 // TestIntegrationSendItemsEmbeds verifies the JSON request SendItemsContext
-// makes for rich items: plain content for a single plain item, and otherwise
-// embeds with the author, image, thumbnail, fields, level colors and footers,
-// UTC timestamps, title, username, and avatar, sent to the configured thread.
+// makes for rich items.
+//
+// A single plain item becomes plain content. Other items become embeds with
+// the author, image, thumbnail, fields, level colors and footers, UTC
+// timestamps, title, username, and avatar. The request goes to the configured
+// thread.
 func TestIntegrationSendItemsEmbeds(t *testing.T) {
 	t.Parallel()
 
@@ -804,9 +810,10 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 }
 
 // TestIntegrationSendItemsFiles verifies that items with files are sent as one
-// multipart request: a payload_json part with an embed per item and an
-// attachment entry per file, and a files[n] part per file carrying its name
-// and exact content.
+// multipart request.
+//
+// Its payload_json part holds an embed per item and an attachment entry per
+// file. Each file has a files[n] part that carries its name and exact content.
 func TestIntegrationSendItemsFiles(t *testing.T) {
 	t.Parallel()
 
@@ -974,9 +981,11 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 }
 
 // TestIntegrationSendItemsBatches verifies that rich items past Discord's
-// limit of 10 embeds per message are sent in further requests, each with the
-// title on its first embed and only its own items' files, numbered from zero,
-// and that every batch is sent as embeds, even a batch of one plain item.
+// limit of 10 embeds per message are sent in further requests.
+//
+// Each request has the title on its first embed. It carries only its own
+// items' files, numbered from zero. Every batch is sent as embeds, even a
+// batch of one plain item.
 func TestIntegrationSendItemsBatches(t *testing.T) {
 	t.Parallel()
 
@@ -1072,11 +1081,13 @@ func TestIntegrationSendItemsBatches(t *testing.T) {
 }
 
 // TestIntegrationSendItemsEmbedLimits verifies that rich sends stay within
-// Discord's embed limits: text past a field's limit is shortened with " [...]",
-// fields past the 25th are left out, a long single plain item is sent as an
-// embed instead of content, items are batched so a message's embeds stay
-// within 6000 characters including the title, and a single item over that
-// total drops fields from the end.
+// Discord's embed limits.
+//
+// Text past a field's limit is shortened with " [...]", and fields past the
+// 25th are left out. A long single plain item is sent as an embed instead of
+// content. Items are batched so that a message's embeds, with the title, stay
+// within 6000 characters. A single item over that total drops fields from the
+// end.
 func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 	t.Parallel()
 
@@ -1384,9 +1395,11 @@ func TestIntegrationSendRetriesFiles(t *testing.T) {
 }
 
 // TestIntegrationSendStatusErrors verifies that error statuses other than
-// rate limits and server errors fail at once with ErrUnexpectedStatus and the
-// status, for plain, JSON mode, and rich sends, and that any 2xx status
-// Discord uses counts as success whatever the body.
+// rate limits and server errors fail at once.
+//
+// The error wraps ErrUnexpectedStatus and names the status, for plain, JSON
+// mode, and rich sends. Any 2xx status Discord uses counts as success, whatever
+// the body.
 func TestIntegrationSendStatusErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1586,8 +1599,10 @@ func TestIntegrationInitializeRejectsPaths(t *testing.T) {
 }
 
 // TestIntegrationSetHTTPClient verifies that a client injected with
-// SetHTTPClient, as the router injects one, carries the send, and that a nil
-// client restores the default client in place of the deprecated client field.
+// SetHTTPClient carries the send, as when the router injects one.
+//
+// A nil client restores the default client in place of the deprecated client
+// field.
 func TestIntegrationSetHTTPClient(t *testing.T) {
 	t.Parallel()
 

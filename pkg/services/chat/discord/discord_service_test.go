@@ -129,8 +129,9 @@ func newTestService(t *testing.T, client types.HTTPClient) *Service {
 }
 
 // TestSendBudget verifies that every send entry bounds a send without a
-// caller deadline by [maxRetryTimeout], the budget that ServiceTimeout
-// reports, and keeps a caller's deadline as it is.
+// caller deadline by the 5-minute budget that ServiceTimeout reports.
+//
+// A caller's deadline is kept as it is.
 func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
