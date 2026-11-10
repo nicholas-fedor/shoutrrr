@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Remove the unused field name width from field info by @nicholas-fedor in [#2133](https://github.com/nicholas-fedor/shoutrrr/pull/2133)
 - Apply defaults and checks in one prepare method by @nicholas-fedor in [#2062](https://github.com/nicholas-fedor/shoutrrr/pull/2062)
 
 ### Documentation
