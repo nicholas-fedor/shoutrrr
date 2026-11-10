@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update peter-evans/create-pull-request action to v8.1.3 by @renovate[bot] in [#2150](https://github.com/nicholas-fedor/shoutrrr/pull/2150)
+- Update go toolchain directive to v1.27.4 by @renovate[bot] in [#2149](https://github.com/nicholas-fedor/shoutrrr/pull/2149)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 6785d1e by @renovate[bot] in [#2117](https://github.com/nicholas-fedor/shoutrrr/pull/2117)
 - Update module golang.org/x/term to v0.48.0 by @renovate[bot] in [#2109](https://github.com/nicholas-fedor/shoutrrr/pull/2109)
 - Update module golang.org/x/sys to v0.50.0 by @renovate[bot] in [#2108](https://github.com/nicholas-fedor/shoutrrr/pull/2108)
