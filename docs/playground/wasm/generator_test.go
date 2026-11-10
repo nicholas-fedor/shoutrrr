@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGenerateURLString verifies that a URL is generated from config values
+// set by query key or by Go field name.
+//
+// Values that do not parse, keys that name no field, and invalid input are
+// rejected, and an empty value is skipped.
 func TestGenerateURLString(t *testing.T) {
 	t.Parallel()
 

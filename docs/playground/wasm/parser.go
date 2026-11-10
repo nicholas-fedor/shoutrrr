@@ -13,13 +13,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// parseURLString parses a Shoutrrr URL and returns the service name and
-// configuration values as a JSON-encoded parseResult. It uses router.Locate()
-// which calls service.Initialize() internally — the same flow as the CLI's
-// verify command.
+// parseURLString reads a Shoutrrr URL into its service name and config values.
 //
-// For services with a WebhookURL() method (e.g., generic), the webhook URL
-// is extracted and included in the config values without the scheme prefix.
+// The URL is read by [router.ServiceRouter.Locate], which initializes the
+// service as the CLI's verify command does. For a config with a WebhookURL
+// method, such as generic's, the values also hold the webhook URL without its
+// scheme.
+//
+// Parameters:
+//   - rawURL: the Shoutrrr URL.
+//
+// Returns:
+//   - string: the parseResult as JSON, or an errorResult as JSON when the URL
+//     is rejected.
 func parseURLString(rawURL string) string {
 	r := router.ServiceRouter{}
 
@@ -54,9 +60,17 @@ func parseURLString(rawURL string) string {
 	return string(data)
 }
 
-// validateURLString validates a Shoutrrr URL by attempting to locate and
-// initialize the corresponding service. Returns {"valid":true} on success
-// or a JSON error on failure.
+// validateURLString checks that a Shoutrrr URL reads into a service.
+//
+// The service is located and initialized from the URL, which reads and checks
+// its config.
+//
+// Parameters:
+//   - rawURL: the Shoutrrr URL.
+//
+// Returns:
+//   - string: {"valid":true}, or an errorResult as JSON when the URL is
+//     rejected.
 func validateURLString(rawURL string) string {
 	r := router.ServiceRouter{}
 
@@ -68,9 +82,17 @@ func validateURLString(rawURL string) string {
 	return `{"valid":true}`
 }
 
-// extractConfigValues reads all field values from a config struct and
-// returns them as a string map. Uses format.GetConfigFieldString() for
-// proper serialization of each field type.
+// extractConfigValues reads the value of each config field as text.
+//
+// Each value is written by [format.GetConfigFieldString], as a URL would hold
+// it. A value it cannot write is formatted with %v instead.
+//
+// Parameters:
+//   - config: the config to read.
+//   - configNode: the config's format, which lists its fields.
+//
+// Returns:
+//   - map[string]string: the values by Go field name.
 func extractConfigValues(
 	config types.ServiceConfig,
 	configNode *format.ContainerNode,
@@ -101,8 +123,16 @@ func extractConfigValues(
 	return values
 }
 
-// extractScheme extracts the service scheme from a Shoutrrr URL string.
-// For compound schemes like "teams+https", it returns the base scheme "teams".
+// extractScheme returns the service scheme of a Shoutrrr URL.
+//
+// For a custom URL such as "teams+https://...", it returns the service part,
+// "teams".
+//
+// Parameters:
+//   - rawURL: the Shoutrrr URL.
+//
+// Returns:
+//   - string: the scheme, or empty when the URL has no "://".
 func extractScheme(rawURL string) string {
 	before, _, ok := strings.Cut(rawURL, "://")
 	if !ok {
@@ -119,9 +149,17 @@ func extractScheme(rawURL string) string {
 	return scheme
 }
 
-// extractWebhookDisplay extracts the webhook URL from a config via its
-// WebhookURL() method and formats it as host+path?query (without scheme).
-// Returns empty string if the method doesn't exist or returns nil.
+// extractWebhookDisplay returns a config's webhook URL without its scheme.
+//
+// The URL comes from the config's WebhookURL method, which must take no
+// arguments and return a *url.URL. It is written as its host, path, and query.
+//
+// Parameters:
+//   - configValue: the config, as a reflect value.
+//
+// Returns:
+//   - string: the webhook URL without its scheme, or empty when the config has
+//     no such method or the method returns nil.
 func extractWebhookDisplay(configValue reflect.Value) string {
 	method := configValue.MethodByName("WebhookURL")
 	if !method.IsValid() {

@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSend verifies that sendString reports a send to a logger URL as a
+// success and a URL with an unknown scheme as an error.
 func TestSend(t *testing.T) {
 	t.Parallel()
 

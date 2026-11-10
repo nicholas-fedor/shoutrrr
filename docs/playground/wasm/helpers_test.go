@@ -15,6 +15,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
+// TestClassifyType verifies the type name the form gets for each kind of Go
+// type, for enums, and for durations.
 func TestClassifyType(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +61,8 @@ func TestClassifyType(t *testing.T) {
 	}
 }
 
+// TestURLPartToString verifies the names of URL parts, and that each name
+// reads back as its part through format.ParseURLPart.
 func TestURLPartToString(t *testing.T) {
 	t.Parallel()
 
@@ -116,6 +120,8 @@ func TestConfigField(t *testing.T) {
 	assert.Nil(t, configField(config, "NoSuchField"))
 }
 
+// TestHelpersMarshalError verifies that an error, an empty error, and a nil
+// error are each encoded as an errorResult.
 func TestHelpersMarshalError(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +147,8 @@ func TestHelpersMarshalError(t *testing.T) {
 	})
 }
 
+// TestHelpersMarshalErrorStr verifies that a message, including an empty one
+// and one with characters JSON escapes, is encoded as an errorResult.
 func TestHelpersMarshalErrorStr(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +174,8 @@ func TestHelpersMarshalErrorStr(t *testing.T) {
 	})
 }
 
+// TestHelpersExtractScheme verifies the scheme read from service URLs and
+// custom URLs, and the empty scheme of text that is not a URL.
 func TestHelpersExtractScheme(t *testing.T) {
 	t.Parallel()
 

@@ -15,28 +15,32 @@ import (
 // docBaseURL is the base URL for service documentation links.
 const docBaseURL = "https://shoutrrr.nickfedor.com/"
 
-// serviceDocAliases maps scheme names to their documentation service name
-// when the docs path differs from the scheme. Most services use the scheme
-// name directly in the docs URL; only aliases need entries here.
+// serviceDocAliases maps a scheme to the service name in its docs URL, for
+// each scheme whose docs page has another service's name.
+//
+// Every other scheme is its own name in the docs URL.
 var serviceDocAliases = map[string]string{
 	"mqtts":    "mqtt",
 	"hangouts": "googlechat",
 	"xmpps":    "xmpp",
 }
 
-// deriveDocURL builds the documentation URL for a service by extracting the
-// category from the config struct's Go package path. The service packages
-// follow the convention pkg/services/{category}/{serviceName}, so the
-// category is derived from the penultimate path segment.
+// deriveDocURL returns the docs URL of a service.
 //
-// The config parameter is used rather than the Service interface because
-// the concrete config type lives in the same package as the service, and
-// reflection on interface values may not return complete package paths.
+// The URL names the service's category and its name. The category is the
+// parent directory of the config type's package, since each service lives in
+// pkg/services/CATEGORY/NAME. An alias scheme, such as mqtts, takes the name of
+// the service whose page it shares.
 //
-// Aliases (e.g., mqtts → mqtt) are resolved via serviceDocAliases.
+// Parameters:
+//   - scheme: the service's scheme.
+//   - config: the service's config, whose type is in the service's package.
+//
+// Returns:
+//   - string: the docs URL, ending with a slash.
 func deriveDocURL(scheme string, config types.ServiceConfig) string {
 	pkgPath := reflect.Indirect(reflect.ValueOf(config)).Type().PkgPath()
-	// pkgPath example: github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord
+	// For Discord, the package path ends with pkg/services/chat/discord.
 	category := path.Base(path.Dir(pkgPath))
 
 	docName := scheme
@@ -47,9 +51,14 @@ func deriveDocURL(scheme string, config types.ServiceConfig) string {
 	return docBaseURL + strings.Join([]string{"services", category, docName, ""}, "/")
 }
 
-// listServicesJSON returns all registered service schemes as a JSON-encoded
-// array of strings. It uses router.ListServices() which reads directly from
-// the service map, ensuring automatic parity with the Shoutrrr library.
+// listServicesJSON returns the schemes of every service as a JSON array.
+//
+// The schemes come from [router.ServiceRouter.ListServices], so the list
+// follows the services the library has, in no particular order.
+//
+// Returns:
+//   - string: the schemes as a JSON array of strings, or an errorResult as
+//     JSON when encoding fails.
 func listServicesJSON() string {
 	r := router.ServiceRouter{}
 	schemes := r.ListServices()
@@ -62,13 +71,19 @@ func listServicesJSON() string {
 	return string(data)
 }
 
-// configSchemaJSON returns the configuration schema for serviceName as a
-// JSON-encoded configSchema. It introspects the service's config struct via
-// reflection to extract field metadata (name, type, required, description,
-// default value, URL part, enum values).
+// configSchemaJSON returns the config schema of a service as JSON.
 //
-// For services with nil *url.URL fields (e.g., generic), it prepends a
-// synthetic "WebhookURL" field that must be provided before URL generation.
+// The schema lists each field the config format has, with its type, default,
+// URL part, keys, and enum names. For a config with a nil *url.URL field, such
+// as generic's, it also starts with a required WebhookURL field, since a URL
+// cannot be generated without one.
+//
+// Parameters:
+//   - serviceName: the service's scheme.
+//
+// Returns:
+//   - string: the configSchema as JSON, or an errorResult as JSON when no
+//     service has the scheme.
 func configSchemaJSON(serviceName string) string {
 	r := router.ServiceRouter{}
 

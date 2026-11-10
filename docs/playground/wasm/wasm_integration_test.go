@@ -30,7 +30,10 @@ var exampleURLs = map[string]string{
 }
 
 // TestAllServicesHaveSchema verifies that every registered service produces a
-// valid config schema. This test automatically adapts to new services.
+// valid config schema.
+//
+// The services come from the router, so a new service is covered without a
+// change here.
 func TestAllServicesHaveSchema(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +64,7 @@ func TestAllServicesHaveSchema(t *testing.T) {
 				t.Errorf("service mismatch: got %q, want %q", schema.Service, scheme)
 			}
 
-			// Round-trip: marshal back to JSON and verify re-unmarshal succeeds.
+			// The schema is encoded again and must decode once more.
 			roundTrip, err := json.Marshal(schema)
 			if err != nil {
 				t.Fatalf("failed to re-marshal schema for %q: %v", scheme, err)
@@ -192,11 +195,11 @@ func TestAliasMapConsistency(t *testing.T) {
 	}
 }
 
-// TestAllServicesValidateURL is a smoke/discovery test that logs validation
-// results without asserting. Some services may legitimately fail validation on
-// bare "scheme://" URLs (e.g., those requiring host or path fields), so hard
-// assertions would cause false failures. The t.Logf output is intentional for
-// manual inspection during development.
+// TestAllServicesValidateURL logs the result of validating a bare URL for
+// every registered service, without asserting.
+//
+// A bare "scheme://" URL fails for services that require a host or a path, so
+// the results are logged for inspection during development instead.
 func TestAllServicesValidateURL(t *testing.T) {
 	t.Parallel()
 

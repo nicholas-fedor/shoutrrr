@@ -123,7 +123,13 @@ func configField(config types.ServiceConfig, name string) *format.FieldInfo {
 	return nil
 }
 
-// marshalError serializes err as a JSON errorResult.
+// marshalError encodes an error as a JSON errorResult.
+//
+// Parameters:
+//   - err: the error, or nil for an unknown error.
+//
+// Returns:
+//   - string: the errorResult as JSON.
 //
 //nolint:errcheck // errorResult struct always marshals successfully.
 func marshalError(err error) string {
@@ -136,7 +142,13 @@ func marshalError(err error) string {
 	return string(data)
 }
 
-// marshalErrorStr serializes msg as a JSON errorResult.
+// marshalErrorStr encodes an error message as a JSON errorResult.
+//
+// Parameters:
+//   - msg: the error message.
+//
+// Returns:
+//   - string: the errorResult as JSON.
 //
 //nolint:errcheck // errorResult struct always marshals.
 func marshalErrorStr(msg string) string {
