@@ -85,7 +85,6 @@ func (fi *FieldInfo) IsURLPart(part URLPart) bool {
 func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumFormatter) []FieldInfo {
 	numFields := structType.NumField()
 	fields := make([]FieldInfo, 0, numFields)
-	maxKeyLen := 0
 
 	for i := range numFields {
 		fieldDef := structType.Field(i)
@@ -161,11 +160,6 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 		}
 
 		fields = append(fields, info)
-
-		keyLen := len(fieldDef.Name)
-		if keyLen > maxKeyLen {
-			maxKeyLen = keyLen
-		}
 	}
 
 	return fields
