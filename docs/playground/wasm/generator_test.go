@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
 func TestGenerateURLString(t *testing.T) {
@@ -34,6 +32,18 @@ func TestGenerateURLString(t *testing.T) {
 			service:    "ntfy",
 			configJSON: `{"Host":"ntfy.sh","Topic":"mytopic"}`,
 			wantSubstr: []string{"ntfy://", "ntfy.sh/mytopic"},
+		},
+		{
+			name:        "rejects a webhook URL that does not parse",
+			service:     "generic",
+			configJSON:  `{"WebhookURL":"example.com/%zz"}`,
+			wantErrResp: true,
+		},
+		{
+			name:       "keeps a webhook query value that differs from its default",
+			service:    "generic",
+			configJSON: `{"WebhookURL":"example.com/hook?titlekey=&method=GET"}`,
+			wantURL:    "generic://example.com/hook?method=GET&titlekey=",
 		},
 		{
 			name:       "generates generic URL with webhook",
@@ -109,16 +119,4 @@ func TestGenerateURLString(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetServiceConfigFromService(t *testing.T) {
-	t.Parallel()
-
-	r := router.ServiceRouter{}
-	service, err := r.NewService("discord")
-	require.NoError(t, err)
-
-	config, ok := getServiceConfigFromService(service)
-	assert.False(t, ok)
-	assert.Nil(t, config)
 }

@@ -25,34 +25,41 @@ type Generator struct {
 	Input io.Reader
 }
 
-// Errors defined as static variables for better error handling.
+// Errors returned when a config is generated.
 var (
-	ErrInvalidConfigType    = errors.New("config does not implement types.ServiceConfig")
-	ErrInvalidConfigField   = errors.New("config field is invalid or nil")
+	// ErrInvalidConfigField indicates a service without a Config field.
+	ErrInvalidConfigField = errors.New("config field is invalid or nil")
+	// ErrRequiredFieldMissing indicates a required field without a default
+	// that got no value before the input ended.
 	ErrRequiredFieldMissing = errors.New("field is required and has no default value")
 )
 
 // Generate creates a service configuration by prompting the user for field values or using provided properties.
+//
+// A service with a config gets that config filled in. A service built without
+// one, as the router's NewService builds it, gets a new zero config from
+// [format.GetServiceConfig], which the service does not keep.
+//
+// Parameters:
+//   - service: the service to generate a config for.
+//   - props: field values by lowercased field name, used instead of prompting.
+//
+// Returns:
+//   - types.ServiceConfig: the generated config.
+//   - error: [ErrInvalidConfigField] for a service without a Config field, or
+//     the first error from reading a field's value.
 func (g *Generator) Generate(
 	service types.Service,
 	props map[string]string,
 	_ []string,
 ) (types.ServiceConfig, error) {
-	// Get the Config field from the service using reflection
-	configPtr := reflect.ValueOf(service).Elem().FieldByName("Config")
-	if !configPtr.IsValid() {
+	// format.GetServiceConfig panics for a service without a Config field, so
+	// the field is checked first.
+	if !reflect.Indirect(reflect.ValueOf(service)).FieldByName("Config").IsValid() {
 		return nil, ErrInvalidConfigField
 	}
 
-	// If Config is nil, initialize it with a new Config instance, as services
-	// created via NewService() are not initialized and have their Config
-	// field set to nil
-	// Only check IsNil() if Config is a pointer to avoid panic on non-pointer kinds
-	if configPtr.Kind() == reflect.Pointer && configPtr.IsNil() {
-		// Get the type of the pointer (Config) and create a new instance
-		newConfig := reflect.New(configPtr.Type().Elem())
-		configPtr.Set(newConfig)
-	}
+	config := format.GetServiceConfig(service)
 
 	// Use injected Input if provided, otherwise fall back to os.Stdin
 	reader := g.Input
@@ -61,18 +68,21 @@ func (g *Generator) Generate(
 	}
 
 	scanner := bufio.NewScanner(reader)
-	if err := g.promptUserForFields(configPtr, props, scanner); err != nil {
+	if err := g.promptUserForFields(config, props, scanner); err != nil {
 		return nil, err
 	}
 
-	if config, ok := reflect.TypeAssert[types.ServiceConfig](configPtr); ok {
-		return config, nil
-	}
-
-	return nil, ErrInvalidConfigType
+	return config, nil
 }
 
 // formatPrompt creates a user prompt based on the field’s name and default value.
+//
+// Parameters:
+//   - field: the field to prompt for.
+//
+// Returns:
+//   - string: the field name, with its default in brackets when it has one,
+//     followed by a colon.
 func (g *Generator) formatPrompt(field *format.FieldInfo) string {
 	if field.DefaultValue != "" {
 		return fmt.Sprintf("%s[%s]: ", color.HiWhiteString(field.Name), field.DefaultValue)
@@ -174,6 +184,10 @@ func (g *Generator) getInputValue(
 }
 
 // printError displays an error message for an invalid field value.
+//
+// Parameters:
+//   - fieldName: the name of the field.
+//   - errorMsg: the reason the value was rejected.
 func (g *Generator) printError(fieldName, errorMsg string) {
 	cfg := color.DefaultConfig()
 	_, _ = fmt.Fprint(
@@ -187,6 +201,10 @@ func (g *Generator) printError(fieldName, errorMsg string) {
 }
 
 // printInvalidType displays a type mismatch error for a field.
+//
+// Parameters:
+//   - fieldName: the name of the field.
+//   - typeName: the kind of value the field holds.
 func (g *Generator) printInvalidType(fieldName, typeName string) {
 	cfg := color.DefaultConfig()
 	_, _ = fmt.Fprint(
@@ -202,24 +220,19 @@ func (g *Generator) printInvalidType(fieldName, typeName string) {
 // promptUserForFields iterates over config fields, prompting the user or using props to set values.
 //
 // Parameters:
-//   - configPtr: a pointer to the service config to fill.
+//   - serviceConfig: the service config to fill, a pointer to its struct.
 //   - props: the props supplied on the command line.
 //   - scanner: the reader for user input.
 //
 // Returns:
-//   - error: [ErrInvalidConfigType], or the first error from reading a field's value.
+//   - error: the first error from reading a field's value, or nil.
 func (g *Generator) promptUserForFields(
-	configPtr reflect.Value,
+	serviceConfig types.ServiceConfig,
 	props map[string]string,
 	scanner *bufio.Scanner,
 ) error {
-	serviceConfig, ok := reflect.TypeAssert[types.ServiceConfig](configPtr)
-	if !ok {
-		return ErrInvalidConfigType
-	}
-
 	configNode := format.GetConfigFormat(serviceConfig)
-	config := configPtr.Elem() // Dereference for setting fields
+	config := reflect.Indirect(reflect.ValueOf(serviceConfig)) // Dereference for setting fields
 
 	// Track which props have been consumed to avoid mutating the input map
 	consumed := make(map[string]struct{})
@@ -248,6 +261,19 @@ func (g *Generator) promptUserForFields(
 }
 
 // setFieldValue attempts to set a field's value and handles required field validation.
+//
+// An empty value sets an optional field to its default, or leaves it unset
+// when it has none. An empty value for a required field is reported and
+// rejected.
+//
+// Parameters:
+//   - config: the config struct value to set.
+//   - field: the field to set.
+//   - inputValue: the value as text, or empty.
+//
+// Returns:
+//   - bool: true when the field was set or may stay unset.
+//   - error: the error from setting the value, naming the field, or nil.
 func (g *Generator) setFieldValue(
 	config reflect.Value,
 	field *format.FieldInfo,
