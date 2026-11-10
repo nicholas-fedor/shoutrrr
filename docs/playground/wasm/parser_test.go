@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseURLString verifies that a URL is read into its service and config
+// values, including query values and a generic webhook URL, and that a URL
+// the service rejects gives an error.
 func TestParseURLString(t *testing.T) {
 	t.Parallel()
 
@@ -96,6 +99,8 @@ func TestParseURLString(t *testing.T) {
 	}
 }
 
+// TestValidateURLString verifies that valid URLs pass and that an invalid URL
+// or an unknown service gives an error.
 func TestValidateURLString(t *testing.T) {
 	t.Parallel()
 

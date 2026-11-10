@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestJSBindings verifies that each JavaScript binding checks its arguments
+// and returns what its function does.
+//
+// The send binding returns a Promise, which is checked to reject on missing
+// arguments and an invalid URL and to resolve on a successful send.
 func TestJSBindings(t *testing.T) {
 	t.Parallel()
 
@@ -241,7 +246,8 @@ func TestJSBindings(t *testing.T) {
 			require.True(t, ok, "expected js.Value result")
 			assert.Equal(t, "Promise", promise.Get("constructor").Get("name").String())
 
-			// Async rejection: wait for goroutine via channel.
+			// The Promise rejects from a goroutine, so the test waits for it on a
+			// channel.
 			done := make(chan string, 1)
 
 			var catchHandler js.Func

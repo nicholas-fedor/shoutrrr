@@ -12,6 +12,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
+// TestListServicesJSON verifies that the services are listed as a JSON array
+// that matches the router's list.
 func TestListServicesJSON(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +62,9 @@ func TestListServicesJSON(t *testing.T) {
 	})
 }
 
+// TestConfigSchemaJSON verifies the config schemas of several services,
+// including enum names, the generic webhook field, and a service without
+// fields, and the error for an unknown service.
 func TestConfigSchemaJSON(t *testing.T) {
 	t.Parallel()
 
