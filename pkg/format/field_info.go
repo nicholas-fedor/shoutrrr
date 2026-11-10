@@ -12,22 +12,38 @@ import (
 
 // FieldInfo is the meta data about a config field.
 type FieldInfo struct {
-	Type          reflect.Type
+	// Type is the Go type of the field.
+	Type reflect.Type
+	// EnumFormatter reads and writes the field's values when it is an enum, or
+	// is nil.
 	EnumFormatter types.EnumFormatter
-	Name          string
-	Description   string
-	DefaultValue  string
-	Template      string
-	URLParts      []URLPart
-	Keys          []string
+	// Name is the Go name of the field.
+	Name string
+	// Description is the field's `desc` tag.
+	Description string
+	// DefaultValue is the field's `default` tag, or empty.
+	DefaultValue string
+	// Template is the field's `tpl` tag, or empty.
+	Template string
+	// URLParts lists the URL parts from the field's `url` tag.
+	URLParts []URLPart
+	// Keys are the query keys from the field's `key` tag, in lower case. The
+	// first is the primary key and the rest are aliases.
+	Keys []string
 	// DeprecatedKeys are the keys from the field's `deprecatedkeys` tag. They
 	// set the field like Keys. A URL never contains them, and the resolver
 	// reports each one used so the service can warn about it.
 	DeprecatedKeys []string
-	Base           int
-	ItemSeparator  rune
-	Required       bool
-	Title          bool
+	// Base is the number base of a numeric field, from its `base` tag, or 10.
+	Base int
+	// ItemSeparator separates the items of a list field, from its `sep` tag, or
+	// a comma.
+	ItemSeparator rune
+	// Required reports that the field has neither a `default` nor an
+	// `optional` tag.
+	Required bool
+	// Title reports that the field has a `title` tag.
+	Title bool
 	// Sensitive reports that the field holds a secret, such as a token or a
 	// password, from its `sensitive:"true"` tag.
 	Sensitive bool
@@ -36,16 +52,36 @@ type FieldInfo struct {
 // DefaultBase represents the default numeric base (decimal) for fields.
 const DefaultBase = 10
 
-// IsEnum returns whether a EnumFormatter has been assigned to the field and that it is of a suitable type.
+// IsEnum reports whether the field is an enum.
+//
+// Returns:
+//   - bool: true when the field has an enum formatter and an int type.
 func (fi *FieldInfo) IsEnum() bool {
 	return fi.EnumFormatter != nil && fi.Type.Kind() == reflect.Int
 }
 
-// IsURLPart returns whether the field is serialized as the specified part of an URL.
+// IsURLPart reports whether the field is serialized as the specified part of a URL.
+//
+// Parameters:
+//   - part: the URL part to check.
+//
+// Returns:
+//   - bool: true when the field's `url` tag names the part.
 func (fi *FieldInfo) IsURLPart(part URLPart) bool {
 	return slices.Contains(fi.URLParts, part)
 }
 
+// getStructFieldInfo reads the field information of a config struct type from
+// its struct tags.
+//
+// Embedded fields, unexported fields, and deprecated fields are left out.
+//
+// Parameters:
+//   - structType: the config struct type.
+//   - enums: the enum formatters of the config, by field name.
+//
+// Returns:
+//   - []FieldInfo: the information of each listed field, in field order.
 func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumFormatter) []FieldInfo {
 	numFields := structType.NumField()
 	fields := make([]FieldInfo, 0, numFields)
@@ -135,10 +171,26 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 	return fields
 }
 
+// isHiddenField reports whether a struct field stays out of the config
+// information.
+//
+// Parameters:
+//   - field: the struct field.
+//
+// Returns:
+//   - bool: true for an embedded or unexported field.
 func isHiddenField(field *reflect.StructField) bool {
 	return field.Anonymous || strings.ToUpper(field.Name[0:1]) != field.Name[0:1]
 }
 
+// getFieldBase returns the number base of a numeric struct field.
+//
+// Parameters:
+//   - field: the struct field.
+//
+// Returns:
+//   - int: the base from the field's `base` tag, or [DefaultBase] when the tag
+//     is missing or not a number.
 func getFieldBase(field *reflect.StructField) int {
 	if tag, ok := field.Tag.Lookup("base"); ok {
 		if base, err := strconv.ParseUint(tag, 10, 8); err == nil {

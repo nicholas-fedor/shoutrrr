@@ -48,13 +48,35 @@ func ApplyQuery(cqr types.ConfigQueryResolver, query url.Values) error {
 	return nil
 }
 
-// BuildQuery converts the fields of a config object to a delimited query string.
+// BuildQuery writes the config props of a config as a URL query string.
+//
+// A [PropKeyResolver] writes only primary keys, and leaves out props that hold
+// their default value.
+//
+// Parameters:
+//   - cqr: the resolver bound to the config.
+//
+// Returns:
+//   - string: the encoded query, sorted by key.
 func BuildQuery(cqr types.ConfigQueryResolver) string {
 	return BuildQueryWithCustomFields(cqr, url.Values{}).Encode()
 }
 
-// BuildQueryWithCustomFields converts the fields of a config object to a delimited query string,
-// escaping any custom fields that share the same key as a config prop using a "__" prefix.
+// BuildQueryWithCustomFields adds the config props of a config to a query that
+// holds custom fields.
+//
+// A custom field whose key is also a config key is moved to the key with the
+// [KeyPrefix] prefix first, so the prop does not replace it. A
+// [PropKeyResolver] writes only primary keys, and leaves out props that hold
+// their default value.
+//
+// Parameters:
+//   - cqr: the resolver bound to the config.
+//   - query: the custom fields. The function changes and returns this query.
+//
+// Returns:
+//   - url.Values: the query with the escaped custom fields and the config
+//     props.
 func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values) url.Values {
 	fields := cqr.QueryFields()
 	skipEscape := len(query) < 1
@@ -86,10 +108,23 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 	return query
 }
 
-// SetConfigPropsFromQuery iterates over all the config prop keys and sets the config prop to the corresponding
-// query value based on the key. It returns a non-nil url.Values query with all config prop keys removed,
-// even if any of them could not be used to set a config field, and with any escaped keys unescaped.
-// The error returned is the first error that occurred, subsequent errors are just discarded.
+// SetConfigPropsFromQuery sets the config props from a query and returns the
+// keys that are not config props.
+//
+// Each config key is matched exactly, and its first value is applied. Every
+// config key is removed from the query, even one whose value fails. A key with
+// the [KeyPrefix] prefix then takes the place of the config key it escapes.
+// Unlike [ApplyQuery], a key that is not a config key is kept, not rejected.
+//
+// Parameters:
+//   - cqr: the resolver bound to the config.
+//   - query: the query to read. The function changes and returns this query.
+//
+// Returns:
+//   - url.Values: the remaining custom fields, unescaped, or an empty query
+//     when query is nil.
+//   - error: the first error from setting a config prop, or nil. Later errors
+//     are discarded.
 func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (url.Values, error) {
 	var firstError error
 
@@ -121,19 +156,34 @@ func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (u
 	return query, firstError
 }
 
-// EscapeKey adds the KeyPrefix to custom URL query keys that conflict with service config prop keys.
+// EscapeKey adds the [KeyPrefix] to a custom URL query key that a config prop
+// key also uses.
+//
+// Parameters:
+//   - key: the custom key.
+//
+// Returns:
+//   - string: the escaped key.
 func EscapeKey(key string) string {
 	return KeyPrefix + key
 }
 
-// UnescapeKey removes the KeyPrefix from custom URL query keys that conflict with service config prop keys.
+// UnescapeKey removes the [KeyPrefix] from an escaped custom URL query key.
+//
+// Parameters:
+//   - key: the key, escaped or not.
+//
+// Returns:
+//   - string: the key without its prefix.
 func UnescapeKey(key string) string {
 	return strings.TrimPrefix(key, KeyPrefix)
 }
 
 // checkSpellings reports a config key that keys hold in more than one
-// spelling. Keys that are not config keys are left to the caller, which
-// rejects or ignores them.
+// spelling.
+//
+// Keys that are not config keys are left to the caller, which rejects or
+// ignores them.
 //
 // Parameters:
 //   - keys: the query or param keys, in a fixed order.

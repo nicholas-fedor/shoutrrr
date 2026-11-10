@@ -11,13 +11,17 @@ import (
 
 // EnumFormatter is the helper methods for enum-like types.
 type EnumFormatter struct {
+	// aliases maps each other spelling of a value, as given, to the value.
 	aliases map[string]int
 	// foldedAliases maps each lowercased alias to its value.
 	foldedAliases map[string]int
-	names         []string
+	// names holds the name of each value, indexed by value.
+	names []string
 	// defined holds, by value, whether the value's name parses back to it, or
 	// the value is 0 with an empty name.
-	defined     []bool
+	defined []bool
+	// firstOffset is the first value with a non-empty name, where the listed
+	// names start.
 	firstOffset int
 }
 
@@ -162,7 +166,14 @@ func (ef EnumFormatter) Parse(mappedString string) int {
 	return EnumInvalid
 }
 
-// Print takes a enum mapped int and returns it's string representation or "Invalid".
+// Print writes an enum value as its name.
+//
+// Parameters:
+//   - e: the enum value.
+//
+// Returns:
+//   - string: the name of the value, or "Invalid" for a value outside the
+//     names.
 func (ef EnumFormatter) Print(e int) string {
 	if e >= len(ef.names) || e < 0 {
 		return "Invalid"

@@ -13,31 +13,55 @@ import (
 // maxHeadingLevel is the maximum valid HTML heading level.
 const maxHeadingLevel = 6
 
+// Patterns for the markdown and HTML conversions, and the conversion error.
 var (
-	markdownHeadingRegex         = regexp.MustCompile(`(?m)^#{1,6}\s+`)
-	markdownBoldRegex            = regexp.MustCompile(`\*{1,2}(.+?)\*{1,2}`)
-	markdownItalicRegex          = regexp.MustCompile(`_{1,2}(.+?)_{1,2}`)
-	markdownBoldHTMLRegex        = regexp.MustCompile(`\*\*(.+?)\*\*`)
-	markdownItalicStarHTMLRegex  = regexp.MustCompile(`\*([^*].*?)\*`)
+	// markdownHeadingRegex matches the # marks that open a heading line.
+	markdownHeadingRegex = regexp.MustCompile(`(?m)^#{1,6}\s+`)
+	// markdownBoldRegex matches text in one or two asterisks, for plain text.
+	markdownBoldRegex = regexp.MustCompile(`\*{1,2}(.+?)\*{1,2}`)
+	// markdownItalicRegex matches text in one or two underscores, for plain
+	// text.
+	markdownItalicRegex = regexp.MustCompile(`_{1,2}(.+?)_{1,2}`)
+	// markdownBoldHTMLRegex matches text in two asterisks, for HTML strong.
+	markdownBoldHTMLRegex = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	// markdownItalicStarHTMLRegex matches text in one asterisk, for HTML
+	// emphasis.
+	markdownItalicStarHTMLRegex = regexp.MustCompile(`\*([^*].*?)\*`)
+	// markdownItalicUnderHTMLRegex matches text in one underscore, for HTML
+	// emphasis.
 	markdownItalicUnderHTMLRegex = regexp.MustCompile(`_([^_].*?)_`)
+	// markdownStrongUnderHTMLRegex matches text in two underscores, for HTML
+	// strong.
 	markdownStrongUnderHTMLRegex = regexp.MustCompile(`__(.+?)__`)
-	markdownCodeRegex            = regexp.MustCompile("`(.+?)`")
-	markdownLinkRegex            = regexp.MustCompile(`\[(.+?)\]\(.+?\)`)
-	markdownImageRegex           = regexp.MustCompile(`!\[(.+?)\]\(.+?\)`)
-	markdownListRegex            = regexp.MustCompile(`(?m)^\s*[-+*]\s+`)
-	markdownHRRegex              = regexp.MustCompile(`(?m)^\s*[-*_]{3,}\s*$`)
-	htmlTagRegex                 = regexp.MustCompile(`<[^>]+>`)
-	mismatchedStrongEmRegex      = regexp.MustCompile(`<strong><em>(.+?)</strong></em>`)
-	mismatchedEmStrongRegex      = regexp.MustCompile(`<em><strong>(.+?)</em></strong>`)
-	ErrUnsupportedFormat         = errors.New("unsupported format conversion")
+	// markdownCodeRegex matches inline code in backticks.
+	markdownCodeRegex = regexp.MustCompile("`(.+?)`")
+	// markdownLinkRegex matches a link and captures its text.
+	markdownLinkRegex = regexp.MustCompile(`\[(.+?)\]\(.+?\)`)
+	// markdownImageRegex matches an image and captures its alt text.
+	markdownImageRegex = regexp.MustCompile(`!\[(.+?)\]\(.+?\)`)
+	// markdownListRegex matches the marker that opens a list item line.
+	markdownListRegex = regexp.MustCompile(`(?m)^\s*[-+*]\s+`)
+	// markdownHRRegex matches a horizontal rule line.
+	markdownHRRegex = regexp.MustCompile(`(?m)^\s*[-*_]{3,}\s*$`)
+	// htmlTagRegex matches an HTML tag.
+	htmlTagRegex = regexp.MustCompile(`<[^>]+>`)
+	// mismatchedStrongEmRegex matches strong and emphasis tags that close in
+	// the wrong order, which the emphasis passes can produce.
+	mismatchedStrongEmRegex = regexp.MustCompile(`<strong><em>(.+?)</strong></em>`)
+	// mismatchedEmStrongRegex matches emphasis and strong tags that close in
+	// the wrong order, which the emphasis passes can produce.
+	mismatchedEmStrongRegex = regexp.MustCompile(`<em><strong>(.+?)</em></strong>`)
+	// ErrUnsupportedFormat indicates a conversion between formats that
+	// [ConvertFormat] does not support.
+	ErrUnsupportedFormat = errors.New("unsupported format conversion")
 )
 
 // ConvertFormat converts a message body from one format to another.
 //
-// Supported formats: "text", "markdown", "html".
-// Conversions:
-//   - markdown → text: strips markdown formatting, returns plain text
-//   - html → text: strips HTML tags, returns plain text
+// The formats are "text", "markdown", and "html". Each conversion works as
+// follows.
+//   - markdown → text: strips markdown formatting and returns plain text
+//   - html → text: strips HTML tags and returns plain text
 //   - text → markdown: escapes special characters for safe markdown inclusion
 //   - text → html: escapes HTML entities
 //   - markdown → html: converts basic markdown to HTML
@@ -51,7 +75,8 @@ var (
 //
 // Returns:
 //   - string: the converted body.
-//   - error: an error if the conversion is unsupported.
+//   - error: an error wrapping [ErrUnsupportedFormat] that names both formats
+//     for an unsupported conversion, or nil.
 func ConvertFormat(body, from, targetFormat string) (string, error) {
 	if from == targetFormat {
 		return body, nil
@@ -299,8 +324,11 @@ func textToHTML(body string) string {
 	return html.EscapeString(body)
 }
 
-// applyInlineFormatting prepares text for emphasis conversion by protecting
-// escaped delimiters, running emphasis conversion, then restoring literals.
+// applyInlineFormatting converts markdown emphasis to HTML tags, keeping
+// escaped delimiters as literal text.
+//
+// It protects escaped delimiters, runs the emphasis conversion, and then
+// restores them.
 //
 // Parameters:
 //   - text: the markdown text.
@@ -320,9 +348,9 @@ func applyInlineFormatting(text string) string {
 
 // applyEmphasis converts markdown emphasis markers to HTML tags.
 //
-// It iteratively applies bold then italic regex passes until stable,
-// then fixes the two possible mismatched-nesting patterns that can
-// arise when emphasis markers straddle inserted tags.
+// It applies the bold and italic passes until the text stops changing. It
+// then fixes the two mismatched nestings that markers straddling inserted
+// tags can produce.
 //
 // Parameters:
 //   - text: the markdown text.

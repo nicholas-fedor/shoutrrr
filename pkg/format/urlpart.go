@@ -10,17 +10,31 @@ import (
 // URLPart is an indicator as to what part of an URL a field is serialized to.
 type URLPart int
 
-// indicator as to what part of an URL a field is serialized to.
+// The parts of a URL that a field can be serialized to.
+//
+// URLQuery comes first as the zero value, and the parts after it follow URL
+// order from the user to the path.
 const (
+	// URLQuery is the query, where every field without a URL part goes.
 	URLQuery URLPart = iota
+	// URLUser is the user name of the userinfo.
 	URLUser
+	// URLPassword is the password of the userinfo.
 	URLPassword
+	// URLHost is the host name.
 	URLHost
+	// URLPort is the port.
 	URLPort
-	URLPath // Base path; additional paths are URLPath + N
+	// URLPath is the first path segment. Each later segment is URLPath plus
+	// its offset.
+	URLPath
 )
 
 // Suffix returns the separator between the URLPart and its subsequent part.
+//
+// Returns:
+//   - rune: ':' after the user and the host, '@' after the password, and '/'
+//     after any other part.
 func (u URLPart) Suffix() rune {
 	switch u {
 	case URLQuery:
@@ -41,8 +55,10 @@ func (u URLPart) Suffix() rune {
 }
 
 // ParseURLPart returns the URLPart that matches the supplied string, ignoring
-// case. A name that matches no part of a URL is the query, as are "query" and
-// the empty string.
+// case.
+//
+// A name that matches no part of a URL is the query, as are "query" and the
+// empty string.
 //
 // Parameters:
 //   - inputString: the part name, such as "host", "path", or "path2".
@@ -76,7 +92,13 @@ func ParseURLPart(inputString string) URLPart {
 	return URLQuery
 }
 
-// ParseURLParts returns the URLParts that matches the supplied string.
+// ParseURLParts returns the URLParts that a comma-separated list names.
+//
+// Parameters:
+//   - s: the part names, separated by commas, as in a `url` struct tag.
+//
+// Returns:
+//   - []URLPart: one part for each name, as [ParseURLPart] reads it.
 func ParseURLParts(s string) []URLPart {
 	rawParts := strings.Split(s, ",")
 	urlParts := make([]URLPart, len(rawParts))

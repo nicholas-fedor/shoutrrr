@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestConvertFormatSameFormat verifies that converting a body to its own
+// format returns it unchanged.
 func TestConvertFormatSameFormat(t *testing.T) {
 	t.Parallel()
 
@@ -17,9 +19,12 @@ func TestConvertFormatSameFormat(t *testing.T) {
 	assert.Equal(t, body, got)
 }
 
+// TestConvertFormatMarkdownToText verifies that markdown formatting is
+// stripped to plain text, with escaped delimiters kept as literal characters.
 func TestConvertFormatMarkdownToText(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -60,9 +65,12 @@ func TestConvertFormatMarkdownToText(t *testing.T) {
 	}
 }
 
+// TestConvertFormatHTMLToText verifies that HTML tags are stripped to plain
+// text and entities are decoded.
 func TestConvertFormatHTMLToText(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -102,9 +110,12 @@ func TestConvertFormatHTMLToText(t *testing.T) {
 	}
 }
 
+// TestConvertFormatTextToMarkdown verifies that markdown special characters in
+// plain text are escaped.
 func TestConvertFormatTextToMarkdown(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -132,9 +143,12 @@ func TestConvertFormatTextToMarkdown(t *testing.T) {
 	}
 }
 
+// TestConvertFormatTextToHTML verifies that HTML special characters in plain
+// text are escaped as entities.
 func TestConvertFormatTextToHTML(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -161,9 +175,12 @@ func TestConvertFormatTextToHTML(t *testing.T) {
 	}
 }
 
+// TestConvertFormatHTMLToMarkdown verifies that basic HTML tags convert to
+// their markdown forms.
 func TestConvertFormatHTMLToMarkdown(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -211,9 +228,12 @@ func TestConvertFormatHTMLToMarkdown(t *testing.T) {
 	}
 }
 
+// TestConvertFormatMarkdownToHTML verifies that basic markdown converts to
+// HTML tags.
 func TestConvertFormatMarkdownToHTML(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name     string
 		input    string
@@ -267,9 +287,15 @@ func TestConvertFormatMarkdownToHTML(t *testing.T) {
 	}
 }
 
+// TestConvertFormatRoundTrip verifies the markdown that a conversion to HTML
+// and back produces.
+//
+// Italic text comes back with underscores, and escaped delimiters come back as
+// literal characters.
 func TestConvertFormatRoundTrip(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name  string
 		input string
@@ -299,9 +325,12 @@ func TestConvertFormatRoundTrip(t *testing.T) {
 	}
 }
 
+// TestConvertFormatUnsupported verifies that a conversion from or to an
+// unknown format fails.
 func TestConvertFormatUnsupported(t *testing.T) {
 	t.Parallel()
 
+	// tests lists format pairs that have no conversion.
 	tests := []struct {
 		name         string
 		from         string
@@ -328,9 +357,15 @@ func TestConvertFormatUnsupported(t *testing.T) {
 	}
 }
 
+// TestConvertFormatEmptyInputs verifies the result of converting an empty
+// body.
+//
+// Markdown to HTML returns a <br> tag, and every other conversion returns an
+// empty body.
 func TestConvertFormatEmptyInputs(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name         string
 		input        string
@@ -357,9 +392,12 @@ func TestConvertFormatEmptyInputs(t *testing.T) {
 	}
 }
 
+// TestConvertFormatUnicodePreservation verifies that conversions keep
+// non-ASCII text intact.
 func TestConvertFormatUnicodePreservation(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the inputs and the output each should convert to.
 	tests := []struct {
 		name         string
 		input        string

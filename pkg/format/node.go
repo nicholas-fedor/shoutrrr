@@ -14,8 +14,12 @@ import (
 
 // Node is the generic config tree item.
 type Node interface {
+	// Field returns the field the node describes.
 	Field() *FieldInfo
+	// TokenType returns the kind of value the node holds, for syntax
+	// highlighting.
 	TokenType() NodeTokenType
+	// Update sets the node from a value of its field.
 	Update(tv reflect.Value)
 }
 
@@ -24,17 +28,24 @@ type NodeTokenType int
 
 // ContainerNode is a Node with child items.
 type ContainerNode struct {
+	// FieldInfo describes the container field.
 	*FieldInfo
 
-	Items        []Node
+	// Items holds a node for each struct field, map key, or element.
+	Items []Node
+	// MaxKeyLength is the length of the longest item key, which the console
+	// renderer aligns the values to.
 	MaxKeyLength int
 }
 
 // ValueNode is a Node without any child items.
 type ValueNode struct {
+	// FieldInfo describes the value's field.
 	*FieldInfo
 
-	Value     string
+	// Value is the value as text.
+	Value string
+	// tokenType is the kind of value, for syntax highlighting.
 	tokenType NodeTokenType
 }
 
@@ -59,16 +70,19 @@ const (
 	ContainerToken
 )
 
-// Constants for number bases.
+// Number bases that numeric fields are written in.
 const (
+	// BaseDecimalLen is base 10.
 	BaseDecimalLen = 10
-	BaseHexLen     = 16
+	// BaseHexLen is base 16, in which unsigned values are written with a 0x
+	// prefix.
+	BaseHexLen = 16
 )
 
 // Field returns the FieldInfo associated with this value node.
 //
 // Returns:
-//   - The node's FieldInfo.
+//   - *FieldInfo: the node's field.
 func (n *ValueNode) Field() *FieldInfo {
 	return n.FieldInfo
 }
@@ -76,7 +90,7 @@ func (n *ValueNode) Field() *FieldInfo {
 // TokenType returns the syntax-highlighting token type for this node's value.
 //
 // Returns:
-//   - The NodeTokenType that matches the stored value.
+//   - NodeTokenType: the token type that matches the stored value.
 func (n *ValueNode) TokenType() NodeTokenType {
 	return n.tokenType
 }
@@ -94,7 +108,7 @@ func (n *ValueNode) Update(tv reflect.Value) {
 // Field returns the FieldInfo associated with this container node.
 //
 // Returns:
-//   - The node's FieldInfo.
+//   - *FieldInfo: the node's field.
 func (n *ContainerNode) Field() *FieldInfo {
 	return n.FieldInfo
 }
@@ -102,7 +116,7 @@ func (n *ContainerNode) Field() *FieldInfo {
 // TokenType returns ContainerToken for every container node.
 //
 // Returns:
-//   - ContainerToken.
+//   - NodeTokenType: [ContainerToken].
 func (n *ContainerNode) TokenType() NodeTokenType {
 	return ContainerToken
 }
@@ -192,7 +206,7 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 //   - fieldInfo: Metadata for the array or slice field.
 //
 // Returns:
-//   - A ContainerNode with one child node per element.
+//   - *ContainerNode: a node with one child node per element.
 func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	node := &ContainerNode{
 		FieldInfo:    fieldInfo,
@@ -270,7 +284,7 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 //   - fieldInfo: Metadata for the map field.
 //
 // Returns:
-//   - A ContainerNode with one child node per map entry.
+//   - *ContainerNode: a node with one child node per map entry.
 func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	if mapValue.Kind() == reflect.Pointer {
 		mapValue = mapValue.Elem()
@@ -296,7 +310,7 @@ func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 //   - fieldInfo: Metadata for the field.
 //
 // Returns:
-//   - A Node for the field.
+//   - Node: the node for the field.
 func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 	switch fieldInfo.Type.Kind() {
 	case reflect.Array, reflect.Slice:
@@ -342,7 +356,7 @@ func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 //   - value: The config value, typically a struct or a pointer to a struct.
 //
 // Returns:
-//   - A ContainerNode whose children represent the config fields.
+//   - *ContainerNode: a node whose children represent the config fields.
 func getRootNode(value any) *ContainerNode {
 	structValue := reflect.ValueOf(value)
 	if structValue.Kind() == reflect.Pointer {
@@ -403,7 +417,7 @@ func getRootNode(value any) *ContainerNode {
 //   - fieldInfo: Metadata for the field.
 //
 // Returns:
-//   - A ValueNode pairing the display string with its token type.
+//   - *ValueNode: a node pairing the display string with its token type.
 func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	value, tokenType := getValueNodeValue(fieldVal, fieldInfo)
 
@@ -424,8 +438,8 @@ func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 //   - fieldInfo: Metadata for the field, including enum and duration type.
 //
 // Returns:
-//   - The display string for the value.
-//   - The NodeTokenType used to color that string.
+//   - string: the display string for the value.
+//   - NodeTokenType: the token type used to color that string.
 func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, NodeTokenType) {
 	kind := fieldValue.Kind()
 
@@ -495,7 +509,7 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 //   - fieldInfo: Metadata for the container field, including ItemSeparator and Base.
 //
 // Returns:
-//   - The joined display string for the container's items.
+//   - string: the joined display string for the container's items.
 func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) string {
 	itemSeparator := fieldInfo.ItemSeparator
 	sliceLength := fieldValue.Len()

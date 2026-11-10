@@ -20,28 +20,67 @@ const (
 	Int64BitSize     = 64 // Bit size for 64-bit integers
 )
 
+// durationType is the type of a time.Duration field, which is read and written
+// as a duration rather than as a number.
 var durationType = reflect.TypeFor[time.Duration]()
 
-// Errors defined as static variables for better error handling.
+// Errors returned when a config field is set from its text.
 var (
-	ErrInvalidEnumValue      = errors.New("not a valid enum value")
-	ErrInvalidBoolValue      = errors.New("accepted values are 1, true, yes or 0, false, no")
-	ErrUnsupportedFieldKey   = errors.New("field key format is not supported")
-	ErrInvalidFieldValue     = errors.New("invalid field value format")
-	ErrUnsupportedField      = errors.New("field format is not supported")
-	ErrInvalidFieldCount     = errors.New("invalid field value count")
-	ErrInvalidFieldKind      = errors.New("invalid field kind")
-	ErrUnsupportedMapValue   = errors.New("map value format is not supported")
+	// ErrInvalidEnumValue indicates a value that names no value of its enum.
+	ErrInvalidEnumValue = errors.New("not a valid enum value")
+	// ErrInvalidBoolValue indicates a value that [ParseBool] does not read.
+	ErrInvalidBoolValue = errors.New("accepted values are 1, true, yes or 0, false, no")
+	// ErrUnsupportedFieldKey indicates a map field whose keys are not strings.
+	ErrUnsupportedFieldKey = errors.New("field key format is not supported")
+	// ErrInvalidFieldValue indicates a map item without the colon between its
+	// key and value.
+	ErrInvalidFieldValue = errors.New("invalid field value format")
+	// ErrUnsupportedField indicates a slice or array field whose items are
+	// neither strings nor structs.
+	ErrUnsupportedField = errors.New("field format is not supported")
+	// ErrInvalidFieldCount indicates an array field given the wrong number of
+	// items.
+	ErrInvalidFieldCount = errors.New("invalid field value count")
+	// ErrInvalidFieldKind indicates a field of a kind that cannot be set from
+	// text, such as a float or a pointer.
+	ErrInvalidFieldKind = errors.New("invalid field kind")
+	// ErrUnsupportedMapValue indicates a map field whose values are neither
+	// strings nor integers.
+	ErrUnsupportedMapValue = errors.New("map value format is not supported")
+	// ErrInvalidFieldValueData indicates a field value that cannot be written
+	// as text.
 	ErrInvalidFieldValueData = errors.New("invalid field value")
-	ErrFailedToSetEnumValue  = errors.New("failed to set enum value")
-	ErrUnexpectedUintKind    = errors.New("unexpected uint kind")
-	ErrUnexpectedIntKind     = errors.New("unexpected int kind")
-	ErrParseIntFailed        = errors.New("failed to parse integer")
-	ErrParseUintFailed       = errors.New("failed to parse unsigned integer")
-	ErrParseDurationFailed   = errors.New("failed to parse duration")
+	// ErrFailedToSetEnumValue indicates an enum field that did not hold the
+	// value it was set to.
+	ErrFailedToSetEnumValue = errors.New("failed to set enum value")
+	// ErrUnexpectedUintKind indicates an unsigned integer map value of a kind
+	// the reader does not handle.
+	ErrUnexpectedUintKind = errors.New("unexpected uint kind")
+	// ErrUnexpectedIntKind indicates a signed integer map value of a kind the
+	// reader does not handle.
+	ErrUnexpectedIntKind = errors.New("unexpected int kind")
+	// ErrParseIntFailed indicates a signed integer that does not parse or does
+	// not fit its type.
+	ErrParseIntFailed = errors.New("failed to parse integer")
+	// ErrParseUintFailed indicates an unsigned integer that does not parse or
+	// does not fit its type.
+	ErrParseUintFailed = errors.New("failed to parse unsigned integer")
+	// ErrParseDurationFailed indicates a duration that [time.ParseDuration]
+	// does not read.
+	ErrParseDurationFailed = errors.New("failed to parse duration")
 )
 
 // GetServiceConfig extracts the inner config from a service.
+//
+// The service must have a Config field. When it is nil, a new zero config of
+// its type is returned. The function panics for a service without a Config
+// field or with one that is not a [types.ServiceConfig].
+//
+// Parameters:
+//   - service: the service, usually a pointer to its struct.
+//
+// Returns:
+//   - types.ServiceConfig: the service's config, or a zero config.
 func GetServiceConfig(service types.Service) types.ServiceConfig {
 	serviceValue := reflect.Indirect(reflect.ValueOf(service))
 
@@ -73,21 +112,54 @@ func GetServiceConfig(service types.Service) types.ServiceConfig {
 }
 
 // ColorFormatTree generates a color-highlighted string representation of a node tree.
+//
+// Parameters:
+//   - rootNode: the tree to render.
+//   - withValues: whether to render each field's value instead of its type.
+//
+// Returns:
+//   - string: the console text, with sensitive values shown.
 func ColorFormatTree(rootNode *ContainerNode, withValues bool) string {
 	return ConsoleTreeRenderer{WithValues: withValues, MaskSensitive: false}.RenderTree(rootNode, "")
 }
 
 // GetServiceConfigFormat retrieves type and field information from a service's config.
+//
+// Parameters:
+//   - service: the service, as [GetServiceConfig] takes it.
+//
+// Returns:
+//   - *ContainerNode: the config's node tree.
 func GetServiceConfigFormat(service types.Service) *ContainerNode {
 	return GetConfigFormat(GetServiceConfig(service))
 }
 
 // GetConfigFormat retrieves type and field information from a ServiceConfig.
+//
+// Parameters:
+//   - config: the config.
+//
+// Returns:
+//   - *ContainerNode: the config's node tree, with a node for each listed
+//     field.
 func GetConfigFormat(config types.ServiceConfig) *ContainerNode {
 	return getRootNode(config)
 }
 
 // SetConfigField updates a config field with a deserialized value from a string.
+//
+// Enum, duration, string, integer, bool, map, struct, slice, and array fields
+// can be set. Fields of any other kind fail.
+//
+// Parameters:
+//   - config: the config struct value, which must be settable.
+//   - field: the field to set.
+//   - inputValue: the field's value as text.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: an error wrapping [ErrInvalidFieldKind] for a field of a kind
+//     that cannot be set, or the value's parse error, or nil.
 func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	configField := config.FieldByName(field.Name)
 	if field.EnumFormatter != nil {
@@ -132,7 +204,16 @@ func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (
 	}
 }
 
-// setDurationField handles time.Duration field setting.
+// setDurationField sets a time.Duration field from its text.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - inputValue: the duration, as [time.ParseDuration] reads it.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: an error wrapping [ErrParseDurationFailed] when the duration does
+//     not parse.
 func setDurationField(configField reflect.Value, inputValue string) (bool, error) {
 	duration, err := time.ParseDuration(inputValue)
 	if err != nil {
@@ -202,7 +283,15 @@ func setUintField(configField reflect.Value, field *FieldInfo, inputValue string
 	return true, nil
 }
 
-// setBoolField handles boolean field setting.
+// setBoolField sets a bool field from its text.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - inputValue: the boolean, as [ParseBool] reads it.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: [ErrInvalidBoolValue] when the text is not a boolean.
 func setBoolField(configField reflect.Value, inputValue string) (bool, error) {
 	value, ok := ParseBool(inputValue, false)
 	if !ok {
@@ -262,7 +351,16 @@ func setMapField(configField reflect.Value, field *FieldInfo, inputValue string)
 	return true, nil
 }
 
-// setStructField handles struct field setting.
+// setStructField sets a struct field from its text.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its type.
+//   - inputValue: the field's value, as its [types.ConfigProp] reads it.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: the error from [GetConfigPropFromString], or nil.
 func setStructField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	valuePtr, err := GetConfigPropFromString(field.Type, inputValue)
 	if err != nil {
@@ -328,7 +426,20 @@ func setSliceOrArrayField(
 	return setSliceOrArrayValues(configField, field, elemType, values)
 }
 
-// setSliceOrArrayValues sets the actual values for slice or array fields.
+// setSliceOrArrayValues sets a slice or array field to its items.
+//
+// Struct items are read through their [types.ConfigProp]. String items are
+// set as they are.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its type.
+//   - elemType: the type of each item.
+//   - values: the items as text.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: the error from reading a struct item, or nil.
 func setSliceOrArrayValues(
 	configField reflect.Value,
 	field *FieldInfo,
@@ -377,7 +488,18 @@ func setSliceOrArrayValues(
 	return true, nil
 }
 
-// setEnumField handles enum field setting.
+// setEnumField sets an enum field from the name of its value.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its enum formatter.
+//   - inputValue: the name or alias of the value.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: an error wrapping [ErrInvalidEnumValue] that lists the accepted
+//     names, or [ErrFailedToSetEnumValue] when the field does not hold the
+//     value, or nil.
 func setEnumField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	value := field.EnumFormatter.Parse(inputValue)
 	if value == EnumInvalid {
@@ -400,6 +522,15 @@ func setEnumField(configField reflect.Value, field *FieldInfo, inputValue string
 }
 
 // getMapValue converts a raw string to a map value based on type.
+//
+// Parameters:
+//   - valueType: the map's value type.
+//   - valueRaw: the value as text.
+//
+// Returns:
+//   - reflect.Value: the value.
+//   - error: [ErrUnsupportedMapValue] for a value type that is neither a
+//     string nor an integer, or the number's parse error, or nil.
 func getMapValue(valueType reflect.Type, valueRaw string) (reflect.Value, error) {
 	switch valueType.Kind() {
 	case reflect.String:
@@ -431,6 +562,19 @@ func getMapValue(valueType reflect.Type, valueRaw string) (reflect.Value, error)
 }
 
 // getMapUintValue converts a string to an unsigned integer map value.
+//
+// A 0x or # prefix reads the digits in base 16, and digits without a prefix
+// are read in base 10.
+//
+// Parameters:
+//   - valueRaw: the number as text.
+//   - valueType: the map's unsigned integer value type.
+//
+// Returns:
+//   - reflect.Value: the number in the value type.
+//   - error: an error wrapping [ErrParseUintFailed] for a number that does not
+//     parse or fit the type, [ErrUnexpectedUintKind] for a type that is not an
+//     unsigned integer, or nil.
 func getMapUintValue(valueRaw string, valueType reflect.Type) (reflect.Value, error) {
 	number, base := util.StripNumberPrefix(valueRaw)
 
@@ -507,6 +651,19 @@ func getMapUintValue(valueRaw string, valueType reflect.Type) (reflect.Value, er
 }
 
 // getMapIntValue converts a string to a signed integer map value.
+//
+// A 0x or # prefix reads the digits in base 16, and digits without a prefix
+// are read in base 10.
+//
+// Parameters:
+//   - valueRaw: the number as text.
+//   - valueType: the map's signed integer value type.
+//
+// Returns:
+//   - reflect.Value: the number in the value type.
+//   - error: an error wrapping [ErrParseIntFailed] for a number that does not
+//     parse or fit the type, [ErrUnexpectedIntKind] for a type that is not a
+//     signed integer, or nil.
 func getMapIntValue(valueRaw string, valueType reflect.Type) (reflect.Value, error) {
 	number, base := util.StripNumberPrefix(valueRaw)
 
@@ -595,6 +752,15 @@ func getMapIntValue(valueRaw string, valueType reflect.Type) (reflect.Value, err
 }
 
 // GetConfigFieldString converts a config field value to its string representation.
+//
+// Parameters:
+//   - config: the config struct value.
+//   - field: the field to write.
+//
+// Returns:
+//   - string: the value as text, as the URL and the docs write it.
+//   - error: [ErrInvalidFieldValueData] for a value that cannot be written as
+//     text, or nil.
 func GetConfigFieldString(config reflect.Value, field *FieldInfo) (string, error) {
 	configField := config.FieldByName(field.Name)
 	if field.IsEnum() {

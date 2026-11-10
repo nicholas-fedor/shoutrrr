@@ -15,7 +15,9 @@ import (
 
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
+	// confValue is the config the resolver reads and sets.
 	confValue reflect.Value
+	// keyFields maps each key and deprecated key, in lower case, to its field.
 	keyFields map[string]*FieldInfo
 	// setFields holds the names of the fields that Set has set, such as from a
 	// service URL query, so KeepsDefault treats them as explicitly configured.
@@ -27,7 +29,8 @@ type PropKeyResolver struct {
 	// primarySetFields holds the names of the fields that Set has set through
 	// a key that is not deprecated, so a deprecated key no longer overrides them.
 	primarySetFields map[string]bool
-	keys             []string
+	// keys lists every key and deprecated key in lower case, sorted.
+	keys []string
 }
 
 // Errors returned when config props are read or set.
@@ -43,6 +46,15 @@ var (
 )
 
 // NewPropKeyResolver creates a new PropKeyResolver and initializes it using the provided config.
+//
+// The resolver knows the fields with a `key` tag. Each key and deprecated key
+// matches in any case.
+//
+// Parameters:
+//   - config: the config to resolve keys for, which the resolver is bound to.
+//
+// Returns:
+//   - PropKeyResolver: the resolver.
 func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	configNode := GetConfigFormat(config)
 	items := configNode.Items
@@ -92,8 +104,16 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	}
 }
 
-// GetConfigQueryResolver returns the ConfigQueryResolver interface for the config if it implements it,
-// otherwise it creates and returns a PropKeyResolver that implements it.
+// GetConfigQueryResolver returns a query resolver for a config.
+//
+// A config that implements [types.ConfigQueryResolver] is its own resolver.
+// Any other config gets a [PropKeyResolver].
+//
+// Parameters:
+//   - config: the config to resolve keys for.
+//
+// Returns:
+//   - types.ConfigQueryResolver: the resolver.
 func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolver {
 	var resolver types.ConfigQueryResolver
 
@@ -106,8 +126,16 @@ func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolve
 	return resolver
 }
 
-// Bind creates a new instance of the PropKeyResolver with the internal config reference
-// set to the provided config. This should only be used for configs of the same type.
+// Bind returns a copy of the resolver bound to another config.
+//
+// The config must have the same type as the one the resolver was made for. The
+// copy shares the record of set fields and deprecated keys with the original.
+//
+// Parameters:
+//   - config: the config to bind.
+//
+// Returns:
+//   - PropKeyResolver: the bound copy.
 func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
 	bound := *pkr
 	bound.confValue = configValue(config)
@@ -116,8 +144,9 @@ func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
 }
 
 // DeprecatedKeys reports the deprecated keys that [PropKeyResolver.Set] has
-// received, so the service can warn about them. They usually come from the
-// service URL query.
+// received.
+//
+// A service warns about them. They usually come from the service URL query.
 //
 // Returns:
 //   - []Deprecation: the deprecated keys in lower case with their primary
@@ -132,8 +161,9 @@ func (pkr *PropKeyResolver) DeprecatedKeys() []Deprecation {
 	return used
 }
 
-// DeprecatedParams reports the deprecated keys among params. It only reads the
-// resolver, so concurrent sends can call it.
+// DeprecatedParams reports the deprecated keys among params.
+//
+// It only reads the resolver, so concurrent sends can call it.
 //
 // Parameters:
 //   - params: the send params, or nil.
@@ -164,6 +194,14 @@ func (pkr *PropKeyResolver) DeprecatedParams(params *types.Params) []Deprecation
 }
 
 // Get returns the value of a config property tagged with the corresponding key.
+//
+// Parameters:
+//   - key: the property key, matched case-insensitively.
+//
+// Returns:
+//   - string: the formatted value.
+//   - error: [ErrInvalidConfigKey] for an unknown key, or the formatting
+//     error, or nil.
 func (pkr *PropKeyResolver) Get(key string) (string, error) {
 	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
 		return GetConfigFieldString(pkr.confValue, field)
@@ -172,7 +210,9 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 	return "", fmt.Errorf("%w: %v", ErrInvalidConfigKey, key)
 }
 
-// IsDefault returns whether the specified key value is the default value.
+// IsDefault reports whether a value is the default of the property tagged with
+// key.
+//
 // The value matches the default as written in its tag, or as the formatter
 // prints it, so a bool default of "yes" matches "Yes" and an enum default of
 // "high" matches "High". A property without a default tag, or with an empty
@@ -215,7 +255,9 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 }
 
 // KeepsDefault reports whether a send keeps the default value of the property
-// tagged with key. That holds when neither [PropKeyResolver.Set], as used for
+// tagged with key.
+//
+// That holds when neither [PropKeyResolver.Set], as used for
 // the service URL query, nor params set the property under any of its keys,
 // and config holds the property's default value. A property set to its default
 // value explicitly is therefore not kept as a default.
@@ -269,11 +311,16 @@ func (pkr *PropKeyResolver) KeyIsPrimary(key string) bool {
 }
 
 // QueryFields returns a list of tagged keys.
+//
+// Returns:
+//   - []string: every key and deprecated key in lower case, sorted. The
+//     slice is the resolver's own, so callers must not change it.
 func (pkr *PropKeyResolver) QueryFields() []string {
 	return pkr.keys
 }
 
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
+//
 // It records the property as explicitly set, which [PropKeyResolver.KeepsDefault] reads.
 //
 // A deprecated key is recorded for [PropKeyResolver.DeprecatedKeys]. It sets
@@ -309,10 +356,11 @@ func (pkr *PropKeyResolver) Set(key, value string) error {
 	return nil
 }
 
-// SetDefaultProps mutates the provided config, setting the tagged fields with their default values.
-// A field without a default tag, or with an empty one, is set to its zero value.
-// If the provided config is nil, the internal config will be updated instead.
-// The error returned is the first error that occurred. Later errors are discarded.
+// SetDefaultProps sets each tagged field of a config to its default value.
+//
+// A field without a default tag, or with an empty one, is set to its zero
+// value. The error returned is the first error that occurred. Later errors
+// are discarded.
 //
 // Parameters:
 //   - config: the config to update, or nil for the resolver's own config.
@@ -339,11 +387,12 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 	return firstError
 }
 
-// UpdateConfigFromKnownParams mutates the provided config from the params
-// whose keys are config keys and ignores the rest. Keys match in any case. A
-// service whose other params fill its payload, such as a webhook body, uses
-// it. The params are applied as [PropKeyResolver.UpdateConfigFromParams]
-// applies them.
+// UpdateConfigFromKnownParams updates a config from the params whose keys are
+// config keys and ignores the rest.
+//
+// Keys match in any case. A service whose other params fill its payload, such
+// as a webhook body, uses it. The params are applied as
+// [PropKeyResolver.UpdateConfigFromParams] applies them.
 //
 // Parameters:
 //   - config: the config to update, or nil for the resolver's own config.
@@ -368,19 +417,28 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 	return pkr.UpdateConfigFromParams(config, &known)
 }
 
-// UpdateConfigFromParams mutates the provided config, updating the values from its corresponding params.
-// If the provided config is nil, the internal config will be updated instead.
+// UpdateConfigFromParams updates a config from send params.
 //
 // The reserved params set by [types.Params] helpers (title, message and level) are
 // applied when the config declares them and skipped otherwise, so every service
 // accepts them. The params named in payloadKeys fill the service's payload and
 // are skipped too. They match exactly, as the payload reads them. Any other
 // param without a matching key is an error.
+//
 // Params that give one key in two spellings, such as disabletls and DisableTLS,
-// are rejected with [ErrConflictingKeys] before any is applied.
-// Params are applied in key order, with deprecated keys first, so a
-// replacement key wins when params hold both.
-// The error returned is the first error that occurred; subsequent errors are discarded.
+// are rejected with [ErrConflictingKeys] before any is applied. Params are
+// applied in key order, with deprecated keys first, so a replacement key wins
+// when params hold both. The error returned is the first error that occurred.
+// Later errors are discarded.
+//
+// Parameters:
+//   - config: the config to update, or nil for the resolver's own config.
+//   - params: the send params, or nil for none.
+//   - payloadKeys: the param keys that fill the payload instead of the config.
+//
+// Returns:
+//   - error: an error wrapping [ErrConflictingKeys] for one key in two
+//     spellings, or the first unknown key or value error, or nil.
 func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	config types.ServiceConfig,
 	params *types.Params,
@@ -417,6 +475,12 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 }
 
 // configValueOrInternal returns the reflect.Value of the config, or the internal config if config is nil.
+//
+// Parameters:
+//   - config: the config, or nil.
+//
+// Returns:
+//   - reflect.Value: the config's struct value.
 func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) reflect.Value {
 	if config != nil {
 		return configValue(config)
@@ -494,6 +558,15 @@ func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
 }
 
 // set sets the value of a target struct tagged with the corresponding key.
+//
+// Parameters:
+//   - target: the config struct value to set.
+//   - key: the property key, matched case-insensitively.
+//   - value: the formatted property value.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidConfigKey] that lists the valid
+//     keys, [ErrInvalidValueForType], or the value's parse error, or nil.
 func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
 		valid, err := SetConfigField(target, field, value)
@@ -508,6 +581,12 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 }
 
 // configValue returns the indirect reflect.Value of the config.
+//
+// Parameters:
+//   - config: the config, or a pointer to it.
+//
+// Returns:
+//   - reflect.Value: the config's struct value.
 func configValue(config types.ServiceConfig) reflect.Value {
 	return reflect.Indirect(reflect.ValueOf(config))
 }
