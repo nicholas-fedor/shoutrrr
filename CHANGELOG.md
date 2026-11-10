@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Write markdown URL parts as uppercase placeholders by @nicholas-fedor in [#2129](https://github.com/nicholas-fedor/shoutrrr/pull/2129)
 - Stop config error texts pointing at the URL by @nicholas-fedor in [#2121](https://github.com/nicholas-fedor/shoutrrr/pull/2121)
 - Match the shared not initialized error by @nicholas-fedor in [#2115](https://github.com/nicholas-fedor/shoutrrr/pull/2115)
 - Keep one device id for an ipv6 homeserver by @nicholas-fedor in [#2113](https://github.com/nicholas-fedor/shoutrrr/pull/2113)
