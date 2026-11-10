@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // MarkdownTreeRenderer renders a ContainerNode tree into a markdown documentation string.
@@ -264,7 +265,10 @@ func (r MarkdownTreeRenderer) writeHeader(stringBuilder *strings.Builder, text s
 }
 
 // writeURLFields writes the URL Fields section with an example URL for each field.
-// Each field is highlighted in the context of a complete URL structure.
+//
+// Each example shows the whole URL with the field's part in bold. Every part is
+// an uppercase placeholder named after its field, such as WEBHOOK_ID for a
+// WebhookID field. The port of a host field is PORT.
 //
 // Parameters:
 //   - stringBuilder: The string builder to append the formatted output to.
@@ -342,11 +346,10 @@ func (r MarkdownTreeRenderer) writeURLFields(
 					}
 				}
 
-				// Convert the field name to lowercase for the URL example.
-				slug := strings.ToLower(fieldInfo.Name)
-				// Special case: when displaying port, use "port" as the label.
-				if slug == "host" && i == URLPort {
-					slug = "port"
+				slug := placeholderName(fieldInfo.Name)
+				// The port of a host field is written as its own placeholder.
+				if slug == "HOST" && i == URLPort {
+					slug = "PORT"
 				}
 
 				// Highlight the current field with bold HTML tags.
@@ -371,5 +374,61 @@ func (r MarkdownTreeRenderer) writeURLFields(
 
 		// Mark this field as printed to avoid duplicates.
 		fieldsPrinted[field.Name] = true
+	}
+}
+
+// placeholderName returns the uppercase placeholder for a field name, with an
+// underscore between its words.
+//
+// An uppercase letter after a lowercase letter or a digit starts a word. So
+// does a digit after a letter, and the last uppercase letter of an acronym
+// when two lowercase letters follow it. WebhookID becomes WEBHOOK_ID, APIKey
+// becomes API_KEY, and Path1 becomes PATH_1. A plural acronym such as IDs
+// stays one word.
+//
+// Parameters:
+//   - name: the Go name of the field.
+//
+// Returns:
+//   - string: the placeholder.
+func placeholderName(name string) string {
+	runes := []rune(name)
+	placeholder := strings.Builder{}
+	placeholder.Grow(len(name) + len(runes)/2)
+
+	for i, current := range runes {
+		if i > 0 && startsWord(runes[i-1], current, runes[i+1:]) {
+			placeholder.WriteByte('_')
+		}
+
+		placeholder.WriteRune(unicode.ToUpper(current))
+	}
+
+	return placeholder.String()
+}
+
+// startsWord reports whether a rune of a field name starts a new word.
+//
+// Parameters:
+//   - previous: the rune before current.
+//   - current: the rune to check.
+//   - rest: the runes after current.
+//
+// Returns:
+//   - bool: true when current starts a new word.
+func startsWord(previous, current rune, rest []rune) bool {
+	switch {
+	case unicode.IsUpper(current):
+		if unicode.IsLower(previous) || unicode.IsDigit(previous) {
+			return true
+		}
+
+		// The last letter of an acronym starts the word that follows it, unless
+		// a single lowercase letter makes the acronym plural.
+		return unicode.IsUpper(previous) && len(rest) > 1 && unicode.IsLower(rest[0]) && unicode.IsLower(rest[1])
+	case unicode.IsDigit(current):
+		return unicode.IsLetter(previous)
+	default:
+		return false
 	}
 }
