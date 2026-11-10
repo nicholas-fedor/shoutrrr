@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Set fields by name through the format package by @nicholas-fedor in [#2141](https://github.com/nicholas-fedor/shoutrrr/pull/2141)
 - Name each field's URL part in the generated config docs by @nicholas-fedor in [#2135](https://github.com/nicholas-fedor/shoutrrr/pull/2135)
 - Write markdown URL parts as uppercase placeholders by @nicholas-fedor in [#2129](https://github.com/nicholas-fedor/shoutrrr/pull/2129)
 - Stop config error texts pointing at the URL by @nicholas-fedor in [#2121](https://github.com/nicholas-fedor/shoutrrr/pull/2121)
