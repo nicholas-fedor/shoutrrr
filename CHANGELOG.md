@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Rewrite test comments in short sentences by @nicholas-fedor in [#2125](https://github.com/nicholas-fedor/shoutrrr/pull/2125)
 - Correct why login auth fails on an extra challenge by @nicholas-fedor in [#2123](https://github.com/nicholas-fedor/shoutrrr/pull/2123)
 - Mark the v0.23.0 deprecations with their release by @nicholas-fedor in [#2046](https://github.com/nicholas-fedor/shoutrrr/pull/2046)
 
