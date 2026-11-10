@@ -91,11 +91,7 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 					stringBuilder.WriteString(", ")
 				}
 
-				if part > URLPath {
-					part = URLPath
-				}
-
-				stringBuilder.WriteString(ColorizeEnum(part))
+				stringBuilder.WriteString(ColorizeEnum(part.label()))
 			}
 
 			stringBuilder.WriteString(">")

@@ -16,9 +16,12 @@ type unknownNode struct {
 }
 
 // TestConsoleTreeRendererRenderTree verifies the console rendering of each
-// field: the name padded past the longest name, the type or value padded to
-// its column, the description padded to its column, and the URL part,
-// template, default, required, alias, and enum markers.
+// field.
+//
+// The name is padded past the longest name, and the type or value and the
+// description are padded to their columns. The line then holds the field's URL
+// parts, with path segments after the first numbered, and its template,
+// default, and markers for required fields, aliases, and enum values.
 func TestConsoleTreeRendererRenderTree(t *testing.T) {
 	t.Parallel()
 
@@ -60,8 +63,8 @@ func TestConsoleTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "Host  string" + pad(" ", 10) + pad(" ", 60) + " <URL: Host> <Required>\n" +
 				"Path1 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n" +
-				"Path2 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n" +
-				"Path3 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n",
+				"Path2 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path 2> <Required>\n" +
+				"Path3 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path 3> <Required>\n",
 		},
 		{
 			name:     "values with markers",

@@ -54,6 +54,21 @@ func (u URLPart) Suffix() rune {
 	}
 }
 
+// label returns the name of the URL part, as the docs list it.
+//
+// A path segment after the first is named by its position, so the third
+// segment is "Path 3".
+//
+// Returns:
+//   - string: the name, such as "Host" or "Path 2".
+func (u URLPart) label() string {
+	if u > URLPath {
+		return "Path " + strconv.Itoa(int(u-URLPath)+1)
+	}
+
+	return u.String()
+}
+
 // ParseURLPart returns the URLPart that matches the supplied string, ignoring
 // case.
 //

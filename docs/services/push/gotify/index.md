@@ -8,6 +8,9 @@ For more information about Gotify, visit the [official Gotify documentation](htt
 
 ## URL Format
 
+!!! info ""
+    gotify://__`HOST`__[:__`PORT`__][/__`PATH`__]/__`TOKEN`__
+
 --8<-- "docs/services/push/gotify/config.md"
 
 ## API Endpoint

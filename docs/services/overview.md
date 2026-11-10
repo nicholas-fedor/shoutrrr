@@ -29,8 +29,8 @@ Click on the service for a more thorough explanation.
 
 | Service                                         | URL format                                                                                                                         |
 |-------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| [Bark](./push/bark/index.md)                    | *bark://__`DEVICE_KEY`__@__`HOST`__*                                                                                               |
-| [Gotify](./push/gotify/index.md)                | *gotify://__`HOST`__/__`TOKEN`__*                                                                                                  |
+| [Bark](./push/bark/index.md)                    | *bark://:__`DEVICE_KEY`__@__`HOST`__[:__`PORT`__][/__`PATH`__]*                                                                    |
+| [Gotify](./push/gotify/index.md)                | *gotify://__`HOST`__[:__`PORT`__][/__`PATH`__]/__`TOKEN`__*                                                                        |
 | [Home Assistant](./push/homeassistant/index.md) | *homeassistant://__`LONG_LIVED_TOKEN`__@__`HOST`__[:__`PORT`__][/__`BASE_PATH`__]*                                                 |
 | [IFTTT](./push/ifttt/index.md)                  | *ifttt://__`KEY`__/?events=__`EVENT_1`__[,__`EVENT_2`__,...][&value1=__`VALUE_1`__][&value2=__`VALUE_2`__][&value3=__`VALUE_3`__]* |
 | [Join](./push/join/index.md)                    | *join://shoutrrr:__`API_KEY`__@join/?devices=__`DEVICE_ID_1`__[,__`DEVICE_ID_2`__,...][&icon=__`ICON`__][&title=__`TITLE`__]*      |
