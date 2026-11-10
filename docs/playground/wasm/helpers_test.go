@@ -99,23 +99,6 @@ func TestURLPartToString(t *testing.T) {
 	})
 }
 
-func TestGetEnumNames(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns nil for nil formatter", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Nil(t, getEnumNames(nil))
-	})
-
-	t.Run("returns names from formatter", func(t *testing.T) {
-		t.Parallel()
-
-		ef := format.CreateEnumFormatter([]string{"Option1", "Option2", "Option3"})
-		assert.Equal(t, []string{"Option1", "Option2", "Option3"}, getEnumNames(ef))
-	})
-}
-
 // TestConfigField verifies that a field is found by its Go name, and that a
 // name the config does not have finds nothing.
 func TestConfigField(t *testing.T) {

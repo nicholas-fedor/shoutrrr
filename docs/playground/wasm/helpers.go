@@ -104,15 +104,6 @@ func urlPartToString(parts []format.URLPart) string {
 	return strings.Join(names, ",")
 }
 
-// getEnumNames returns the string names from ef, or nil if ef is nil.
-func getEnumNames(ef types.EnumFormatter) []string {
-	if ef == nil {
-		return nil
-	}
-
-	return ef.Names()
-}
-
 // configField finds the field of a config by its Go name.
 //
 // Parameters:
