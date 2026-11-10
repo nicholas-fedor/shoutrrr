@@ -26,8 +26,10 @@ var workflowURLValidator = regexp.MustCompile(
 )
 
 // ValidateWebhookURL checks that the webhook URL starts with a Power Automate
-// workflow webhook prefix, the part up to and including "workflows/". It does
-// not check the rest of the URL.
+// workflow webhook prefix.
+//
+// The prefix is the part up to and including "workflows/". The rest of the URL
+// is not checked.
 //
 // Parameters:
 //   - url: the webhook URL.

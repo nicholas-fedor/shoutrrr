@@ -17,9 +17,13 @@
 
 Where:
 
-- `WORKFLOW_URL`: The full Power Automate workflow incoming webhook URL, percent-encoded (required).
+- `WORKFLOW_URL`: The full Power Automate workflow incoming webhook URL, percent-encoded. Each send needs one. A service URL may leave `host` out, and each send then has to provide it as a `host` param.
 - `COLOR` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
 - `TITLE` *(optional)*: Title displayed as a bold header in the Adaptive Card.
+
+Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a URL that cannot send.
+The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on a `logic.azure.com` or `environment.api.powerplatform.com` host.
+A retired `webhook.office.com` connector URL is rejected.
 
 --8<-- "docs/services/chat/teams/config.md"
 

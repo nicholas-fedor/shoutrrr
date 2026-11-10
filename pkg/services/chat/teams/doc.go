@@ -5,10 +5,14 @@
 //
 // The Config struct supports the following settings:
 //
-//   - Host: The full Power Automate workflow webhook URL (required)
+//   - Host: The full Power Automate workflow webhook URL, required to send.
 //     Example: https://prod-00.westus.logic.azure.com:443/workflows/{id}/triggers/manual/paths/invoke?api-version=...
 //   - Title: The notification title displayed as a bold header in the card (optional)
-//   - Color: Reserved for future use (optional)
+//   - Color: The title's text color (optional)
+//
+// A service URL whose host is not a Power Automate workflow webhook URL, such
+// as a retired Office 365 connector URL, is rejected when it is read. A URL
+// without a host is read, and a send fails unless a host param sets one.
 //
 // # Adaptive Card Format
 //

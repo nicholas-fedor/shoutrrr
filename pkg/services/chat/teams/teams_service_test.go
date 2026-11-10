@@ -190,6 +190,17 @@ func TestServiceInitialize(t *testing.T) {
 	assert.Nil(t, client.Transport)
 }
 
+// TestServiceInitializeRejectsNonWorkflowHost verifies that Initialize fails
+// for a service URL whose host is a retired Office 365 connector URL.
+func TestServiceInitializeRejectsNonWorkflowHost(t *testing.T) {
+	t.Parallel()
+
+	rawURL := "teams://?host=" + url.QueryEscape("https://contoso.webhook.office.com/webhookb2/abc@def/IncomingWebhook/123/456")
+	err := (&Service{}).Initialize(mustParseURL(t, rawURL), log.New(t.Output(), "", 0))
+
+	require.ErrorIs(t, err, ErrInvalidWebhookURL)
+}
+
 // TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
 // client, including an *http.Client, and that a nil client or a nil
 // *http.Client restores the default.
@@ -338,9 +349,10 @@ func TestServiceSendRedactsTransportError(t *testing.T) {
 	assert.NotContains(t, err.Error(), "sig=")
 }
 
-// TestServiceSendRequest verifies the request that Send posts: the method,
-// URL, content type, and the Adaptive Card payload built from the message,
-// title, and color, with blank lines dropped.
+// TestServiceSendRequest verifies the request that Send posts.
+//
+// It checks the method, the URL, the content type, and the Adaptive Card
+// payload built from the message, title, and color, with blank lines dropped.
 func TestServiceSendRequest(t *testing.T) {
 	t.Parallel()
 
@@ -447,8 +459,10 @@ func TestServiceSendContextCanceled(t *testing.T) {
 }
 
 // TestServiceSendErrorsBeforeRequest verifies the errors that Send returns
-// without making a request: a missing config or host, an invalid webhook URL,
-// an unknown param, and a URL that cannot form a request.
+// without making a request.
+//
+// The cases are a missing config or host, a host param that is not a workflow
+// webhook URL, an unknown param, and a URL that cannot form a request.
 func TestServiceSendErrorsBeforeRequest(t *testing.T) {
 	t.Parallel()
 
@@ -463,11 +477,6 @@ func TestServiceSendErrorsBeforeRequest(t *testing.T) {
 	}{
 		{name: "uninitialized service", wantErr: types.ErrServiceNotInitialized},
 		{name: "empty host", rawURL: "teams://?title=Alert", wantErr: ErrMissingHost},
-		{
-			name:    "invalid webhook URL",
-			rawURL:  "teams://?host=https%3A%2F%2Fexample.com%2Fwebhook",
-			wantErr: ErrInvalidWebhookURL,
-		},
 		{
 			name:    "invalid webhook URL from params",
 			rawURL:  testServiceURL,

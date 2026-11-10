@@ -111,6 +111,11 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "teams://",
 			want:   Config{},
 		},
+		{
+			name:   "title without a host",
+			rawURL: "teams://?title=Test",
+			want:   Config{Title: "Test"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,6 +125,38 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(mustParseURL(t, tt.rawURL)))
 			assert.Equal(t, tt.want, *config)
+		})
+	}
+}
+
+// TestConfigSetURLRejectsNonWorkflowHost verifies that SetURL rejects a host
+// that is not a Power Automate workflow webhook URL, such as a retired Office
+// 365 connector URL, which no send could reach.
+func TestConfigSetURLRejectsNonWorkflowHost(t *testing.T) {
+	t.Parallel()
+
+	// hosts lists webhook URLs that are not Power Automate workflow URLs.
+	hosts := []struct {
+		name string
+		host string
+	}{
+		{
+			name: "office 365 connector",
+			host: "https://contoso.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/3333/4444",
+		},
+		{name: "outlook connector", host: "https://outlook.office.com/webhook/11111111/IncomingWebhook/3333/4444"},
+		{name: "unrelated host", host: "https://example.com/webhook"},
+		{name: "not a URL", host: "workflow"},
+	}
+
+	for _, tt := range hosts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			err := config.SetURL(mustParseURL(t, "teams://?host="+url.QueryEscape(tt.host)))
+
+			require.ErrorIs(t, err, ErrInvalidWebhookURL)
 		})
 	}
 }
