@@ -42,7 +42,18 @@ var (
 	ColorizeLink = color.NewWithConfig(colorConfig, color.FgHiBlue).SprintFunc()
 )
 
-// ColorizeValue colorizes the input string according to what type appears to be.
+// ColorizeValue colorizes a value by the type its text appears to have.
+//
+// An enum value gets the enum color. Otherwise a value that [ParseBool] reads
+// gets the true or false color, a number gets the number color, and any other
+// text gets the string color.
+//
+// Parameters:
+//   - value: the text of the value.
+//   - isEnum: whether the value belongs to an enum field.
+//
+// Returns:
+//   - string: the colorized text.
 func ColorizeValue(value string, isEnum bool) string {
 	if isEnum {
 		return ColorizeEnum(value)
@@ -63,7 +74,15 @@ func ColorizeValue(value string, isEnum bool) string {
 	return ColorizeString(value)
 }
 
-// ColorizeToken colorizes the value according to the tokenType.
+// ColorizeToken colorizes a value by its token type.
+//
+// Parameters:
+//   - value: the text of the value.
+//   - tokenType: the kind of token the value is.
+//
+// Returns:
+//   - string: the colorized text, or the text unchanged for an unknown token
+//     type.
 func ColorizeToken(value string, tokenType NodeTokenType) string {
 	switch tokenType {
 	case NumberToken:

@@ -10,6 +10,8 @@ import (
 
 // ConsoleTreeRenderer renders a ContainerNode tree into an ansi-colored console string.
 type ConsoleTreeRenderer struct {
+	// WithValues renders each field's value. Without it, each field shows its
+	// type instead, and an enum field shows "option".
 	WithValues bool
 	// MaskSensitive renders the value of each [FieldInfo.Sensitive] field as
 	// [MaskedValue] when it is set, so the output can be shared.
@@ -30,6 +32,17 @@ const (
 )
 
 // RenderTree renders a ContainerNode tree into an ansi-colored console string.
+//
+// Each field takes one line with its name, its value or type, and its
+// description. The line then lists the field's URL parts, template, default,
+// and aliases where it has them. It also marks a required field and lists
+// deprecated keys and enum names.
+//
+// Parameters:
+//   - root: the container node tree to render.
+//
+// Returns:
+//   - string: the console text.
 func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 	stringBuilder := strings.Builder{}
 
@@ -154,6 +167,17 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 	return stringBuilder.String()
 }
 
+// writeContainer writes the items of a container value on one line.
+//
+// A struct or map is written as { key: value, ... } and a slice or array as
+// [ value, ... ].
+//
+// Parameters:
+//   - stringBuilder: the builder to write to.
+//   - node: the container node whose items to write.
+//
+// Returns:
+//   - int: the length of the written text, without color codes.
 func (r ConsoleTreeRenderer) writeContainer(
 	stringBuilder *strings.Builder,
 	node *ContainerNode,

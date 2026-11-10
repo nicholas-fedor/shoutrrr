@@ -29,14 +29,17 @@ const (
 )
 
 // RenderTree renders a ContainerNode tree into a markdown documentation string.
-// It categorizes fields into URL fields and query/param fields, sorts them appropriately,
-// and generates formatted markdown documentation including URL structure and field descriptions.
+//
+// The fields are split into URL fields and query or param props. URL fields
+// are listed in URL order, each with its place in the URL. Props are listed
+// required ones first, with their defaults, aliases, and possible values.
 //
 // Parameters:
 //   - root: The container node tree containing all field information to render.
 //   - scheme: The URL scheme (e.g., "https", "smtp") used when displaying URL field examples.
 //
-// Returns a formatted markdown documentation string.
+// Returns:
+//   - string: the markdown documentation.
 func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) string {
 	stringBuilder := strings.Builder{}
 
@@ -75,7 +78,7 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 	urlFields = append(urlFields, dynamicURLFields...)
 
 	// Sort urlFields by their primary URLPart to ensure consistent ordering.
-	// The order follows the URL structure: user, password, host, port, path.
+	// The order follows the URL structure, from the user to the path.
 	sort.SliceStable(urlFields, func(i, j int) bool {
 		urlPartA := URLQuery
 		if len(urlFields[i].URLParts) > 0 {

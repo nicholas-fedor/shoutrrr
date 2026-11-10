@@ -102,6 +102,6 @@
 // FieldInfo: Metadata about configuration fields including type, constraints, and
 // formatting information.
 //
-// EnumFormatter: Interface for handling enumerated configuration values with
-// named options.
+// EnumFormatter: Formatter that reads and writes enumerated configuration
+// values by their names.
 package format

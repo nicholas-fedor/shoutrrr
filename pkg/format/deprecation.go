@@ -21,6 +21,7 @@ type Deprecation struct {
 // deprecatedFieldPair holds the field indexes of a deprecated field and its
 // replacement.
 type deprecatedFieldPair struct {
+	// Deprecation names the deprecated field and its replacement.
 	Deprecation
 
 	// deprecated is the index of the deprecated field.
@@ -92,9 +93,10 @@ func SyncDeprecatedFields(config types.ServiceConfig) ([]Deprecation, error) {
 }
 
 // moveDeprecatedFields copies the deprecated fields of a struct into their
-// replacements and then clears them. A later sync in GetURL then has nothing
-// to copy back into a replacement changed after the move. A struct with
-// invalid tags is left unchanged.
+// replacements and then clears them.
+//
+// A later sync in GetURL then has nothing to copy back into a replacement
+// changed after the move. A struct with invalid tags is left unchanged.
 //
 // Parameters:
 //   - structValue: the addressable struct value.
