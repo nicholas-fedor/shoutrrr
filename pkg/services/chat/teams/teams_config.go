@@ -45,7 +45,8 @@ func (c *Config) GetURL() *url.URL {
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
-//     or a query prop error. The webhook URL is validated when sending.
+//     a query prop error, or [ErrInvalidWebhookURL] for a webhook URL that is
+//     not a Power Automate workflow webhook URL.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -70,7 +71,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from the query of a URL using the provided
-// resolver, applying only the config keys.
+// resolver, applying only the config keys, and then checks it.
 //
 // Parameters:
 //   - resolver: the resolver that sets the config props from the query.
@@ -78,7 +79,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
-//     or a query prop error.
+//     a query prop error, or [ErrInvalidWebhookURL] for a webhook URL that is
+//     not a Power Automate workflow webhook URL.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Color = ""
 	c.Title = ""
@@ -100,5 +102,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	return format.ApplyQuery(resolver, configQuery)
+	if err := format.ApplyQuery(resolver, configQuery); err != nil {
+		return err
+	}
+
+	return c.validate()
+}
+
+// validate checks the config's webhook URL when a URL is read and on each send.
+//
+// A config without a webhook URL passes, since a send param can set one. A send
+// without one fails with [ErrMissingHost].
+//
+// Returns:
+//   - error: [ErrInvalidWebhookURL] for a webhook URL that is not a Power
+//     Automate workflow webhook URL, or nil.
+func (c *Config) validate() error {
+	if c.Host == "" {
+		return nil
+	}
+
+	return ValidateWebhookURL(c.Host)
 }

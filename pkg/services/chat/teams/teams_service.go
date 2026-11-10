@@ -69,8 +69,9 @@ func (s *Service) GetID() string {
 //   - logger: the logger for service output.
 //
 // Returns:
-//   - error: the error from applying the default props or reading the URL.
-//     The webhook URL is validated when sending.
+//   - error: the error from applying the default props or reading the URL,
+//     including [ErrInvalidWebhookURL] for a webhook URL that is not a Power
+//     Automate workflow webhook URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -130,14 +131,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 // ServiceTimeout reports the send budget of Teams.
 //
+// Parameters:
+//   - *types.Params: unused, since the budget does not depend on params.
+//
 // Returns:
 //   - time.Duration: [defaultHTTPTimeout], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// SetHTTPClient sets a custom HTTP client for the service.
+//
+// A nil client, including a nil *http.Client, selects the default client.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
@@ -182,14 +187,15 @@ func colorToEnum(color string) string {
 //   - message: the message to send.
 //
 // Returns:
-//   - error: [ErrMissingHost], a validation error, [ErrSendFailed] wrapping the
-//     request error, or [ErrSendFailedStatus] for a non-success status.
+//   - error: [ErrMissingHost], [ErrInvalidWebhookURL], [ErrSendFailed]
+//     wrapping the request error, or [ErrSendFailedStatus] for a non-success
+//     status.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	if config.Host == "" {
 		return ErrMissingHost
 	}
 
-	if err := ValidateWebhookURL(config.Host); err != nil {
+	if err := config.validate(); err != nil {
 		return err
 	}
 

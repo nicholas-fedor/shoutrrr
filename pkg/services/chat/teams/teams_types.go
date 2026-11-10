@@ -27,7 +27,8 @@ type adaptiveCardContent struct {
 	Type string `json:"type"`
 	// Version is the Adaptive Card schema version.
 	Version string `json:"version"`
-	// Body holds the card's blocks: the title, when set, and the message.
+	// Body holds the card's blocks, which are the title when it is set and then
+	// the message.
 	Body []adaptiveBlock `json:"body"`
 }
 
