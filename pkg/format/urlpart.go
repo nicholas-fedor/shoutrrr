@@ -10,7 +10,10 @@ import (
 // URLPart is an indicator as to what part of an URL a field is serialized to.
 type URLPart int
 
-// The parts of a URL that a field can be serialized to, in URL order.
+// The parts of a URL that a field can be serialized to.
+//
+// URLQuery comes first as the zero value, and the parts after it follow URL
+// order from the user to the path.
 const (
 	// URLQuery is the query, where every field without a URL part goes.
 	URLQuery URLPart = iota

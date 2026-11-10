@@ -357,8 +357,11 @@ func TestConvertFormatUnsupported(t *testing.T) {
 	}
 }
 
-// TestConvertFormatEmptyInputs verifies that every conversion of an empty body
-// returns an empty body.
+// TestConvertFormatEmptyInputs verifies the result of converting an empty
+// body.
+//
+// Markdown to HTML returns a <br> tag, and every other conversion returns an
+// empty body.
 func TestConvertFormatEmptyInputs(t *testing.T) {
 	t.Parallel()
 
