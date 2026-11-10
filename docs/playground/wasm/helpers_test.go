@@ -12,13 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
-
-// testSetFieldStruct is used by setFieldFromString tests.
-type testSetFieldStruct struct {
-	Name    string
-	Enabled bool
-}
 
 func TestClassifyType(t *testing.T) {
 	t.Parallel()
@@ -92,12 +87,15 @@ func TestURLPartToString(t *testing.T) {
 		})
 	}
 
-	t.Run("handles path offsets greater than URLPath", func(t *testing.T) {
+	t.Run("names later path segments as format reads them", func(t *testing.T) {
 		t.Parallel()
 
-		parts := []format.URLPart{format.URLPath + 1}
-		result := urlPartToString(parts)
-		assert.Equal(t, "path1", result)
+		for _, part := range []format.URLPart{format.URLPath, format.URLPath + 1, format.URLPath + 2} {
+			name := urlPartToString([]format.URLPart{part})
+			assert.Equal(t, part, format.ParseURLPart(name), name)
+		}
+
+		assert.Equal(t, "path2", urlPartToString([]format.URLPart{format.URLPath + 1}))
 	})
 }
 
@@ -118,138 +116,21 @@ func TestGetEnumNames(t *testing.T) {
 	})
 }
 
-func TestSetFieldFromString(t *testing.T) {
+// TestConfigField verifies that a field is found by its Go name, and that a
+// name the config does not have finds nothing.
+func TestConfigField(t *testing.T) {
 	t.Parallel()
 
-	t.Run("sets string field", func(t *testing.T) {
-		t.Parallel()
+	r := router.ServiceRouter{}
+	service, err := r.NewService("mqtt")
+	require.NoError(t, err)
 
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Name", "hello")
-		require.NoError(t, err)
-		assert.Equal(t, "hello", s.Name)
-	})
+	config := format.GetServiceConfig(service)
 
-	t.Run("sets bool field from Yes", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "Yes")
-		require.NoError(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from No", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "No")
-		require.NoError(t, err)
-		assert.False(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from true", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "true")
-		require.NoError(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from false", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "false")
-		require.NoError(t, err)
-		assert.False(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from 1", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "1")
-		require.NoError(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from 0", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "0")
-		require.NoError(t, err)
-		assert.False(t, s.Enabled)
-	})
-
-	t.Run("returns error for invalid field name", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "NonExistent", "value")
-		require.Error(t, err)
-		assert.Empty(t, s.Name)
-	})
-
-	t.Run("sets bool field from lowercase yes", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "yes")
-		require.NoError(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from uppercase TRUE", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "TRUE")
-		require.NoError(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("sets bool field from uppercase FALSE", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "FALSE")
-		require.NoError(t, err)
-		assert.False(t, s.Enabled)
-	})
-
-	t.Run("returns error for invalid bool input", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "invalid")
-		require.Error(t, err)
-		assert.True(t, s.Enabled)
-	})
-
-	t.Run("returns error for numeric invalid bool input", func(t *testing.T) {
-		t.Parallel()
-
-		s := testSetFieldStruct{Enabled: true}
-		val := reflect.ValueOf(&s).Elem()
-		err := setFieldFromString(val, "Enabled", "2")
-		require.Error(t, err)
-		assert.True(t, s.Enabled)
-	})
+	field := configField(config, "Port")
+	require.NotNil(t, field)
+	assert.Equal(t, "Port", field.Name)
+	assert.Nil(t, configField(config, "NoSuchField"))
 }
 
 func TestHelpersMarshalError(t *testing.T) {
