@@ -4,6 +4,9 @@ Upstream docs: <https://github.com/Finb/Bark>
 
 ## URL Format
 
+!!! info ""
+    bark://:__`DEVICE_KEY`__@__`HOST`__[:__`PORT`__][/__`PATH`__]
+
 --8<-- "docs/services/push/bark/config.md"
 
 ## TLS

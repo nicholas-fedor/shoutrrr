@@ -44,7 +44,7 @@ ColorWarn  uint            The color of the left border for warning messages    
 JSON       bool            Whether to send the whole message as the JSON payload instead of using it as the 'content' field  <Default: No>
 SplitLines bool            Whether to send each line as a separate embedded item        <Default: Yes>
 ThreadID   string          The thread ID to send the message to
-Title      string
+Title      string          The title of the first embedded item
 Token      string                                                                       <URL: User> <Required>
 Username   string          Override the webhook default username
 WebhookID  string                                                                       <URL: Host> <Required>
@@ -59,47 +59,47 @@ shoutrrr docs --format markdown discord
 ```markdown title="Expected Result"
 ### URL Fields
 
-*  __Token__ (**Required**)
-<br>URL part: <code class="service-url">discord://<strong>TOKEN</strong>@WEBHOOK_ID/</code>
-*  __WebhookID__ (**Required**)
-<br>URL part: <code class="service-url">discord://TOKEN@<strong>WEBHOOK_ID</strong>/</code>
+* __Token__ (__Required__)
+<br>URL part: User
+* __WebhookID__ (__Required__)
+<br>URL part: Host
 
 ### Query/Param Props
 
-Props can be either supplied using the params argument, or through the URL using
+Props can be either supplied using the params argument or through the URL using
 `?key=value&key=value` etc.
 
-*  __Avatar__ - Override the webhook default avatar with specified URL
+* __avatar__ - Override the webhook default avatar with specified URL
   Default: *empty*
   Aliases: `avatarurl`
 
-*  __Color__ - The color of the left border for plain messages
+* __color__ - The color of the left border for plain messages
   Default: `0x50D9ff`
 
-*  __ColorDebug__ - The color of the left border for debug messages
+* __colordebug__ - The color of the left border for debug messages
   Default: `0x7b00ab`
 
-*  __ColorError__ - The color of the left border for error messages
+* __colorerror__ - The color of the left border for error messages
   Default: `0xd60510`
 
-*  __ColorInfo__ - The color of the left border for info messages
+* __colorinfo__ - The color of the left border for info messages
   Default: `0x2488ff`
 
-*  __ColorWarn__ - The color of the left border for warning messages
+* __colorwarn__ - The color of the left border for warning messages
   Default: `0xffc441`
 
-*  __JSON__ - Whether to send the whole message as the JSON payload instead of using it as the 'content' field
+* __json__ - Whether to send the whole message as the JSON payload instead of using it as the 'content' field
   Default: ❌ `No`
 
-*  __SplitLines__ - Whether to send each line as a separate embedded item
+* __splitlines__ - Whether to send each line as a separate embedded item
   Default: ✔ `Yes`
 
-*  __ThreadID__ - The thread ID to send the message to
+* __thread_id__ - The thread ID to send the message to
   Default: *empty*
 
-*  __Title__
+* __title__ - The title of the first embedded item
   Default: *empty*
 
-*  __Username__ - Override the webhook default username
+* __username__ - Override the webhook default username
   Default: *empty*
 ```

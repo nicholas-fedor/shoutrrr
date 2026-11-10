@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 // MarkdownTreeRenderer renders a ContainerNode tree into a markdown documentation string.
@@ -31,16 +30,15 @@ const (
 // RenderTree renders a ContainerNode tree into a markdown documentation string.
 //
 // The fields are split into URL fields and query or param props. URL fields
-// are listed in URL order, each with its place in the URL. Props are listed
+// are listed in URL order, each with the URL part it fills. Props are listed
 // required ones first, with their defaults, aliases, and possible values.
 //
 // Parameters:
 //   - root: The container node tree containing all field information to render.
-//   - scheme: The URL scheme (e.g., "https", "smtp") used when displaying URL field examples.
 //
 // Returns:
 //   - string: the markdown documentation.
-func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) string {
+func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 	stringBuilder := strings.Builder{}
 
 	// Initialize slices to categorize fields by their URL part types.
@@ -94,7 +92,7 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 	})
 
 	// Generate the URL Fields section.
-	r.writeURLFields(&stringBuilder, urlFields, scheme)
+	r.writeURLFields(&stringBuilder, urlFields)
 
 	// Add blank line between URL Fields section and Query/Param Props section.
 	if len(urlFields) > 0 {
@@ -267,21 +265,17 @@ func (r MarkdownTreeRenderer) writeHeader(stringBuilder *strings.Builder, text s
 	stringBuilder.WriteString("\n\n")
 }
 
-// writeURLFields writes the URL Fields section with an example URL for each field.
+// writeURLFields writes the URL Fields section, naming the URL part of each
+// field.
 //
-// Each example shows the whole URL with the field's part in bold. Every part is
-// an uppercase placeholder named after its field, such as WEBHOOK_ID for a
-// WebhookID field. The port of a host field is PORT.
+// The service page's URL format box shows the whole URL, so each field names
+// its part instead of drawing the URL again. A field held in two parts, such
+// as a host and its port, names both.
 //
 // Parameters:
 //   - stringBuilder: The string builder to append the formatted output to.
 //   - urlFields: The list of fields that are part of the URL.
-//   - scheme: The URL scheme to use in the example URLs.
-func (r MarkdownTreeRenderer) writeURLFields(
-	stringBuilder *strings.Builder,
-	urlFields []*FieldInfo,
-	scheme string,
-) {
+func (r MarkdownTreeRenderer) writeURLFields(stringBuilder *strings.Builder, urlFields []*FieldInfo) {
 	// Track which fields have been printed to avoid duplicates.
 	fieldsPrinted := make(map[string]bool)
 
@@ -298,140 +292,16 @@ func (r MarkdownTreeRenderer) writeURLFields(
 		// Write the primary field information.
 		r.writeFieldPrimary(stringBuilder, field)
 
-		// Write the URL example on a new line within the same list item.
-		stringBuilder.WriteString("<br>URL part: <code class=\"service-url\">")
-		stringBuilder.WriteString(scheme)
-		stringBuilder.WriteString("://")
-
-		// Detect the presence of user and password fields for proper URL formatting.
-		hasUser := false
-		hasPassword := false
-		// Track the highest URLPart to determine if trailing slash is needed.
-		maxPart := URLUser
-
-		for _, f := range urlFields {
-			if f != nil {
-				for _, part := range f.URLParts {
-					switch part {
-					case URLQuery, URLHost, URLPort, URLPath: // No-op for these cases.
-					case URLUser:
-						hasUser = true
-					case URLPassword:
-						hasPassword = true
-					}
-
-					// Update the maximum URLPart encountered.
-					if part > maxPart {
-						maxPart = part
-					}
-				}
-			}
+		labels := make([]string, len(field.URLParts))
+		for i, part := range field.URLParts {
+			labels[i] = part.label()
 		}
 
-		// Build the URL with the current field highlighted.
-		// Iterate through the URL parts up to the highest one present to construct the complete URL structure.
-		for i := URLUser; i <= maxPart; i++ {
-			for _, fieldInfo := range urlFields {
-				// Skip fields that don't correspond to the current URL part.
-				if fieldInfo == nil || !fieldInfo.IsURLPart(i) {
-					continue
-				}
-
-				// Add the appropriate separator between URL components.
-				if i > URLUser {
-					lastPart := i - 1
-					if lastPart == URLPassword && (hasUser || hasPassword) {
-						// Add ':' separator only if credentials are present.
-						stringBuilder.WriteRune(lastPart.Suffix())
-					} else if lastPart != URLPassword {
-						// Add standard separators like '/' or '@'.
-						stringBuilder.WriteRune(lastPart.Suffix())
-					}
-				}
-
-				slug := placeholderName(fieldInfo.Name)
-				// The port of a host field is written as its own placeholder.
-				if slug == "HOST" && i == URLPort {
-					slug = "PORT"
-				}
-
-				// Highlight the current field with bold HTML tags.
-				if fieldInfo == field {
-					stringBuilder.WriteString("<strong>")
-					stringBuilder.WriteString(slug)
-					stringBuilder.WriteString("</strong>")
-				} else {
-					stringBuilder.WriteString(slug)
-				}
-
-				break
-			}
-		}
-
-		// Add a trailing '/' when the URL has no path.
-		if maxPart < URLPath {
-			stringBuilder.WriteByte('/')
-		}
-
-		stringBuilder.WriteString("</code>\n")
+		stringBuilder.WriteString("<br>URL part: ")
+		stringBuilder.WriteString(strings.Join(labels, " and "))
+		stringBuilder.WriteString("\n")
 
 		// Mark this field as printed to avoid duplicates.
 		fieldsPrinted[field.Name] = true
-	}
-}
-
-// placeholderName returns the uppercase placeholder for a field name, with an
-// underscore between its words.
-//
-// An uppercase letter after a lowercase letter or a digit starts a word. So
-// does a digit after a letter, and the last uppercase letter of an acronym
-// when two lowercase letters follow it. WebhookID becomes WEBHOOK_ID, APIKey
-// becomes API_KEY, and Path1 becomes PATH_1. A plural acronym such as IDs
-// stays one word.
-//
-// Parameters:
-//   - name: the Go name of the field.
-//
-// Returns:
-//   - string: the placeholder.
-func placeholderName(name string) string {
-	runes := []rune(name)
-	placeholder := strings.Builder{}
-	placeholder.Grow(len(name) + len(runes)/2)
-
-	for i, current := range runes {
-		if i > 0 && startsWord(runes[i-1], current, runes[i+1:]) {
-			placeholder.WriteByte('_')
-		}
-
-		placeholder.WriteRune(unicode.ToUpper(current))
-	}
-
-	return placeholder.String()
-}
-
-// startsWord reports whether a rune of a field name starts a new word.
-//
-// Parameters:
-//   - previous: the rune before current.
-//   - current: the rune to check.
-//   - rest: the runes after current.
-//
-// Returns:
-//   - bool: true when current starts a new word.
-func startsWord(previous, current rune, rest []rune) bool {
-	switch {
-	case unicode.IsUpper(current):
-		if unicode.IsLower(previous) || unicode.IsDigit(previous) {
-			return true
-		}
-
-		// The last letter of an acronym starts the word that follows it, unless
-		// a single lowercase letter makes the acronym plural.
-		return unicode.IsUpper(previous) && len(rest) > 1 && unicode.IsLower(rest[0]) && unicode.IsLower(rest[1])
-	case unicode.IsDigit(current):
-		return unicode.IsLetter(previous)
-	default:
-		return false
 	}
 }

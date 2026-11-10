@@ -86,6 +86,20 @@ func TestURLPartSuffix(t *testing.T) {
 	assert.Equal(t, '/', (URLPath + 1).Suffix())
 }
 
+// TestURLPartLabel verifies the name the docs give each URL part, with path
+// segments after the first named by their position.
+func TestURLPartLabel(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "User", URLUser.label())
+	assert.Equal(t, "Password", URLPassword.label())
+	assert.Equal(t, "Host", URLHost.label())
+	assert.Equal(t, "Port", URLPort.label())
+	assert.Equal(t, "Path", URLPath.label())
+	assert.Equal(t, "Path 2", (URLPath + 1).label())
+	assert.Equal(t, "Path 3", ParseURLPart("path3").label())
+}
+
 // TestURLPartString verifies the name of each URL part, and the fallback for
 // a value without one.
 func TestURLPartString(t *testing.T) {
