@@ -34,6 +34,36 @@ func TestGenerateURLString(t *testing.T) {
 			wantSubstr: []string{"ntfy://", "ntfy.sh/mytopic"},
 		},
 		{
+			name:       "sets an int URL field by name",
+			service:    "mqtt",
+			configJSON: `{"Host":"broker.example.com","Port":"1884","Topic":"alerts"}`,
+			wantSubstr: []string{"broker.example.com:1884"},
+		},
+		{
+			name:       "sets a list URL field by name",
+			service:    "pushbullet",
+			configJSON: `{"Token":"tokentokentokentokentokentokentoke","Targets":"device1,device2"}`,
+			wantSubstr: []string{"device1", "device2"},
+		},
+		{
+			name:       "skips an empty value",
+			service:    "mqtt",
+			configJSON: `{"Host":"broker.example.com","Port":"","Topic":"alerts"}`,
+			wantSubstr: []string{"broker.example.com/alerts"},
+		},
+		{
+			name:        "rejects a key that names no field",
+			service:     "mqtt",
+			configJSON:  `{"Host":"broker.example.com","NoSuchField":"x","Topic":"alerts"}`,
+			wantErrResp: true,
+		},
+		{
+			name:        "rejects an int URL field that does not parse",
+			service:     "mqtt",
+			configJSON:  `{"Host":"broker.example.com","Port":"high","Topic":"alerts"}`,
+			wantErrResp: true,
+		},
+		{
 			name:        "rejects a webhook URL that does not parse",
 			service:     "generic",
 			configJSON:  `{"WebhookURL":"example.com/%zz"}`,

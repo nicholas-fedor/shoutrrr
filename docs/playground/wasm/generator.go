@@ -67,12 +67,19 @@ func generateURLString(serviceName, configJSON string) string {
 		}
 
 		if err := pkr.Set(key, value); err != nil {
-			if field := configValue.FieldByName(key); field.IsValid() && field.CanSet() {
-				if setErr := setFieldFromString(configValue, key, value); setErr != nil {
-					return marshalError(fmt.Errorf("invalid config %q=%q: %w", key, value, err))
-				}
-			} else {
+			// A field without a query key, such as a URL part, is set by its
+			// Go name.
+			field := configField(config, key)
+			if field == nil {
 				return marshalError(fmt.Errorf("invalid config %q=%q: %w", key, value, err))
+			}
+
+			if valid, setErr := format.SetConfigField(configValue, field, value); !valid {
+				if setErr == nil {
+					setErr = format.ErrInvalidValueForType
+				}
+
+				return marshalError(fmt.Errorf("invalid config %q=%q: %w", key, value, setErr))
 			}
 		}
 	}

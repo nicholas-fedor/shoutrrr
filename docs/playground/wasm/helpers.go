@@ -2,42 +2,33 @@ package main
 
 import (
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // urlTypeName is the reflected type name for *url.URL fields,
 // used to identify services that require a webhook URL.
 const urlTypeName = "*url.URL"
 
-// errFieldNotFound is returned when a config field does not exist.
-var errFieldNotFound = errors.New("field not found")
-
-// errFieldNotSettable is returned when a config field cannot be set.
-var errFieldNotSettable = errors.New("field not settable")
-
-// errInvalidBoolValue is returned when a bool field receives an invalid value.
-var errInvalidBoolValue = errors.New("invalid bool value")
-
-// errInvalidUintValue is returned when a uint field receives an unparseable value.
-var errInvalidUintValue = errors.New("invalid uint value")
-
-// errUnsupportedFieldType is returned when a field type is unsupported for string assignment.
-var errUnsupportedFieldType = errors.New("unsupported field type for string assignment")
-
 // classifyType returns a human-readable type string for typ.
-// If isEnum is true, returns "enum" regardless of the underlying kind.
-// time.Duration is classified as "string" to allow duration values like "10s".
 //
-//nolint:exhaustive // Only handling common config field types.
+// An enum is "enum" whatever its kind. A time.Duration is "string", so the
+// form takes values such as "10s".
+//
+// Parameters:
+//   - typ: the field's Go type.
+//   - isEnum: whether the field is an enum.
+//
+// Returns:
+//   - string: "enum", "string", "bool", "int", "uint", "array", "map", or the
+//     kind's name for any other type.
 func classifyType(typ reflect.Type, isEnum bool) string {
 	if isEnum {
 		return "enum"
@@ -48,26 +39,37 @@ func classifyType(typ reflect.Type, isEnum bool) string {
 		return "string"
 	}
 
-	switch typ.Kind() {
-	case reflect.String:
+	kind := typ.Kind()
+
+	switch {
+	case kind == reflect.String:
 		return "string"
-	case reflect.Bool:
+	case kind == reflect.Bool:
 		return "bool"
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case util.IsSignedInt(kind):
 		return "int"
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case util.IsUnsignedInt(kind):
 		return "uint"
-	case reflect.Slice, reflect.Array:
+	case util.IsCollection(kind):
 		return "array"
-	case reflect.Map:
+	case kind == reflect.Map:
 		return "map"
 	default:
-		return typ.Kind().String()
+		return kind.String()
 	}
 }
 
-// urlPartToString converts a slice of URLPart values to a comma-separated
-// string representation (e.g., "user,password" for URLUser and URLPassword).
+// urlPartToString names URL parts as a comma-separated list, such as
+// "user,password" for URLUser and URLPassword.
+//
+// Each name is the one a `url` struct tag uses, so [format.ParseURLPart] reads
+// it back as the same part. The second path segment is "path2".
+//
+// Parameters:
+//   - parts: the URL parts of a field.
+//
+// Returns:
+//   - string: the part names, or empty for no parts.
 func urlPartToString(parts []format.URLPart) string {
 	if len(parts) == 0 {
 		return ""
@@ -90,8 +92,9 @@ func urlPartToString(parts []format.URLPart) string {
 			names[i] = "query"
 		default:
 			if part > format.URLPath {
-				offset := int(part - format.URLPath)
-				names[i] = fmt.Sprintf("path%d", offset)
+				// The first path segment is "path", so a later one is named by
+				// its position, as format.ParseURLPart reads it.
+				names[i] = fmt.Sprintf("path%d", int(part-format.URLPath)+1)
 			} else {
 				names[i] = fmt.Sprintf("unknown(%d)", part)
 			}
@@ -110,51 +113,23 @@ func getEnumNames(ef types.EnumFormatter) []string {
 	return ef.Names()
 }
 
-// setFieldFromString sets configValue[fieldName] to value using reflection.
-// Supports string, bool, and unsigned integer field types. Bool values are
-// parsed via format.ParseBool(). Unsigned integers are parsed via
-// strconv.ParseUint using the field's bit size. Returns an error if the field
-// is invalid, cannot be set, or the value cannot be parsed for the field type.
+// configField finds the field of a config by its Go name.
 //
-//nolint:exhaustive // uint kinds handled; all others fallback to default.
-func setFieldFromString(configValue reflect.Value, fieldName, value string) error {
-	field := configValue.FieldByName(fieldName)
-	if !field.IsValid() {
-		return fmt.Errorf("%w: %q", errFieldNotFound, fieldName)
-	}
-
-	if !field.CanSet() {
-		return fmt.Errorf("%w: %q", errFieldNotSettable, fieldName)
-	}
-
-	switch field.Kind() {
-	case reflect.String:
-		field.SetString(value)
-
-		return nil
-	case reflect.Bool:
-		bv, ok := format.ParseBool(value, false)
-		if !ok {
-			return fmt.Errorf("%w: %q for field %q", errInvalidBoolValue, value, fieldName)
+// Parameters:
+//   - config: the config.
+//   - name: the Go name of the field.
+//
+// Returns:
+//   - *format.FieldInfo: the field, or nil when the config has no field of that
+//     name.
+func configField(config types.ServiceConfig, name string) *format.FieldInfo {
+	for _, node := range format.GetConfigFormat(config).Items {
+		if field := node.Field(); field.Name == name {
+			return field
 		}
-
-		field.SetBool(bv)
-
-		return nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		bits := field.Type().Bits()
-
-		parsed, err := strconv.ParseUint(value, 10, bits)
-		if err != nil {
-			return fmt.Errorf("%w: %q for field %q: %w", errInvalidUintValue, value, fieldName, err)
-		}
-
-		field.SetUint(parsed)
-
-		return nil
-	default:
-		return fmt.Errorf("%w: %s for field %q", errUnsupportedFieldType, field.Kind(), fieldName)
 	}
+
+	return nil
 }
 
 // marshalError serializes err as a JSON errorResult.
