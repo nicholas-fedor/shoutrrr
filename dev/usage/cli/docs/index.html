@@ -2872,7 +2872,7 @@ ColorWarn<span class="w">  </span>uint<span class="w">            </span>The<spa
 JSON<span class="w">       </span>bool<span class="w">            </span>Whether<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>the<span class="w"> </span>whole<span class="w"> </span>message<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span>JSON<span class="w"> </span>payload<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>using<span class="w"> </span>it<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span><span class="s1">'content'</span><span class="w"> </span>field<span class="w">  </span>&lt;Default:<span class="w"> </span>No&gt;
 SplitLines<span class="w"> </span>bool<span class="w">            </span>Whether<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>each<span class="w"> </span>line<span class="w"> </span>as<span class="w"> </span>a<span class="w"> </span>separate<span class="w"> </span>embedded<span class="w"> </span>item<span class="w">        </span>&lt;Default:<span class="w"> </span>Yes&gt;
 ThreadID<span class="w">   </span>string<span class="w">          </span>The<span class="w"> </span>thread<span class="w"> </span>ID<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>the<span class="w"> </span>message<span class="w"> </span>to
-Title<span class="w">      </span>string
+Title<span class="w">      </span>string<span class="w">          </span>The<span class="w"> </span>title<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>first<span class="w"> </span>embedded<span class="w"> </span>item
 Token<span class="w">      </span>string<span class="w">                                                                       </span>&lt;URL:<span class="w"> </span>User&gt;<span class="w"> </span>&lt;Required&gt;
 Username<span class="w">   </span>string<span class="w">          </span>Override<span class="w"> </span>the<span class="w"> </span>webhook<span class="w"> </span>default<span class="w"> </span>username
 WebhookID<span class="w">  </span>string<span class="w">                                                                       </span>&lt;URL:<span class="w"> </span>Host&gt;<span class="w"> </span>&lt;Required&gt;
@@ -2882,48 +2882,48 @@ WebhookID<span class="w">  </span>string<span class="w">                        
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Result</span><pre><span></span><code><span class="gu">### URL Fields</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__Token__</span> (<span class="gs">**Required**</span>)
-&lt;br&gt;URL part: &lt;code class="service-url"&gt;discord://&lt;strong&gt;TOKEN&lt;/strong&gt;@WEBHOOK_ID/&lt;/code&gt;
-<span class="k">*</span><span class="w"> </span> <span class="gs">__WebhookID__</span> (<span class="gs">**Required**</span>)
-&lt;br&gt;URL part: &lt;code class="service-url"&gt;discord://TOKEN@&lt;strong&gt;WEBHOOK_ID&lt;/strong&gt;/&lt;/code&gt;
+<span class="k">*</span><span class="w"> </span><span class="gs">__Token__</span> (<span class="gs">__Required__</span>)
+&lt;br&gt;URL part: User
+<span class="k">*</span><span class="w"> </span><span class="gs">__WebhookID__</span> (<span class="gs">__Required__</span>)
+&lt;br&gt;URL part: Host
 
 <span class="gu">### Query/Param Props</span>
 
-Props can be either supplied using the params argument, or through the URL using
+Props can be either supplied using the params argument or through the URL using
 <span class="sb">`?key=value&amp;key=value`</span> etc.
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__Avatar__</span> - Override the webhook default avatar with specified URL
+<span class="k">*</span><span class="w"> </span><span class="gs">__avatar__</span> - Override the webhook default avatar with specified URL
   Default: <span class="ge">*empty*</span>
   Aliases: <span class="sb">`avatarurl`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__Color__</span> - The color of the left border for plain messages
+<span class="k">*</span><span class="w"> </span><span class="gs">__color__</span> - The color of the left border for plain messages
   Default: <span class="sb">`0x50D9ff`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__ColorDebug__</span> - The color of the left border for debug messages
+<span class="k">*</span><span class="w"> </span><span class="gs">__colordebug__</span> - The color of the left border for debug messages
   Default: <span class="sb">`0x7b00ab`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__ColorError__</span> - The color of the left border for error messages
+<span class="k">*</span><span class="w"> </span><span class="gs">__colorerror__</span> - The color of the left border for error messages
   Default: <span class="sb">`0xd60510`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__ColorInfo__</span> - The color of the left border for info messages
+<span class="k">*</span><span class="w"> </span><span class="gs">__colorinfo__</span> - The color of the left border for info messages
   Default: <span class="sb">`0x2488ff`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__ColorWarn__</span> - The color of the left border for warning messages
+<span class="k">*</span><span class="w"> </span><span class="gs">__colorwarn__</span> - The color of the left border for warning messages
   Default: <span class="sb">`0xffc441`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__JSON__</span> - Whether to send the whole message as the JSON payload instead of using it as the 'content' field
+<span class="k">*</span><span class="w"> </span><span class="gs">__json__</span> - Whether to send the whole message as the JSON payload instead of using it as the 'content' field
   Default: ❌ <span class="sb">`No`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__SplitLines__</span> - Whether to send each line as a separate embedded item
+<span class="k">*</span><span class="w"> </span><span class="gs">__splitlines__</span> - Whether to send each line as a separate embedded item
   Default: ✔ <span class="sb">`Yes`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__ThreadID__</span> - The thread ID to send the message to
+<span class="k">*</span><span class="w"> </span>__thread_id__ - The thread ID to send the message to
   Default: <span class="ge">*empty*</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__Title__</span>
+<span class="k">*</span><span class="w"> </span><span class="gs">__title__</span> - The title of the first embedded item
   Default: <span class="ge">*empty*</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__Username__</span> - Override the webhook default username
+<span class="k">*</span><span class="w"> </span><span class="gs">__username__</span> - Override the webhook default username
   Default: <span class="ge">*empty*</span>
 </code></pre></div>
 
@@ -2948,7 +2948,7 @@ Props can be either supplied using the params argument, or through the URL using
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 04:03:31 UTC"><span class="timeago" datetime="2026-11-10T04:03:31+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 04:03:31 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 05:23:34 UTC"><span class="timeago" datetime="2026-11-10T05:23:34+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 05:23:34 UTC">2026-11-10</span>
   </span>
 
     
