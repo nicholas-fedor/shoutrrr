@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Document every declaration in the format package by @nicholas-fedor in [#2131](https://github.com/nicholas-fedor/shoutrrr/pull/2131)
 - Use one placeholder convention for service URLs by @nicholas-fedor in [#2127](https://github.com/nicholas-fedor/shoutrrr/pull/2127)
 - Rewrite test comments in short sentences by @nicholas-fedor in [#2125](https://github.com/nicholas-fedor/shoutrrr/pull/2125)
 - Correct why login auth fails on an extra challenge by @nicholas-fedor in [#2123](https://github.com/nicholas-fedor/shoutrrr/pull/2123)
