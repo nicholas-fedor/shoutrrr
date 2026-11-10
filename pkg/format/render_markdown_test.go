@@ -33,7 +33,7 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>/</code>\n\n" +
 				"### Query/Param Props\n\n" +
 				"* __name__\n  Default: `notempty`\n",
 		},
@@ -57,13 +57,13 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/path1/path2/path3</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>/PATH_1/PATH_2/PATH_3</code>\n" +
 				"* __Path1__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host/<strong>path1</strong>/path2/path3</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST/<strong>PATH_1</strong>/PATH_2/PATH_3</code>\n" +
 				"* __Path2__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host/path1/<strong>path2</strong>/path3</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST/PATH_1/<strong>PATH_2</strong>/PATH_3</code>\n" +
 				"* __Path3__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host/path1/path2/<strong>path3</strong></code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST/PATH_1/PATH_2/<strong>PATH_3</strong></code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -78,15 +78,15 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __User__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>user</strong>:pass@host:port/token/target</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>USER</strong>:PASS@HOST:PORT/TOKEN/TARGET</code>\n" +
 				"* __Pass__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://user:<strong>pass</strong>@host:port/token/target</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://USER:<strong>PASS</strong>@HOST:PORT/TOKEN/TARGET</code>\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://user:pass@<strong>host</strong>:<strong>port</strong>/token/target</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://USER:PASS@<strong>HOST</strong>:<strong>PORT</strong>/TOKEN/TARGET</code>\n" +
 				"* __Token__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/<strong>token</strong>/target</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://USER:PASS@HOST:PORT/<strong>TOKEN</strong>/TARGET</code>\n" +
 				"* __Target__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/token/<strong>target</strong></code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://USER:PASS@HOST:PORT/TOKEN/<strong>TARGET</strong></code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -98,9 +98,9 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>:<strong>port</strong>/topic</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>:<strong>PORT</strong>/TOPIC</code>\n" +
 				"* __Topic__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host:port/<strong>topic</strong></code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST:PORT/<strong>TOPIC</strong></code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -113,11 +113,11 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/path1/path5</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>/PATH_1/PATH_5</code>\n" +
 				"* __Path1__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host/<strong>path1</strong>/path5</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST/<strong>PATH_1</strong>/PATH_5</code>\n" +
 				"* __Path5__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://host/path1/<strong>path5</strong></code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://HOST/PATH_1/<strong>PATH_5</strong></code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -129,9 +129,9 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __User__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>user</strong>@host/</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>USER</strong>@HOST/</code>\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://user@<strong>host</strong>/</code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://USER@<strong>HOST</strong>/</code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -143,9 +143,23 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Token__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>token</strong>:<strong>token</strong>@host/</code>\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>TOKEN</strong>:<strong>TOKEN</strong>@HOST/</code>\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://token:token@<strong>host</strong>/</code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://TOKEN:TOKEN@<strong>HOST</strong>/</code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "field names of several words",
+			renderer: renderer,
+			config: &struct {
+				Token     string `url:"user"`
+				WebhookID string `url:"host"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Token__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>TOKEN</strong>@WEBHOOK_ID/</code>\n" +
+				"* __WebhookID__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://TOKEN@<strong>WEBHOOK_ID</strong>/</code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{
@@ -190,7 +204,7 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 			}{},
 			want: "### URL Fields\n\n" +
 				"* __Host__ (__Required__)\n" +
-				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>/</code>\n\n" +
 				"### Query/Param Props\n\nThere is nothing to set!",
 		},
 		{
@@ -236,5 +250,39 @@ func TestMarkdownTreeRendererWriteURLFields(t *testing.T) {
 	MarkdownTreeRenderer{}.writeURLFields(&out, []*FieldInfo{host, nil, host}, "mock")
 
 	assert.Equal(t, "URL Fields\n\n* __Host__ (__Required__)\n"+
-		"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n", out.String())
+		"<br>URL part: <code class=\"service-url\">mock://<strong>HOST</strong>/</code>\n", out.String())
+}
+
+// TestPlaceholderName verifies the placeholder for field names of service
+// configs, whose words may hold acronyms and digits.
+func TestPlaceholderName(t *testing.T) {
+	t.Parallel()
+
+	// tests maps field names to the placeholders they should give.
+	tests := map[string]string{
+		"":               "",
+		"Host":           "HOST",
+		"ID":             "ID",
+		"WebhookID":      "WEBHOOK_ID",
+		"WebHookID":      "WEB_HOOK_ID",
+		"APIKey":         "API_KEY",
+		"AccountSID":     "ACCOUNT_SID",
+		"TokenA":         "TOKEN_A",
+		"ToNumbers":      "TO_NUMBERS",
+		"IntegrationKey": "INTEGRATION_KEY",
+		"Path1":          "PATH_1",
+		"Value1Key":      "VALUE_1_KEY",
+		"ChatIDs":        "CHAT_IDS",
+		"URLs":           "URLS",
+		"IDsKey":         "IDS_KEY",
+		"Path_Name":      "PATH_NAME",
+	}
+
+	for name, want := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, want, placeholderName(name))
+		})
+	}
 }

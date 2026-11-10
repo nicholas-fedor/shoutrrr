@@ -60,9 +60,9 @@ shoutrrr docs --format markdown discord
 ### URL Fields
 
 *  __Token__ (**Required**)
-<br>URL part: <code class="service-url">discord://<strong>token</strong>@webhookid/</code>
+<br>URL part: <code class="service-url">discord://<strong>TOKEN</strong>@WEBHOOK_ID/</code>
 *  __WebhookID__ (**Required**)
-<br>URL part: <code class="service-url">discord://token@<strong>webhookid</strong>/</code>
+<br>URL part: <code class="service-url">discord://TOKEN@<strong>WEBHOOK_ID</strong>/</code>
 
 ### Query/Param Props
 
