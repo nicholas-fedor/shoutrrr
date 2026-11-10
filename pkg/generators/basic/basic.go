@@ -8,9 +8,7 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -94,7 +92,8 @@ func (g *Generator) formatPrompt(field *format.FieldInfo) string {
 // getInputValue retrieves the value for a field from props or user input.
 //
 // A prop is used once. When its value is rejected, the field is prompted for
-// instead. When the input ends, an optional field takes its default value, while
+// instead. An answer is returned as typed, and the caller parses it. When the
+// input ends, an optional field takes its default value, while
 // a required field without a default, or a field whose earlier value was
 // rejected, fails with [generator.ErrInputClosed].
 //
@@ -108,7 +107,9 @@ func (g *Generator) formatPrompt(field *format.FieldInfo) string {
 //
 // Returns:
 //   - string: the value for the field.
-//   - error: a validation error, a read error, or [generator.ErrInputClosed].
+//   - error: an error wrapping [ErrRequiredFieldMissing] for an empty answer to
+//     a required field without a default, a read error, or
+//     [generator.ErrInputClosed].
 func (g *Generator) getInputValue(
 	field *format.FieldInfo,
 	propKey string,
@@ -150,23 +151,6 @@ func (g *Generator) getInputValue(
 			}
 
 			return "", nil
-		}
-
-		// More specific type validation
-		if field.Type != nil {
-			kind := field.Type.Kind()
-
-			switch {
-			case field.Type == reflect.TypeFor[time.Duration]():
-				if _, err := time.ParseDuration(input); err != nil {
-					return "", fmt.Errorf("invalid duration value for %s: %w", field.Name, err)
-				}
-			case kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
-				kind == reflect.Int32 || kind == reflect.Int64:
-				if _, err := strconv.ParseInt(input, 10, field.Type.Bits()); err != nil {
-					return "", fmt.Errorf("invalid integer value for %s: %w", field.Name, err)
-				}
-			}
 		}
 
 		return input, nil
