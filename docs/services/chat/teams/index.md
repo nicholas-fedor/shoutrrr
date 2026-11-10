@@ -8,19 +8,18 @@
 
     Shoutrrr now uses Power Automate workflow incoming webhooks exclusively.
     Existing configurations using the old URL format must be migrated to the new
-    `teams://?host=<workflow URL>` format documented below.
+    `teams://?host=WORKFLOW_URL` format documented below.
 
 ## URL Format
 
-```text
-teams://?host=<Power Automate workflow URL>[&color=<hex color>][&title=<title>]
-```
+!!! info ""
+    teams://?host=__`WORKFLOW_URL`__[&color=__`COLOR`__][&title=__`TITLE`__]
 
 Where:
 
-- `host`: The full Power Automate workflow incoming webhook URL (required).
-- `color` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
-- `title` *(optional)*: Title displayed as a bold header in the Adaptive Card.
+- `WORKFLOW_URL`: The full Power Automate workflow incoming webhook URL, percent-encoded (required).
+- `COLOR` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
+- `TITLE` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
 --8<-- "docs/services/chat/teams/config.md"
 
@@ -38,13 +37,13 @@ For more information, see the
 Teams/Power Automate workflow webhook URL:
 
 ```text
-https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
+https://prod-00.westus.logic.azure.com:443/workflows/WORKFLOW_ID/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=SIGNATURE
 ```
 
 Shoutrrr URL:
 
 ```text
-teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2Fabc123%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX&title=Alert
+teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2FWORKFLOW_ID%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DSIGNATURE&title=Alert
 ```
 
 In this example:

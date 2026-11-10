@@ -40,12 +40,21 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 ## Examples
 
+The examples send to a Discord webhook, and the last one also sends to a Slack webhook.
+Replace the following:
+
+- `TOKEN`: the token of the Discord webhook
+- `WEBHOOK_ID`: the ID of the Discord webhook
+- `WEBHOOK_TOKEN`: the part of the Slack webhook URL after `/services/`, with each slash replaced by a hyphen
+
+The [Discord](../../../services/chat/discord/index.md) and [Slack](../../../guides/slack/index.md) pages show where to find these values.
+
 <!-- markdownlint-disable -->
 ### Send a Notification to a Single Service URL
 
 !!! Example
     ```bash title="Send Command with Discord URL"
-    shoutrrr send --url "discord://abc123@123456789" --message "Hello, Discord!"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello, Discord!"
     ```
 
     ```text title="Expected Output"
@@ -56,7 +65,7 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Title"
-    shoutrrr send --url "discord://abc123@123456789" --message "Hello, Discord!" --title "Test Notification"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello, Discord!" --title "Test Notification"
     ```
 
     ```text title="Expected Output"
@@ -67,11 +76,11 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Verbose Output"
-    shoutrrr send --url "discord://abc123@123456789" --message "Hello, Discord!" --verbose
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello, Discord!" --verbose
     ```
 
     ```text title="Expected Output"
-    URLs: discord://REDACTED@123456789
+    URLs: discord://REDACTED@WEBHOOK_ID
     Message: Hello, Discord!
     Notification sent
     ```
@@ -80,7 +89,7 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Stdin Input"
-    echo "Hello from stdin!" | shoutrrr send --url "discord://abc123@123456789" --message -
+    echo "Hello from stdin!" | shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message -
     ```
 
     ```text title="Expected Output"
@@ -93,7 +102,7 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Multiple URLs"
-    shoutrrr send --url "discord://abc123@123456789" --url "discord://abc123@123456789" --message "Hello!"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --url "discord://TOKEN@WEBHOOK_ID" --message "Hello!"
     ```
 
     ```text title="Expected Output"
@@ -104,11 +113,11 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Verbose and Multiple URLs"
-    shoutrrr send --url "discord://abc123@123456789" --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" --message "Hello!" --verbose
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --url "slack://hook:WEBHOOK_TOKEN@webhook" --message "Hello!" --verbose
     ```
 
     ```text title="Expected Output"
-    URLs: discord://REDACTED@123456789
+    URLs: discord://REDACTED@WEBHOOK_ID
           slack://hook:REDACTED@webhook
     Message: Hello!
     Notification sent

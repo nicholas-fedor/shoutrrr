@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    rocketchat://[__`username`__@]__`rocketchat-host`__/__`token`__[/__`channel`&#124;`@recipient`__]*
+    rocketchat://[__`USERNAME`__@]__`HOST`__/__`INTEGRATION_ID`__/__`TOKEN`__[/__`CHANNEL`__&#124;@__`USER`__][?disabletls=yes][&skiptlsverify=yes]
 
 --8<-- "docs/services/chat/rocketchat/config.md"
 
@@ -37,9 +37,9 @@ Shoutrrr logs a warning the first time a send goes out without TLS, and the firs
 6. Format the service URL
 
 ```url
-rocketchat://your-domain.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX
-                             └────────────────────────────────────────────────────────────────┘
-                                                           token
+rocketchat://rocketchat.example.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX
+                                    └────────────────────────────────────────────────────────────────┘
+                                                                  token
 ```
 
 ## Additional URL configuration
@@ -49,13 +49,13 @@ Rocket.chat provides functionality to post as another user or to another channel
 To do this, you can add a *sender* and/or *channel* / *receiver* to the service URL.
 
 ```
-rocketchat://shoutrrrUser@your-domain.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX/shoutrrrChannel
-             └──────────┘                 └────────────────────────────────────────────────────────────────┘ └─────────────┘
-                sender                                                   token                                   channel
+rocketchat://shoutrrrUser@rocketchat.example.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX/shoutrrrChannel
+             └──────────┘                        └────────────────────────────────────────────────────────────────┘ └─────────────┘
+                sender                                                          token                                   channel
 
-rocketchat://shoutrrrUser@your-domain.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX/@shoutrrrReceiver
-             └──────────┘                 └────────────────────────────────────────────────────────────────┘ └───────────────┘
-                sender                                                   token                                    receiver
+rocketchat://shoutrrrUser@rocketchat.example.com/8eGdRzc9r4YYNyvge/2XYQcX9NBwJBKfQnphpebPcnXZcPEi32Nt4NKJfrnbhsbRfX/@shoutrrrReceiver
+             └──────────┘                        └────────────────────────────────────────────────────────────────┘ └───────────────┘
+                sender                                                          token                                    receiver
 ```
 
 ## Passing parameters via code

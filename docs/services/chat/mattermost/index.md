@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    mattermost://[__`username`__@]__`mattermost-host`__/__`token`__[/__`channel`__][?icon=__`smiley`__&disabletls=__`yes`__&skiptlsverify=__`yes`__]
+    mattermost://[__`USERNAME`__@]__`HOST`__/__`TOKEN`__[/__`CHANNEL`__][?icon=__`ICON`__][&disabletls=yes][&skiptlsverify=yes]
 
 --8<-- "docs/services/chat/mattermost/config.md"
 
@@ -40,12 +40,12 @@ Shoutrrr logs a warning the first time a send goes out without TLS, and the firs
 6. Format the service URL
 
 ```url
-https://your-domain.com/hooks/bywsw8zt5jgpte3nm65qjiru6h
-                              └────────────────────────┘
-                                        token
-mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h
-                             └────────────────────────┘
+https://mattermost.example.com/hooks/bywsw8zt5jgpte3nm65qjiru6h
+                                     └────────────────────────┘
                                        token
+mattermost://mattermost.example.com/bywsw8zt5jgpte3nm65qjiru6h
+                                    └────────────────────────┘
+                                      token
 ```
 
 ## Additional URL configuration
@@ -55,9 +55,9 @@ Mattermost provides functionality to post as another user or to another channel,
 To do this, you can add a *user* and/or *channel* to the service URL.
 
 ```url
-mattermost://shoutrrrUser@your-domain.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrChannel
-             └──────────┘                 └────────────────────────┘ └─────────────┘
-                 user                               token                channel
+mattermost://shoutrrrUser@mattermost.example.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrChannel
+             └──────────┘                        └────────────────────────┘ └─────────────┘
+                 user                                      token                channel
 ```
 
 The channel can also be `@username` to send a direct message to that user.
@@ -72,13 +72,13 @@ You can customize the notification icon using the `icon` query parameter. The ic
 ### Emoji Icon
 
 ```url
-mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=rocket
+mattermost://mattermost.example.com/TOKEN?icon=rocket
 ```
 
 ### URL Icon
 
 ```url
-mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=https://example.com/logo.png
+mattermost://mattermost.example.com/TOKEN?icon=https://example.com/logo.png
 ```
 
 ## Passing parameters via code

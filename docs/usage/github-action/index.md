@@ -12,14 +12,16 @@ Add the action to your `.github/workflows` YAML file.
 - name: Shoutrrr
   uses: nicholas-fedor/shoutrrr-action@v1
   with:
-    url: <SERVICE_URL>
-    title: <NOTIFICATION_TITLE>
-    message: <NOTIFICATION_MESSAGE>
+    url: SERVICE_URL
+    title: NOTIFICATION_TITLE
+    message: NOTIFICATION_MESSAGE
 ```
+
+Replace `SERVICE_URL`, `NOTIFICATION_TITLE`, and `NOTIFICATION_MESSAGE` with the values that the following table describes.
 
 | Input     | Description                                                                                   | Required |
 |-----------|-----------------------------------------------------------------------------------------------|----------|
-| `url`     | The Shoutrrr service URL (e.g., `discord://token@webhookid`). Use secrets for sensitive data. | Yes      |
+| `url`     | The Shoutrrr service URL (e.g., `discord://TOKEN@WEBHOOK_ID`). Use secrets for sensitive data. | Yes      |
 | `title`   | The notification title (optional, for services that support it).                              | No       |
 | `message` | The notification message body.                                                                | Yes      |
 

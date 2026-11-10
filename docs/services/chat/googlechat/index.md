@@ -5,18 +5,18 @@
 Your Google Chat Incoming Webhook URL will look like this:
 
 !!! info ""
-    <https://chat.googleapis.com/v1/spaces/__`FOO`__/messages?key=__`bar`__&token=__`baz`>__
+    https://chat.googleapis.com/v1/spaces/__`SPACE_ID`__/messages?key=__`KEY`__&token=__`TOKEN`__
 
 The shoutrrr service URL should look like this:
 
 !!! info ""
-    googlechat://chat.googleapis.com/v1/spaces/__`FOO`__/messages?key=__`bar`__&token=__`baz`__
+    googlechat://chat.googleapis.com/v1/spaces/__`SPACE_ID`__/messages?key=__`KEY`__&token=__`TOKEN`__
 
 In other words the incoming webhook URL with `https` replaced by `googlechat`.
 
 The space path, `key`, and `token` are all required.
 Google Chat includes them in every webhook URL.
-The host can be left out, as in `googlechat:///v1/spaces/FOO/messages?key=bar&token=baz`, in which case `chat.googleapis.com` is used.
+The host can be left out, as in `googlechat:///v1/spaces/SPACE_ID/messages?key=KEY&token=TOKEN`, in which case `chat.googleapis.com` is used.
 
 Google Chat was previously known as Hangouts Chat. Using `hangouts` in
 the service URL instead `googlechat` is still supported, although

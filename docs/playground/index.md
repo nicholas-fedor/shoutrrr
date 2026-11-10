@@ -47,7 +47,7 @@ hide:
           <input
             type="text"
             id="url-input"
-            placeholder="discord://token@webhookID?color=0x50D9ff"
+            placeholder="discord://TOKEN@WEBHOOK_ID?color=0x50D9ff"
             aria-label="Shoutrrr URL to parse"
             autocomplete="off"
           />

@@ -11,12 +11,12 @@ The XMPP service supports two URL schemes for connection security:
 - __`xmpp://`__: STARTTLS on port 5222 by default
 
 !!! Info ""
-    xmpp://__`user`__:__`password`__@__`host`__[:__`port`__]/?to=__`jid`__[&rooms=__`roomjid`__]
+    xmpp://__`USER`__:__`PASSWORD`__@__`HOST`__[:__`PORT`__]/?to=__`JID`__[&rooms=__`ROOM_JID`__]
 
 - __`xmpps://`__: implicit TLS on port 5223 by default
 
 !!! Info ""
-    xmpps://__`user`__:__`password`__@__`host`__[:__`port`__]/?to=__`jid`__[&rooms=__`roomjid`__]
+    xmpps://__`USER`__:__`PASSWORD`__@__`HOST`__[:__`PORT`__]/?to=__`JID`__[&rooms=__`ROOM_JID`__]
 
 --8<-- "docs/services/chat/xmpp/config.md"
 
@@ -26,8 +26,8 @@ At least one of `to` or `rooms` is required.
 
 The URL userinfo is the login identity:
 
-- A localpart (`alice`) becomes `alice@host`.
-- A full JID (`alice%40jabber.example.com`) is used as-is, while `host` remains the TCP dial target.
+- A localpart (`alice`) becomes `alice@HOST`.
+- A full JID (`alice%40jabber.example.com`) is used as-is, while `HOST` remains the TCP dial target.
 
 ```
 xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com

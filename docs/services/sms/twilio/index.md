@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    twilio://__`accountSID`__:__`authToken`__@__`fromNumber`__/__`toNumber`__[/__`toNumber2`__/...]
+    twilio://__`ACCOUNT_SID`__:__`AUTH_TOKEN`__@__`FROM_NUMBER`__/__`TO_NUMBER_1`__[/__`TO_NUMBER_2`__/...]
 
 --8<-- "docs/services/sms/twilio/config.md"
 
@@ -22,16 +22,16 @@ An Account SID is `AC` followed by 32 hexadecimal characters, and a URL with any
 
 ### Phone Number Format
 
-Phone numbers should be in [E.164 format](https://www.twilio.com/docs/glossary/what-e164) (e.g. `+15551234567`).
+Phone numbers should be in [E.164 format](https://www.twilio.com/docs/glossary/what-e164) (e.g. `+18005550100`).
 Common formatting characters such as spaces, dashes, parentheses, and dots are
-automatically stripped, so `+1 (555) 123-4567` and `+1.555.123.4567` are also accepted.
+automatically stripped, so `+1 (800) 555-0100` and `+1.800.555.0100` are also accepted.
 
 ### Multiple Recipients
 
 You can send the same message to multiple recipients by adding additional phone numbers to the URL path:
 
 ```uri
-twilio://AC0123456789abcdef0123456789abcdef:token@+15551234567/+15559876543/+15551111111/+15552222222
+twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@+18005550100/+18005550101/+18005550102/+18005550103
 ```
 
 Each recipient receives an independent API call. If delivery fails for one
@@ -43,7 +43,7 @@ returned together.
 Instead of a phone number, you can use a [Twilio Messaging Service SID](https://www.twilio.com/docs/messaging/services) as the sender. Messaging Service SIDs start with `MG`:
 
 ```uri
-twilio://AC0123456789abcdef0123456789abcdef:token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
+twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@MG0123456789abcdef0123456789abcdef/+18005550101
 ```
 
 This is useful when you want Twilio to manage sender selection, opt-out handling,
@@ -51,27 +51,27 @@ or when sending from a pool of numbers.
 
 ## Examples
 
-The examples use a sample Account SID, which has the format the service checks.
-Replace it and the auth token with the values from your Twilio Console.
+The examples use a sample Account SID and Messaging Service SID, which have the format the service checks.
+Replace them and `AUTH_TOKEN` with the values from your Twilio Console.
 
 !!! example "Basic SMS"
     ```uri
-    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543
+    twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@+18005550100/+18005550101
     ```
 
 !!! example "Multiple recipients"
     ```uri
-    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543/+15551111111
+    twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@+18005550100/+18005550101/+18005550102
     ```
 
 !!! example "Using a Messaging Service SID"
     ```uri
-    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
+    twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@MG0123456789abcdef0123456789abcdef/+18005550101
     ```
 
 !!! example "SMS with title"
     ```uri
-    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543?title=Server+Alert
+    twilio://AC0123456789abcdef0123456789abcdef:AUTH_TOKEN@+18005550100/+18005550101?title=Server+Alert
     ```
 
 ## Optional Parameters

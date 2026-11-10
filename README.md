@@ -131,10 +131,19 @@ Projects importing Shoutrrr are expected to follow the latest Go minor and/or pa
 
 ## Usage
 
+The examples send to a Slack webhook, and some also send to a Discord webhook.
+Replace the following:
+
+- `WEBHOOK_TOKEN`: the part of the Slack webhook URL after `/services/`, with each slash replaced by a hyphen
+- `TOKEN`: the token of the Discord webhook
+- `WEBHOOK_ID`: the ID of the Discord webhook
+
+The [services overview](https://shoutrrr.nickfedor.com/latest/services/overview/) links each service's page, which shows where to find these values.
+
 ### CLI
 
 ```bash
-shoutrrr send --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" --message "Hello, Slack!"
+shoutrrr send --url "slack://hook:WEBHOOK_TOKEN@webhook" --message "Hello, Slack!"
 ```
 
 ### Go Package Usage
@@ -142,7 +151,7 @@ shoutrrr send --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@w
 ```go
 import "github.com/nicholas-fedor/shoutrrr"
 
-err := shoutrrr.Send("slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook", "Hello, Slack!")
+err := shoutrrr.Send("slack://hook:WEBHOOK_TOKEN@webhook", "Hello, Slack!")
 if err != nil {
     // Handle the error
 }
@@ -151,7 +160,7 @@ if err != nil {
 ### Docker
 
 ```bash
-docker run --rm nickfedor/shoutrrr:latest send --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" --message "Hello, Slack!"
+docker run --rm nickfedor/shoutrrr:latest send --url "slack://hook:WEBHOOK_TOKEN@webhook" --message "Hello, Slack!"
 ```
 
 ### GitHub Action Usage
@@ -163,7 +172,7 @@ See installation example [above](#github-action).
 #### Option 1 - Using the direct send command
 
 ```go
-url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
+url := "slack://hook:WEBHOOK_TOKEN@webhook"
 err := shoutrrr.Send(url, "Hello world (or slack channel) !")
 ```
 
@@ -183,7 +192,7 @@ err := shoutrrr.SendContext(ctx, url, "Hello world (or slack channel) !", &param
 ##### Single URL
 
 ```go
-url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
+url := "slack://hook:WEBHOOK_TOKEN@webhook"
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
 if err != nil {
     log.Fatal(err)
@@ -200,7 +209,7 @@ for i, err := range sender.Send("Hello world (or slack channel) !", &params) { /
 
 ```go
 urls := []string{
-    "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
+    "slack://hook:WEBHOOK_TOKEN@webhook",
     "discord://TOKEN@WEBHOOK_ID",
 }
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)

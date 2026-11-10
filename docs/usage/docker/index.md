@@ -41,12 +41,21 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 
 ## Examples
 
+The examples use a Discord webhook and a Slack webhook.
+Replace the following:
+
+- `TOKEN`: the token of the Discord webhook
+- `WEBHOOK_ID`: the ID of the Discord webhook
+- `WEBHOOK_TOKEN`: the part of the Slack webhook URL after `/services/`, with each slash replaced by a hyphen
+
+The [Discord](../../services/chat/discord/index.md) and [Slack](../../guides/slack/index.md) pages show where to find these values.
+
 <!-- markdownlint-disable -->
 ### Send a Notification
 
 !!! Example
     ```bash title="Send to Discord"
-    docker run --rm nickfedor/shoutrrr:latest send --url "discord://abc123@123456789" --message "Hello, Docker!"
+    docker run --rm nickfedor/shoutrrr:latest send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello, Docker!"
     ```
 
     ```text title="Expected Output"
@@ -63,19 +72,19 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
     ```text title="Expected Prompt Inputs"
     Generating URL for discord using basic generator
 
-    Token: abc123
-    WebhookID: 123456789
+    Token: TOKEN
+    WebhookID: WEBHOOK_ID
     ```
 
     ```text title="Expected Output"
-    URL: discord://abc123@123456789
+    URL: discord://TOKEN@WEBHOOK_ID
     ```
 
 ### Verify a URL
 
 !!! Example
     ```bash title="Verify Slack URL"
-    docker run --rm nickfedor/shoutrrr:latest verify --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
+    docker run --rm nickfedor/shoutrrr:latest verify --url "slack://hook:WEBHOOK_TOKEN@webhook"
     ```
 
     ```text title="Expected Output (abridged)"
@@ -88,7 +97,7 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 
 !!! Example
     ```bash title="Send with Env Vars and Stdin"
-    echo "Message from stdin" | docker run --rm -i -e SHOUTRRR_URL="slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" -e SHOUTRRR_MESSAGE="-" nickfedor/shoutrrr:latest send
+    echo "Message from stdin" | docker run --rm -i -e SHOUTRRR_URL="slack://hook:WEBHOOK_TOKEN@webhook" -e SHOUTRRR_MESSAGE="-" nickfedor/shoutrrr:latest send
     ```
 
     ```text title="Expected Output"

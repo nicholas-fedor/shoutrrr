@@ -3,28 +3,30 @@
 ## URL Format
 
 !!! info ""
-    pushover://shoutrrr:__`apiToken`__@__`userKey`__/?devices=__`device1`__[,__`device2`__, ...]
+    pushover://shoutrrr:__`API_TOKEN`__@__`USER_KEY`__/[?devices=__`DEVICE_1`__[,__`DEVICE_2`__,...]]
 
 --8<-- "docs/services/push/pushover/config.md"
 
 ## Getting the keys from Pushover
 
-At your [Pushover dashboard](https://pushover.net/) you can view your __`userKey`__ in the top right.
+At your [Pushover dashboard](https://pushover.net/) you can view your __`USER_KEY`__ in the top right.
 ![Screenshot 1](po-1.png)
 
-The `Name` column of the device list is what is used to refer to your devices (__`device1`__ etc.)
+The `Name` column of the device list is what is used to refer to your devices (__`DEVICE_1`__ etc.)
 ![Screenshot 4](po-4.png)
 
-At the bottom of the same page there are links your _applications_, where you can find your __`apiToken`__
+At the bottom of the same page there are links your _applications_, where you can find your __`API_TOKEN`__
 ![Screenshot 2](po-2.png)
 
-The __`apiToken`__ is displayed at the top of the application page.
+The __`API_TOKEN`__ is displayed at the top of the application page.
 ![Screenshot 3](po-3.png)
 
 ## Optional parameters
 
 You can optionally specify the __`title`__ and __`priority`__ parameters in the URL:
-_pushover://shoutrrr:__`token`__@__`userKey`__/?devices=__`device`__&title=Custom+Title&priority=1_
+
+!!! info ""
+    pushover://shoutrrr:__`API_TOKEN`__@__`USER_KEY`__/?devices=__`DEVICE`__&title=Custom+Title&priority=1
 
 The priority is a number from -2 (lowest) to 2 (emergency), and other values are rejected.
 
@@ -41,7 +43,7 @@ They are sent only with emergency priority.
 !!! Example "Emergency notification that repeats every minute for half an hour"
 
     ```uri
-    pushover://shoutrrr:token@userKey/?priority=2&retry=1m&expire=30m
+    pushover://shoutrrr:API_TOKEN@USER_KEY/?priority=2&retry=1m&expire=30m
     ```
 
 ### Message time
@@ -79,7 +81,10 @@ openssl rand -hex 32
 
 Then include it in the service URL:
 
-_pushover://shoutrrr:__`token`__@__`userKey`__/?encryptionkey=__`64-char-hex`___
+!!! info ""
+    pushover://shoutrrr:__`API_TOKEN`__@__`USER_KEY`__/?encryptionkey=__`ENCRYPTION_KEY`__
+
+Replace `ENCRYPTION_KEY` with the 64 hexadecimal characters that the command prints.
 
 `key` is accepted as an alias for `encryptionkey`.
 A valid key enables encryption automatically.

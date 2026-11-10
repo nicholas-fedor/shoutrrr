@@ -30,6 +30,9 @@ Supply a custom `*http.Client` (with custom `Transport`, `DialContext`, TLS conf
 
 Use `shoutrrr.NewSenderWithOptions` (or `CreateSenderWithOptions`, `router.NewWithOptions`).
 
+The examples on this page send to a Discord webhook.
+Replace `TOKEN` and `WEBHOOK_ID` with its token and ID, which the [Discord](../../services/chat/discord/index.md) page shows how to find.
+
 ```go title="Configure Custom HTTP Client for SSRF Protection"
 package main
 
@@ -95,7 +98,7 @@ func main() {
    // Timeout: 30 * time.Second, // optional per-router override
   }
 
- url := "discord://abc123@123456789"
+ url := "discord://TOKEN@WEBHOOK_ID"
  sender, err := shoutrrr.NewSenderWithOptions(nil, opts, url)
  if err != nil {
   log.Fatal(err)
@@ -126,7 +129,7 @@ func main() {
 !!! Example
     ```bash title="Set Proxy and Send Notification"
     export HTTPS_PROXY="socks5://localhost:1337"
-    shoutrrr send --url "discord://abc123@123456789" --message "Hello via proxy!"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello via proxy!"
     ```
 
     ```text title="Expected Output"
@@ -181,7 +184,7 @@ func main() {
         }
         custom := &http.Client{Transport: transport}
 
-        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom, DialContext: transport.DialContext}, "discord://abc123@123456789")
+        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom, DialContext: transport.DialContext}, "discord://TOKEN@WEBHOOK_ID")
         if err != nil {
             log.Fatal(err)
         }

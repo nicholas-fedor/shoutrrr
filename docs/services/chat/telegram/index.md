@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    telegram://__`token`__@telegram?chats=__`channel-1`__[,__`chat-id-1`__,...]
+    telegram://__`TOKEN`__@telegram?chats=__`CHAT_1`__[,__`CHAT_2`__,...]
 
 --8<-- "docs/services/chat/telegram/config.md"
 
@@ -67,7 +67,7 @@ A longer message fails before any request is sent.
 You can optionally specify the __`notification`__, __`parseMode`__ and __`preview`__ parameters in the URL:
 
 !!! info ""
-    <pre>telegram://__`token`__@__`telegram`__/?channels=__`channel`__&notification=no&preview=false&parseMode=html</pre>
+    telegram://__`TOKEN`__@telegram/?chats=__`CHAT`__&notification=no&preview=false&parseMode=html
 
 See [the telegram documentation](https://core.telegram.org/bots/api#sendmessage) for more information.
 
@@ -88,11 +88,11 @@ Since the markdown modes are really hard to escape correctly, it's recommended t
 
 By default, Shoutrrr sends requests to Telegram's own Bot API server at `https://api.telegram.org`.
 The `apiurl` param points it at another server, such as a [self-hosted Bot API server](https://github.com/tdlib/telegram-bot-api) or a proxy where Telegram's domains are blocked.
-Requests go to the given base URL followed by `/bot<token>/<method>`, so a proxy can serve the API under a path.
+Requests go to the given base URL followed by `/botTOKEN/METHOD`, so a proxy can serve the API under a path.
 
 !!! example "Self-hosted Bot API server"
     ```uri
-    telegram://token@telegram?chats=@channel&apiurl=http://localhost:8081
+    telegram://TOKEN@telegram?chats=@CHANNEL&apiurl=http://localhost:8081
     ```
 
 The URL must use `http` or `https` and have a host.

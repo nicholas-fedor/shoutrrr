@@ -24,9 +24,9 @@ The protocol is supported by many popular brokers:
 To send notifications via MQTT, you need a running MQTT broker and a topic to publish to.
 Topics use a hierarchical naming scheme with forward slashes (e.g., `home/alerts`, `sensors/temperature`).
 A URL without a host, such as `mqtt:///home/alerts`, connects to a broker on `localhost`.
-The topic is the URL path after its first slash, so a topic that starts with a slash, such as `/home/alerts`, which MQTT treats as distinct from `home/alerts`, is written with two: `mqtt://broker//home/alerts`.
+The topic is the URL path after its first slash, so a topic that starts with a slash, such as `/home/alerts`, which MQTT treats as distinct from `home/alerts`, is written with two: `mqtt://broker.example.com//home/alerts`.
 A topic name cannot contain the `+` or `#` wildcards, which MQTT only allows in subscriptions, so a URL with one in its topic is rejected.
-That includes a trailing `#`, such as `mqtt://broker/home/#`, which a URL reads as an empty fragment rather than part of the topic.
+That includes a trailing `#`, such as `mqtt://broker.example.com/home/#`, which a URL reads as an empty fragment rather than part of the topic.
 
 ## URL Formats
 
@@ -35,12 +35,12 @@ The MQTT service supports two URL schemes for connection security:
 - __`mqtt://`__: Standard unencrypted connection (port 1883 by default)
 
 !!! Info ""
-    mqtt://[[__`username`__][:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
+    mqtt://[[__`USERNAME`__][:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/__`TOPIC`__
 
 - __`mqtts://`__: TLS-encrypted connection (port 8883 by default)
 
 !!! Info ""
-    mqtts://[[__`username`__][:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
+    mqtts://[[__`USERNAME`__][:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/__`TOPIC`__
 
 --8<-- "docs/services/push/mqtt/config.md"
 
@@ -116,12 +116,12 @@ service.Send(message, &params)
 
 !!! Example "With Authentication"
     ```uri
-    mqtt://user:pass@broker.example.com:1883/home/alerts
+    mqtt://USERNAME:PASSWORD@broker.example.com:1883/home/alerts
     ```
 
 !!! Example "Secure Connection"
     ```uri
-    mqtts://user:pass@broker.example.com:8883/home/alerts
+    mqtts://USERNAME:PASSWORD@broker.example.com:8883/home/alerts
     ```
 
 !!! Example "With QoS and Retained Message"
@@ -141,10 +141,10 @@ service.Send(message, &params)
 
 !!! Example "Self-signed Certificate"
     ```uri
-    mqtts://broker.local:8883/secure/alerts?skiptlsverify=yes
+    mqtts://broker.example.com:8883/secure/alerts?skiptlsverify=yes
     ```
 
 !!! Example "Full Configuration"
     ```uri
-    mqtts://admin:secret@mqtt.example.com:8883/production/alerts?clientid=prod-shoutrrr&qos=1&retained=yes&cleansession=no
+    mqtts://USERNAME:PASSWORD@mqtt.example.com:8883/production/alerts?clientid=prod-shoutrrr&qos=1&retained=yes&cleansession=no
     ```

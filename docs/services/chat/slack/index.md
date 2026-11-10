@@ -2,7 +2,7 @@
 
 !!! attention "New URL format"
     The URL format for Slack has been changed to allow for API- as well as webhook tokens.
-    Using the old format (`slack://xxxx/yyyy/zzzz`) will still work as before and will automatically be upgraded to
+    Using the old format (`slack://WORKSPACE_ID/WEBHOOK_ID/WEBHOOK_TOKEN`) will still work as before and will automatically be upgraded to
     the new format when used.
 
 The Slack notification service uses either [Slack Webhooks](https://api.slack.com/messaging/webhooks) or the
