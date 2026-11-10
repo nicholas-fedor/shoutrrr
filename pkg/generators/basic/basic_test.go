@@ -305,31 +305,24 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		config  reflect.Value
+		config  *mockConfig
 		props   map[string]string
 		input   string
 		wantErr bool
 	}{
 		{
 			name:    "valid input with defaults",
-			config:  reflect.ValueOf(newMockServiceConfig().Config), // Pass *mockConfig
+			config:  newMockServiceConfig().Config,
 			props:   map[string]string{},
 			input:   "\n8080\n",
 			wantErr: false,
 		},
 		{
 			name:    "valid props",
-			config:  reflect.ValueOf(newMockServiceConfig().Config), // Pass *mockConfig
+			config:  newMockServiceConfig().Config,
 			props:   map[string]string{"host": "test.com", "port": "1234"},
 			input:   "",
 			wantErr: false,
-		},
-		{
-			name:    "invalid config type",
-			config:  reflect.ValueOf("not a config"),
-			props:   map[string]string{},
-			input:   "",
-			wantErr: true,
 		},
 	}
 
@@ -345,9 +338,8 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 				t.Errorf("promptUserForFields() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if err == nil && tt.config.Kind() == reflect.Pointer &&
-				tt.config.Type().Elem().Kind() == reflect.Struct {
-				got := tt.config.Interface().(*mockConfig)
+			if err == nil {
+				got := tt.config
 				if tt.props["host"] != "" && got.Host != tt.props["host"] {
 					t.Errorf("promptUserForFields() host = %v, want %v", got.Host, tt.props["host"])
 				}
@@ -371,7 +363,7 @@ func TestGenerator_promptUserForFieldsSkipsDeprecated(t *testing.T) {
 	config := &deprecatedFieldConfig{}
 	scanner := bufio.NewScanner(strings.NewReader("example\n"))
 
-	require.NoError(t, (&Generator{}).promptUserForFields(reflect.ValueOf(config), map[string]string{}, scanner))
+	require.NoError(t, (&Generator{}).promptUserForFields(config, map[string]string{}, scanner))
 	assert.Equal(t, "example", config.Name)
 	assert.Empty(t, config.OldName)
 }
@@ -628,8 +620,10 @@ func newMockServiceConfig() *mockServiceConfig {
 	}
 }
 
-// TestGenerator_NilConfigInitialization tests that a service with nil Config gets properly initialized.
-// This is a regression test for the nil config fix in basic.go:45-53.
+// TestGenerator_NilConfigInitialization verifies that a service built without a
+// config, as NewService builds it, gets a filled zero config back.
+//
+// The service does not keep the generated config.
 func TestGenerator_NilConfigInitialization(t *testing.T) {
 	t.Parallel()
 
@@ -728,24 +722,29 @@ func TestGenerator_NilConfigInitialization(t *testing.T) {
 					t.Errorf("Generate() port = %v, want %v", gotConfig.Port, tt.want.Port)
 				}
 
-				// Also verify that the service's internal Config field was initialized
-				if mockSvc, ok := tt.service.(*mockServiceNilConfig); ok {
-					if mockSvc.Config == nil {
-						t.Error("Generate() left service.Config nil, expected initialized config")
-					}
-
-					// Optionally verify Host/Port match
-					if mockSvc.Config != nil && mockSvc.Config.Host != tt.want.Host {
-						t.Errorf("service.Config.Host = %v, want %v", mockSvc.Config.Host, tt.want.Host)
-					}
-
-					if mockSvc.Config != nil && mockSvc.Config.Port != tt.want.Port {
-						t.Errorf("service.Config.Port = %v, want %v", mockSvc.Config.Port, tt.want.Port)
-					}
+				// The generated config is returned, and the service does not keep it.
+				if mockSvc, ok := tt.service.(*mockServiceNilConfig); ok && mockSvc.Config != nil {
+					t.Error("Generate() stored a config in service.Config, want it left nil")
 				}
 			}
 		})
 	}
+}
+
+// TestGenerator_FillsExistingConfig verifies that a service with a config gets
+// that config filled in and returned, rather than a new one.
+func TestGenerator_FillsExistingConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newMockServiceConfig()
+	g := &Generator{Input: strings.NewReader("")}
+
+	got, err := g.Generate(service, map[string]string{"host": "example.com", "port": "9090"}, nil)
+	require.NoError(t, err)
+
+	assert.Same(t, service.Config, got)
+	assert.Equal(t, "example.com", service.Config.Host)
+	assert.Equal(t, 9090, service.Config.Port)
 }
 
 // TestGenerator_DefaultsAndPropsOverrideExistingConfig tests that provided props
