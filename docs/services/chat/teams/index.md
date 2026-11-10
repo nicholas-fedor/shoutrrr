@@ -21,7 +21,8 @@ Where:
 - `COLOR` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
 - `TITLE` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
-Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a URL that cannot send.
+Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a webhook URL that the check rejects.
+The check covers only the start of the URL, so a URL that passes can still fail to send, for example with a wrong signature.
 The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on a `logic.azure.com` or `environment.api.powerplatform.com` host.
 A retired `webhook.office.com` connector URL is rejected.
 
