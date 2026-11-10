@@ -5,12 +5,18 @@ import (
 	"testing"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/gotify"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // benchConfigURL is an ntfy URL that sets keys of each kind the formatter
-// supports: strings, an enum, booleans, and string slices. ntfy has the most
-// keyed fields of any service, so its config is the costliest to reflect over.
+// supports.
+//
+// The kinds are strings, an enum, booleans, and string slices. ntfy has the
+// most keyed fields of any service, so its config is the costliest to reflect
+// over.
 const benchConfigURL = "ntfy://user:pass@ntfy.example.com/alerts?title=Backup&priority=high" +
 	"&tags=warning,skull&markdown=yes&cache=no&click=https://example.com" +
 	"&actions=view,Open,https://example.com;http,Ping,https://example.com/ping"
@@ -46,6 +52,48 @@ func BenchmarkPropKeyResolverSet(b *testing.B) {
 				if err := resolver.Set(kv.key, kv.value); err != nil {
 					b.Fatal(err)
 				}
+			}
+		})
+	}
+}
+
+// BenchmarkKeepsDefault measures checking whether a send keeps a property's
+// default, as services do on each send to map the message level.
+//
+// Discord's color and ntfy's priority have default tags that differ in text
+// from the printed value, so the check compares against the parsed default.
+// Gotify's priority default matches its printed value.
+func BenchmarkKeepsDefault(b *testing.B) {
+	// configs lists the service configs and the key each send checks.
+	configs := []struct {
+		config types.ServiceConfig
+		name   string
+		key    string
+	}{
+		{config: &discord.Config{}, name: "discord color", key: "color"},
+		{config: &ntfy.Config{}, name: "ntfy priority", key: "priority"},
+		{config: &gotify.Config{}, name: "gotify priority", key: "priority"},
+	}
+
+	// params are send params that set the level and a title, as a router send
+	// with a level does.
+	params := types.Params{types.LevelKey: "warn", types.TitleKey: "Backup"}
+
+	for _, tc := range configs {
+		b.Run(tc.name, func(b *testing.B) {
+			resolver := format.NewPropKeyResolver(tc.config)
+			if err := resolver.SetDefaultProps(tc.config); err != nil {
+				b.Fatal(err)
+			}
+
+			if !resolver.KeepsDefault(tc.config, &params, tc.key) {
+				b.Fatalf("%s: the default config does not keep its default", tc.name)
+			}
+
+			b.ReportAllocs()
+
+			for b.Loop() {
+				_ = resolver.KeepsDefault(tc.config, &params, tc.key)
 			}
 		})
 	}
