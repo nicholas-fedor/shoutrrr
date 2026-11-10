@@ -2839,21 +2839,22 @@
 <li>Specifies the service URL to validate. The URL is parsed to identify the service, and its configuration is checked for correctness.</li>
 </ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>Replace <code>TOKEN</code> and <code>WEBHOOK_ID</code> with the token and ID of a Discord webhook, which the <a href="../../../services/chat/discord/">Discord</a> page shows how to find.</p>
 <!-- markdownlint-disable -->
 <h3 id="verify_a_valid_discord_url">Verify a Valid Discord URL<a class="headerlink" href="#verify_a_valid_discord_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Discord URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span>
+<div class="highlight"><span class="filename">Verify Discord URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Token: REDACTED
-WebhookID: 123456789
+WebhookID: WEBHOOK_ID
 </code></pre></div>
 <p>Add <code>--show-sensitive</code> to display the token.</p>
 </div>
 <h3 id="verify_an_invalid_url">Verify an Invalid URL<a class="headerlink" href="#verify_an_invalid_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Invalid URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"invalid://abc123"</span>
+<div class="highlight"><span class="filename">Verify Invalid URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"invalid://TOKEN"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>error verifying URL: service not recognized
 </code></pre></div>
@@ -2889,7 +2890,7 @@ WebhookID: 123456789
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 03:10:02 UTC"><span class="timeago" datetime="2026-10-23T03:10:02+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 03:10:02 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

@@ -2927,11 +2927,19 @@
   <a href="../cli/#environment-variables">CLI environment variables</a> for the full list.</li>
 </ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>The examples use a Discord webhook and a Slack webhook.
+Replace the following:</p>
+<ul>
+<li><code>TOKEN</code>: the token of the Discord webhook</li>
+<li><code>WEBHOOK_ID</code>: the ID of the Discord webhook</li>
+<li><code>WEBHOOK_TOKEN</code>: the part of the Slack webhook URL after <code>/services/</code>, with each slash replaced by a hyphen</li>
+</ul>
+<p>The <a href="../../services/chat/discord/">Discord</a> and <a href="../../guides/slack/">Slack</a> pages show where to find these values.</p>
 <!-- markdownlint-disable -->
 <h3 id="send_a_notification">Send a Notification<a class="headerlink" href="#send_a_notification" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to Discord</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Docker!"</span>
+<div class="highlight"><span class="filename">Send to Discord</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Docker!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -2943,16 +2951,16 @@
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Prompt Inputs</span><pre><span></span><code>Generating URL for discord using basic generator
 
-Token: abc123
-WebhookID: 123456789
+Token: TOKEN
+WebhookID: WEBHOOK_ID
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URL: discord://abc123@123456789
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URL: discord://TOKEN@WEBHOOK_ID
 </code></pre></div>
 </div>
 <h3 id="verify_a_url">Verify a URL<a class="headerlink" href="#verify_a_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span>
+<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://hook:WEBHOOK_TOKEN@webhook"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output (abridged)</span><pre><span></span><code>BotName                                Bot name                                                     &lt;Aliases: username&gt;
 Channel  webhook                       Channel to send messages to in Cxxxxxxxxxx format            &lt;URL: Host&gt; &lt;Required&gt;
@@ -2962,7 +2970,7 @@ Channel  webhook                       Channel to send messages to in Cxxxxxxxxx
 <h3 id="send_from_stdin_with_environment_variables">Send from Stdin with Environment Variables<a class="headerlink" href="#send_from_stdin_with_environment_variables" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">"Message from stdin"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">"-"</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
+<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">"Message from stdin"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">"slack://hook:WEBHOOK_TOKEN@webhook"</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">"-"</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Reading from STDIN...
 Read 20 byte(s)
@@ -3010,7 +3018,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 17:23:37 UTC"><span class="timeago" datetime="2026-10-10T17:23:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 17:23:37 UTC">2026-10-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

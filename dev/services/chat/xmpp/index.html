@@ -2915,13 +2915,13 @@ Upstream docs: <a href="https://xmpp.org/">https://xmpp.org/</a></p>
 <li><strong><code>xmpp://</code></strong>: STARTTLS on port 5222 by default</li>
 </ul>
 <div class="admonition info">
-<p>xmpp://<strong><code>user</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/?to=<strong><code>jid</code></strong>[&amp;rooms=<strong><code>roomjid</code></strong>]</p>
+<p>xmpp://<strong><code>USER</code></strong>:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?to=<strong><code>JID</code></strong>[&amp;rooms=<strong><code>ROOM_JID</code></strong>]</p>
 </div>
 <ul>
 <li><strong><code>xmpps://</code></strong>: implicit TLS on port 5223 by default</li>
 </ul>
 <div class="admonition info">
-<p>xmpps://<strong><code>user</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/?to=<strong><code>jid</code></strong>[&amp;rooms=<strong><code>roomjid</code></strong>]</p>
+<p>xmpps://<strong><code>USER</code></strong>:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?to=<strong><code>JID</code></strong>[&amp;rooms=<strong><code>ROOM_JID</code></strong>]</p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2971,8 +2971,8 @@ Upstream docs: <a href="https://xmpp.org/">https://xmpp.org/</a></p>
 <h2 id="authentication_jid">Authentication JID<a class="headerlink" href="#authentication_jid" title="Permanent link">&para;</a></h2>
 <p>The URL userinfo is the login identity:</p>
 <ul>
-<li>A localpart (<code>alice</code>) becomes <code>alice@host</code>.</li>
-<li>A full JID (<code>alice%40jabber.example.com</code>) is used as-is, while <code>host</code> remains the TCP dial target.</li>
+<li>A localpart (<code>alice</code>) becomes <code>alice@HOST</code>.</li>
+<li>A full JID (<code>alice%40jabber.example.com</code>) is used as-is, while <code>HOST</code> remains the TCP dial target.</li>
 </ul>
 <div class="highlight"><pre><span></span><code>xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com
 </code></pre></div>
@@ -3029,7 +3029,7 @@ Encrypted connections prefer SCRAM-SHA-256, then SCRAM-SHA-1, then PLAIN.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 24, 2026 13:54:03 UTC"><span class="timeago" datetime="2026-10-24T13:54:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 24, 2026 13:54:03 UTC">2026-10-24</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

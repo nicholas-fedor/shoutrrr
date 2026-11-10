@@ -4323,32 +4323,33 @@
 </ul>
 <h3 id="url_components">URL Components<a class="headerlink" href="#url_components" title="Permanent link">&para;</a></h3>
 <p>The PagerDuty service URL follows this structure:</p>
-<div class="highlight"><pre><span></span><code>pagerduty://[host[:port]]/integration-key[?query-parameters]
-</code></pre></div>
+<div class="admonition info">
+<p>pagerduty://[<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]]/<strong><code>INTEGRATION_KEY</code></strong>[?<strong><code>QUERY_PARAMETERS</code></strong>]</p>
+</div>
 <p><strong>Components:</strong></p>
 <ul>
 <li><strong>Scheme</strong>: <code>pagerduty://</code> - Identifies the service type</li>
-<li><strong>Host</strong> (optional): PagerDuty API hostname (default: <code>events.pagerduty.com</code>)</li>
-<li><strong>Port</strong> (optional): API port number (default: <code>443</code> for HTTPS)</li>
-<li><strong>Integration Key</strong>: 32-character hexadecimal string that routes events to your PagerDuty service</li>
-<li><strong>Query Parameters</strong> (optional): Additional configuration parameters</li>
+<li><code>HOST</code> (optional): PagerDuty API hostname (default: <code>events.pagerduty.com</code>)</li>
+<li><code>PORT</code> (optional): API port number (default: <code>443</code> for HTTPS)</li>
+<li><code>INTEGRATION_KEY</code>: 32-character hexadecimal string that routes events to your PagerDuty service</li>
+<li><code>QUERY_PARAMETERS</code> (optional): Additional configuration parameters</li>
 </ul>
 <h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Default configuration</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY
 </code></pre></div>
 Uses default host (<code>events.pagerduty.com</code>) and port (<code>443</code>)</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Custom host</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/INTEGRATION_KEY
 </code></pre></div>
 Explicitly specifies the PagerDuty Events API host</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With parameters</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=production-db
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=critical&amp;source=production-db
 </code></pre></div>
 Includes severity and source parameters</p>
 </div>
@@ -4571,46 +4572,46 @@ PagerDuty requires image sources to use HTTPS.</p>
 <h3 id="basic_incident_triggering">Basic Incident Triggering<a class="headerlink" href="#basic_incident_triggering" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Simple alert</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection lost'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection lost'</span>
 </code></pre></div></p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Critical incident with source</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=prod-db-01
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=critical&amp;source=prod-db-01
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=prod-db-01'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Production database is unresponsive'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=critical&amp;source=prod-db-01'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Production database is unresponsive'</span>
 </code></pre></div></p>
 </div>
 <h3 id="incident_management_workflow">Incident Management Workflow<a class="headerlink" href="#incident_management_workflow" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Acknowledge incident</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=acknowledge
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Engineer has acknowledged the incident and is investigating'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Engineer has acknowledged the incident and is investigating'</span>
 </code></pre></div></p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Resolve incident</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=resolve
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection restored, incident resolved'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection restored, incident resolved'</span>
 </code></pre></div></p>
 </div>
 <h3 id="advanced_examples">Advanced Examples<a class="headerlink" href="#advanced_examples" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">With custom details</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=monitoring&amp;details={"component":"api","version":"1.2.3","response_time":"5.2s"}
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=warning&amp;source=monitoring&amp;details={"component":"api","version":"1.2.3","response_time":"5.2s"}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=monitoring&amp;details={"component":"api","version":"1.2.3","response_time":"5.2s"}'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'API response time degraded'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=warning&amp;source=monitoring&amp;details={"component":"api","version":"1.2.3","response_time":"5.2s"}'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'API response time degraded'</span>
 </code></pre></div></p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With contexts and client info</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&amp;source=ci-pipeline&amp;contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=error&amp;source=ci-pipeline&amp;contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&amp;source=ci-pipeline&amp;contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'CI/CD pipeline failed'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=error&amp;source=ci-pipeline&amp;contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'CI/CD pipeline failed'</span>
 </code></pre></div></p>
 </div>
 <h2 id="event_actions">Event Actions<a class="headerlink" href="#event_actions" title="Permanent link">&para;</a></h2>
@@ -4805,7 +4806,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///eb243592faa24ba2a5511afdf565c889"</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
 <span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"Database connection failed"</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
@@ -4824,7 +4825,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///eb243592faa24ba2a5511afdf565c889"</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
 <span class="w">    </span><span class="c1">// Trigger critical incident</span>
 <span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
@@ -4854,7 +4855,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">handleIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">baseURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///eb243592faa24ba2a5511afdf565c889"</span>
+<span class="w">    </span><span class="nx">baseURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
 <span class="w">    </span><span class="c1">// 1. Trigger incident</span>
 <span class="w">    </span><span class="nx">triggerParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
@@ -4909,7 +4910,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">sendRichIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///eb243592faa24ba2a5511afdf565c889"</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
 <span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
 <span class="w">        </span><span class="s">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s">"error"</span><span class="p">,</span>
@@ -4969,7 +4970,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">}</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">sendMonitoringAlert</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="nx">AlertData</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///eb243592faa24ba2a5511afdf565c889"</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
 <span class="w">    </span><span class="c1">// Convert details to JSON string</span>
 <span class="w">    </span><span class="nx">detailsJSON</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nx">Marshal</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">Details</span><span class="p">)</span>
@@ -4992,30 +4993,30 @@ PagerDuty requires image sources to use HTTPS.</p>
 <h2 id="cli_examples">CLI Examples<a class="headerlink" href="#cli_examples" title="Permanent link">&para;</a></h2>
 <h3 id="basic_usage">Basic Usage<a class="headerlink" href="#basic_usage" title="Permanent link">&para;</a></h3>
 <p>Send a simple alert:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Server is down'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Server is down'</span>
 </code></pre></div>
 <p>Send with severity:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?severity=critical'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Production outage detected'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?severity=critical'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Production outage detected'</span>
 </code></pre></div>
 <h3 id="incident_lifecycle_management">Incident Lifecycle Management<a class="headerlink" href="#incident_lifecycle_management" title="Permanent link">&para;</a></h3>
 <p>Trigger incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=trigger&amp;severity=critical&amp;source=web-app'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application crashed'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=trigger&amp;severity=critical&amp;source=web-app'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application crashed'</span>
 </code></pre></div>
 <p>Acknowledge incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'DevOps team is investigating'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'DevOps team is investigating'</span>
 </code></pre></div>
 <p>Resolve incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application restarted successfully'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application restarted successfully'</span>
 </code></pre></div>
 <h3 id="advanced_parameters">Advanced Parameters<a class="headerlink" href="#advanced_parameters" title="Permanent link">&para;</a></h3>
 <p>With custom details:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?details={"component":"database","error":"connection_failed"}'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connectivity issue'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?details={"component":"database","error":"connection_failed"}'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connectivity issue'</span>
 </code></pre></div>
 <p>With contexts:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///eb243592faa24ba2a5511afdf565c889?contexts=[{"type":"link","href":"https://monitoring.example.com","text":"Monitoring Dashboard"}]'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'High CPU usage detected'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?contexts=[{"type":"link","href":"https://monitoring.example.com","text":"Monitoring Dashboard"}]'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'High CPU usage detected'</span>
 </code></pre></div>
 <p>Full configuration:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=load-balancer&amp;client=prometheus&amp;client_url=https://prometheus.example.com/alerts'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Load balancer health check failing'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty://events.pagerduty.com/INTEGRATION_KEY?severity=warning&amp;source=load-balancer&amp;client=prometheus&amp;client_url=https://prometheus.example.com/alerts'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Load balancer health check failing'</span>
 </code></pre></div>
 <h3 id="integration_with_scripts">Integration with Scripts<a class="headerlink" href="#integration_with_scripts" title="Permanent link">&para;</a></h3>
 <p>Example script for PagerDuty alerts:</p>
@@ -5135,7 +5136,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> <
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 2, 2026 19:56:52 UTC"><span class="timeago" datetime="2026-11-02T19:56:52+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 2, 2026 19:56:52 UTC">2026-11-02</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

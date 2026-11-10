@@ -3084,9 +3084,9 @@
 <h1 id="signal">Signal<a class="headerlink" href="#signal" title="Permanent link">&para;</a></h1>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>signal://[<strong><code>user</code></strong>[:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>source_phone</code></strong>/<strong><code>recipient1</code></strong>[/<strong><code>recipient2</code></strong>/...]</p>
+<p>signal://[<strong><code>USER</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/<strong><code>SOURCE_PHONE</code></strong>/<strong><code>RECIPIENT_1</code></strong>[/<strong><code>RECIPIENT_2</code></strong>/...]</p>
 </div>
-<p>A URL without a host, such as <code>signal:///+1234567890/+0987654321</code>, uses <code>localhost</code>, with port <code>8080</code> unless the URL sets one.</p>
+<p>A URL without a host, such as <code>signal:///+18005550100/+18005550101</code>, uses <code>localhost</code>, with port <code>8080</code> unless the URL sets one.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument or through the URL using
@@ -3174,7 +3174,7 @@ This is useful for <a href="https://github.com/codeshelldev/secured-signal-api">
 <h2 id="recipients">Recipients<a class="headerlink" href="#recipients" title="Permanent link">&para;</a></h2>
 <p>Recipients can be:</p>
 <ul>
-<li><strong>Phone numbers</strong>: With country code (e.g., +0987654321)</li>
+<li><strong>Phone numbers</strong>: With country code (e.g., +18005550101)</li>
 <li><strong>Group IDs</strong>: In the format <code>group.groupId</code>.
   A group ID can contain <code>/</code>, which you write as <code>%2F</code> so the group ID stays one path segment.
   The URLs Shoutrrr writes use this form.
@@ -3200,34 +3200,34 @@ If any of those requests fail, the others may already have been sent.</p>
 </ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <h3 id="send_to_a_single_phone_number">Send to a single phone number<a class="headerlink" href="#send_to_a_single_phone_number" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101
 </code></pre></div>
 <h3 id="send_to_multiple_recipients">Send to multiple recipients<a class="headerlink" href="#send_to_multiple_recipients" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321/+1123456789/group.testgroup
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101/+18005550102/group.testgroup
 </code></pre></div>
 <p>The two phone numbers are sent together. The group is a second <code>/v2/send</code> call.</p>
 <h3 id="send_to_a_group">Send to a group<a class="headerlink" href="#send_to_a_group" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/group.abcdefghijklmnop=
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/group.abcdefghijklmnop=
 </code></pre></div>
 <h3 id="send_to_a_group_id_that_contains_a_slash">Send to a group ID that contains a slash<a class="headerlink" href="#send_to_a_group_id_that_contains_a_slash" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/group.ABCD%2FEFGH=/+0987654321
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/group.ABCD%2FEFGH=/+18005550101
 </code></pre></div>
-<p>The recipients are the group <code>group.ABCD/EFGH=</code> and the phone number <code>+0987654321</code>.
+<p>The recipients are the group <code>group.ABCD/EFGH=</code> and the phone number <code>+18005550101</code>.
 The unescaped form <code>group.ABCD/EFGH=</code> reads the same.</p>
 <h3 id="with_authentication">With authentication<a class="headerlink" href="#with_authentication" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://user:password@localhost:8080/+1234567890/+0987654321
+<div class="highlight"><pre><span></span><code>signal://USER:PASSWORD@localhost:8080/+18005550100/+18005550101
 </code></pre></div>
 <h3 id="with_api_token_bearer_auth">With API token (Bearer auth)<a class="headerlink" href="#with_api_token_bearer_auth" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321?token=YOUR_API_TOKEN
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101?token=API_TOKEN
 </code></pre></div>
 <h3 id="send_to_a_username">Send to a username<a class="headerlink" href="#send_to_a_username" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/u:someuser.123
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/u:someuser.123
 </code></pre></div>
 <h3 id="using_http_instead_of_https">Using HTTP instead of HTTPS<a class="headerlink" href="#using_http_instead_of_https" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321?disabletls=yes
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101?disabletls=yes
 </code></pre></div>
 <h3 id="styled_message">Styled message<a class="headerlink" href="#styled_message" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321?textmode=styled
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101?textmode=styled
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -3241,12 +3241,12 @@ The unescaped form <code>group.ABCD/EFGH=</code> reads the same.</p>
 <p>Signal has no separate title field.
 A non-empty <code>title</code> (URL query, or the send <code>title</code> param) is prepended as the first line of the message.
 With <code>textmode=styled</code> the title is wrapped in <code>**...**</code>.</p>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321?title=Alert&amp;textmode=styled
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101?title=Alert&amp;textmode=styled
 </code></pre></div>
 <h2 id="attachments">Attachments<a class="headerlink" href="#attachments" title="Permanent link">&para;</a></h2>
 <p>Use the <code>attachments</code> query parameter or send param with comma-separated raw base64 values.
 If the value contains <code>data:</code>, it is sent as a single data URI (data URIs contain commas, so they are not split).</p>
-<div class="highlight"><pre><span></span><code>signal://localhost:8080/+1234567890/+0987654321?attachments=base64data1,base64data2
+<div class="highlight"><pre><span></span><code>signal://localhost:8080/+18005550100/+18005550101?attachments=BASE64_DATA_1,BASE64_DATA_2
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Attachment Format</p>
@@ -3282,7 +3282,7 @@ If it reports recipients that Signal could not reach, such as unregistered numbe
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 4, 2026 06:18:40 UTC"><span class="timeago" datetime="2026-11-04T06:18:40+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 06:18:40 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

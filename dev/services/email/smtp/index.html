@@ -3130,7 +3130,7 @@
 It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and similar) using a single service URL.</p>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>smtp://<strong><code>username</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>:<strong><code>port</code></strong>/?fromaddress=<strong><code>fromAddress</code></strong>&amp;toaddresses=<strong><code>recipient1</code></strong>[,<strong><code>recipient2</code></strong>,...]&amp;subject=<strong><code>subject</code></strong>&amp;auth=<strong><code>auth</code></strong>&amp;encryption=<strong><code>encryption</code></strong>&amp;useStartTLS=<strong><code>yes/no</code></strong>&amp;useHTML=<strong><code>yes/no</code></strong>&amp;clientHost=<strong><code>hostname</code></strong>&amp;requirestarttls=<strong><code>yes/no</code></strong>&amp;skiptlsverify=<strong><code>yes/no</code></strong>&amp;timeout=<strong><code>duration</code></strong>&amp;clientid=<strong><code>clientID</code></strong>&amp;clientsecret=<strong><code>clientSecret</code></strong>&amp;refreshtoken=<strong><code>refreshToken</code></strong>&amp;tokenurl=<strong><code>tokenURL</code></strong></p>
+<p>smtp://[<strong><code>USERNAME</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?fromaddress=<strong><code>FROM_ADDRESS</code></strong>&amp;toaddresses=<strong><code>TO_ADDRESS_1</code></strong>[,<strong><code>TO_ADDRESS_2</code></strong>,...][&amp;subject=<strong><code>SUBJECT</code></strong>][&amp;auth=<strong><code>AUTH</code></strong>][&amp;encryption=<strong><code>ENCRYPTION</code></strong>][&amp;useStartTLS={yes|no}][&amp;useHTML={yes|no}][&amp;clientHost=<strong><code>CLIENT_HOST</code></strong>][&amp;requirestarttls={yes|no}][&amp;skiptlsverify={yes|no}][&amp;timeout=<strong><code>DURATION</code></strong>][&amp;clientid=<strong><code>CLIENT_ID</code></strong>][&amp;clientsecret=<strong><code>CLIENT_SECRET</code></strong>][&amp;refreshtoken=<strong><code>REFRESH_TOKEN</code></strong>][&amp;tokenurl=<strong><code>TOKEN_URL</code></strong>]</p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3224,7 +3224,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 <p>A <code>Username</code> and <code>Password</code> are required only when the server expects authentication.</p>
 <div class="admonition example">
 <p class="admonition-title">Minimal authenticated send</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
 </code></pre></div>
 <p>Connects to <code>mail.example.com</code> on port 587, authenticates as <code>user</code>, and sends to <code>ops@example.com</code>.</p>
 </div>
@@ -3243,7 +3243,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Submission on 587</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="username_and_password">Username and Password<a class="headerlink" href="#username_and_password" title="Permanent link">&para;</a></h3>
@@ -3265,7 +3265,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Named sender</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;fromname=Shoutrrr&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;fromname=Shoutrrr&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="recipients">Recipients<a class="headerlink" href="#recipients" title="Permanent link">&para;</a></h3>
@@ -3277,12 +3277,12 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Multiple recipients</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com,oncall@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com,oncall@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Plus-address recipient</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops+prod@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops+prod@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="subject">Subject<a class="headerlink" href="#subject" title="Permanent link">&para;</a></h3>
@@ -3292,7 +3292,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Custom subject</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;subject=Disk%20space%20low&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;subject=Disk%20space%20low&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h3>
@@ -3334,12 +3334,12 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 <p><code>Plain</code>, <code>Login</code>, and <code>OAuth2</code> refuse to send credentials on an unencrypted connection unless the server name is <code>localhost</code>, <code>127.0.0.1</code>, or <code>::1</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">AUTH LOGIN</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=Login&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=Login&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">OAuth2 access token</p>
-<div class="highlight"><pre><span></span><code>smtp://user:ya29.token@smtp.gmail.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=OAuth2&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:ACCESS_TOKEN@smtp.gmail.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=OAuth2&amp;requirestarttls=yes
 </code></pre></div>
 <p>The access token is used as is.
 It expires after about an hour, so set the <a href="#oauth2-token-refresh">refresh settings</a> for a URL that keeps working.</p>
@@ -3377,17 +3377,17 @@ It expires after about an hour, so set the <a href="#oauth2-token-refresh">refre
 </tr>
 <tr>
 <td>Microsoft 365</td>
-<td><code>https://login.microsoftonline.com/&lt;tenant&gt;/oauth2/v2.0/token</code></td>
+<td><code>https://login.microsoftonline.com/TENANT_ID/oauth2/v2.0/token</code></td>
 <td>Add the <code>offline_access</code> scope next to <code>https://outlook.office.com/SMTP.Send</code> to get a refresh token. Refresh tokens expire after 90 days, so generate a new URL before then.</td>
 </tr>
 </tbody>
 </table>
 <div class="admonition example">
 <p class="admonition-title">OAuth2 with a refresh token</p>
-<div class="highlight"><pre><span></span><code>smtp://alerts%40example.com@smtp.gmail.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=OAuth2&amp;clientid=1234.apps.googleusercontent.com&amp;clientsecret=secret&amp;refreshtoken=1%2F%2F0abc&amp;tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://alerts%40example.com@smtp.gmail.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=OAuth2&amp;clientid=CLIENT_ID&amp;clientsecret=CLIENT_SECRET&amp;refreshtoken=REFRESH_TOKEN&amp;tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken&amp;requirestarttls=yes
 </code></pre></div>
 <p>Shoutrrr refreshes the access token as needed.
-When writing the URL by hand, percent-encode the values, as the example does.</p>
+When writing the URL by hand, percent-encode the values, as the example does for the token URL.</p>
 </div>
 <h3 id="encryption">Encryption<a class="headerlink" href="#encryption" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3423,7 +3423,7 @@ When writing the URL by hand, percent-encode the values, as the example does.</p
 </table>
 <div class="admonition example">
 <p class="admonition-title">Implicit TLS on 465</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:465/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;encryption=ImplicitTLS
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:465/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;encryption=ImplicitTLS
 </code></pre></div>
 </div>
 <h3 id="starttls">StartTLS<a class="headerlink" href="#starttls" title="Permanent link">&para;</a></h3>
@@ -3441,7 +3441,7 @@ Without TLS, the <code>Plain</code> and <code>Login</code> methods refuse to sen
 </div>
 <div class="admonition example">
 <p class="admonition-title">Disable STARTTLS</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:25/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usestarttls=no
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:25/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usestarttls=no
 </code></pre></div>
 </div>
 <h3 id="require_starttls">Require StartTLS<a class="headerlink" href="#require_starttls" title="Permanent link">&para;</a></h3>
@@ -3451,7 +3451,7 @@ Without TLS, the <code>Plain</code> and <code>Login</code> methods refuse to sen
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Fail closed without STARTTLS</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="skip_tls_certificate_verification">Skip TLS Certificate Verification<a class="headerlink" href="#skip_tls_certificate_verification" title="Permanent link">&para;</a></h3>
@@ -3467,7 +3467,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 </div>
 <div class="admonition example">
 <p class="admonition-title">Skip verify on an internal relay</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.internal:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;skiptlsverify=yes&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.internal:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;skiptlsverify=yes&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="html_body">HTML Body<a class="headerlink" href="#html_body" title="Permanent link">&para;</a></h3>
@@ -3479,7 +3479,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 </ul>
 <div class="admonition example">
 <p class="admonition-title">HTML notification</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usehtml=yes&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usehtml=yes&amp;requirestarttls=yes
 </code></pre></div>
 <p>Pass HTML as the message body, for example <code>&lt;p&gt;Disk usage is &lt;strong&gt;92%&lt;/strong&gt;.&lt;/p&gt;</code>.</p>
 </div>
@@ -3491,7 +3491,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Auto client host</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;clienthost=auto&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;clienthost=auto&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h3 id="timeout">Timeout<a class="headerlink" href="#timeout" title="Permanent link">&para;</a></h3>
@@ -3503,7 +3503,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Thirty-second timeout</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;timeout=30s&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;timeout=30s&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <h2 id="message_templates">Message Templates<a class="headerlink" href="#message_templates" title="Permanent link">&para;</a></h2>
@@ -3526,22 +3526,22 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
 <p class="admonition-title">STARTTLS on port 587</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Implicit TLS on port 465</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:465/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;encryption=ImplicitTLS
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:465/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;encryption=ImplicitTLS
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">HTML body</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usehtml=yes&amp;subject=Alert&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;usehtml=yes&amp;subject=Alert&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Plus-address recipient</p>
-<div class="highlight"><pre><span></span><code>smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops+prod@example.com&amp;requirestarttls=yes
+<div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops+prod@example.com&amp;requirestarttls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
@@ -3571,7 +3571,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 9, 2026 16:41:24 UTC"><span class="timeago" datetime="2026-11-09T16:41:24+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 9, 2026 16:41:24 UTC">2026-11-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

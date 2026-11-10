@@ -3570,13 +3570,13 @@ They can contain uppercase and lowercase letters, numbers, and the special chara
 <p>The <code>extras</code> parameter allows you to include additional metadata in the notification payload sent to Gotify. This is passed as a JSON object and can be used for features like actions, images, or custom data that Gotify supports.</p>
 <div class="admonition example">
 <p class="admonition-title">With extras for actions</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
 </code></pre></div>
 <p>This sends a notification with an action button that opens <code>https://example.com</code> when clicked.</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With extras for images</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
 </code></pre></div>
 <p>This includes an image URL in the notification.</p>
 </div>
@@ -3673,7 +3673,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Using header authentication</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?useheader=yes
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?useheader=yes
 </code></pre></div>
 <p>This sends the token in the <code>X-Gotify-Key</code> header, with no token appearing in the URL.</p>
 </div>
@@ -3683,7 +3683,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <p>Messages must contain at least one character. Empty messages are not allowed.</p>
 <div class="admonition failure">
 <p class="admonition-title">Validation Failure Example</p>
-<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://example.com/AzyoeNS.D4iJLVa"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">""</span>
+<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://gotify.example.com/TOKEN"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">""</span>
 </code></pre></div>
 <strong>Error</strong>: <code>message cannot be empty</code></p>
 </div>
@@ -3691,45 +3691,45 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <p>Priority values must be integers between -2 and 10 inclusive. Values outside this range will be rejected.</p>
 <div class="admonition failure">
 <p class="admonition-title">Validation Failure Example</p>
-<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://example.com/AzyoeNS.D4iJLVa?priority=15"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"test"</span>
+<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://gotify.example.com/TOKEN?priority=15"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"test"</span>
 </code></pre></div>
 <strong>Error</strong>: <code>priority must be between -2 and 10</code></p>
 </div>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
 <p class="admonition-title">Common usage</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com:443/AzyoeNS.D4iJLVa?title=Great+News&amp;priority=1
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com:443/TOKEN?title=Great+News&amp;priority=1
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With subpath</p>
-<div class="highlight"><pre><span></span><code>gotify://example.com:443/path/to/gotify/AzyoeNS.D4iJLVa?title=Great+News&amp;priority=1
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com:443/path/to/gotify/TOKEN?title=Great+News&amp;priority=1
 </code></pre></div>
 <p>The subpath cannot hold a <code>.</code> or <code>..</code> segment.</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With all parameters</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=System+Alert&amp;priority=5&amp;disabletls=yes&amp;useheader=yes&amp;extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?title=System+Alert&amp;priority=5&amp;disabletls=yes&amp;useheader=yes&amp;extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Minimal configuration</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With custom title and low priority</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=Info&amp;priority=-1
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?title=Info&amp;priority=-1
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With TLS disabled for self-signed certificates</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com:8080/AzyoeNS.D4iJLVa?disabletls=yes
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com:8080/TOKEN?disabletls=yes
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With TLS certificate verification skipped</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?skiptlsverify=yes
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?skiptlsverify=yes
 </code></pre></div>
 </div>
 <h2 id="security_considerations">Security Considerations<a class="headerlink" href="#security_considerations" title="Permanent link">&para;</a></h2>
@@ -3839,10 +3839,10 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 </ul>
 <h3 id="testing_your_configuration">Testing Your Configuration<a class="headerlink" href="#testing_your_configuration" title="Permanent link">&para;</a></h3>
 <p>You can test your Gotify configuration using the Shoutrrr CLI:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://your-server/token"</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://gotify.example.com/TOKEN"</span>
 </code></pre></div>
 <p>This validates the URL format and service configuration. To send a test notification, use:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://your-server/token"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Test notification"</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://gotify.example.com/TOKEN"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Test notification"</span>
 </code></pre></div>
 <h3 id="gotify_server_logs">Gotify Server Logs<a class="headerlink" href="#gotify_server_logs" title="Permanent link">&para;</a></h3>
 <p>Check the Gotify server logs for additional error details. Common log locations:</p>
@@ -3878,7 +3878,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 4, 2026 05:12:37 UTC"><span class="timeago" datetime="2026-11-04T05:12:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 05:12:37 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

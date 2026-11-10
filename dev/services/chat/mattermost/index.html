@@ -2886,7 +2886,7 @@
 <h1 id="mattermost">MatterMost<a class="headerlink" href="#mattermost" title="Permanent link">&para;</a></h1>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>mattermost://[<strong><code>username</code></strong>@]<strong><code>mattermost-host</code></strong>/<strong><code>token</code></strong>[/<strong><code>channel</code></strong>][?icon=<strong><code>smiley</code></strong>&amp;disabletls=<strong><code>yes</code></strong>&amp;skiptlsverify=<strong><code>yes</code></strong>]</p>
+<p>mattermost://[<strong><code>USERNAME</code></strong>@]<strong><code>HOST</code></strong>/<strong><code>TOKEN</code></strong>[/<strong><code>CHANNEL</code></strong>][?icon=<strong><code>ICON</code></strong>][&amp;disabletls=yes][&amp;skiptlsverify=yes]</p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2958,20 +2958,20 @@ Shoutrrr logs a warning the first time a send goes out without TLS, and the firs
 <p>Format the service URL</p>
 </li>
 </ol>
-<div class="highlight"><pre><span></span><code>https://your-domain.com/hooks/bywsw8zt5jgpte3nm65qjiru6h
-                              └────────────────────────┘
-                                        token
-mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h
-                             └────────────────────────┘
+<div class="highlight"><pre><span></span><code>https://mattermost.example.com/hooks/bywsw8zt5jgpte3nm65qjiru6h
+                                     └────────────────────────┘
                                        token
+mattermost://mattermost.example.com/bywsw8zt5jgpte3nm65qjiru6h
+                                    └────────────────────────┘
+                                      token
 </code></pre></div>
 <h2 id="additional_url_configuration">Additional URL configuration<a class="headerlink" href="#additional_url_configuration" title="Permanent link">&para;</a></h2>
 <p>Mattermost provides functionality to post as another user or to another channel, compared to the webhook configuration.
 <br/>
 To do this, you can add a <em>user</em> and/or <em>channel</em> to the service URL.</p>
-<div class="highlight"><pre><span></span><code>mattermost://shoutrrrUser@your-domain.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrChannel
-             └──────────┘                 └────────────────────────┘ └─────────────┘
-                 user                               token                channel
+<div class="highlight"><pre><span></span><code>mattermost://shoutrrrUser@mattermost.example.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrChannel
+             └──────────┘                        └────────────────────────┘ └─────────────┘
+                 user                                      token                channel
 </code></pre></div>
 <p>The channel can also be <code>@username</code> to send a direct message to that user.</p>
 <div class="admonition note">
@@ -2981,10 +2981,10 @@ To do this, you can add a <em>user</em> and/or <em>channel</em> to the service U
 <h2 id="using_an_icon">Using an Icon<a class="headerlink" href="#using_an_icon" title="Permanent link">&para;</a></h2>
 <p>You can customize the notification icon using the <code>icon</code> query parameter. The icon can be either a Mattermost emoji name or an image URL.</p>
 <h3 id="emoji_icon">Emoji Icon<a class="headerlink" href="#emoji_icon" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=rocket
+<div class="highlight"><pre><span></span><code>mattermost://mattermost.example.com/TOKEN?icon=rocket
 </code></pre></div>
 <h3 id="url_icon">URL Icon<a class="headerlink" href="#url_icon" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=https://example.com/logo.png
+<div class="highlight"><pre><span></span><code>mattermost://mattermost.example.com/TOKEN?icon=https://example.com/logo.png
 </code></pre></div>
 <h2 id="passing_parameters_via_code">Passing parameters via code<a class="headerlink" href="#passing_parameters_via_code" title="Permanent link">&para;</a></h2>
 <p>You can also pass parameters to the <code>Send</code> function. The following example contains all parameters that are currently supported.</p>
@@ -3024,7 +3024,7 @@ Each one sets an image URL when the value starts with <code>http://</code> or <c
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 30, 2026 10:35:51 UTC"><span class="timeago" datetime="2026-10-30T10:35:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 10:35:51 UTC">2026-10-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

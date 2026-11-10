@@ -2693,15 +2693,20 @@
 <p>Use the dedicated <code>homeassistant</code> service to create persistent notifications or call notify actions through the REST API with a long-lived access token.</p>
 <p>Use a webhook URL only when an automation should run from an unauthenticated <code>POST</code> to <code>/api/webhook/&lt;webhook_id&gt;</code>.</p>
 <h2 id="rest_notifications">REST notifications<a class="headerlink" href="#rest_notifications" title="Permanent link">&para;</a></h2>
-<p>Create a long-lived access token in your Home Assistant profile, then send to the REST API.</p>
+<p>Create a long-lived access token in your Home Assistant profile, then send to the REST API.
+Replace the following:</p>
+<ul>
+<li><code>LONG_LIVED_TOKEN</code>: the long-lived access token</li>
+<li><code>HOST</code>: the host name or IP address of your Home Assistant instance</li>
+</ul>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">HTTPS (Default)</label><label for="__tabbed_1_2">HTTP</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><span class="filename">Home Assistant REST URL for HTTPS</span><pre><span></span><code>homeassistant://&lt;LONG_LIVED_TOKEN&gt;@&lt;HA_HOST&gt;
+<div class="highlight"><span class="filename">Home Assistant REST URL for HTTPS</span><pre><span></span><code>homeassistant://LONG_LIVED_TOKEN@HOST
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><span class="filename">Home Assistant REST URL for HTTP</span><pre><span></span><code>homeassistant://&lt;LONG_LIVED_TOKEN&gt;@&lt;HA_HOST&gt;:8123/?disabletls=yes
+<div class="highlight"><span class="filename">Home Assistant REST URL for HTTP</span><pre><span></span><code>homeassistant://LONG_LIVED_TOKEN@HOST:8123/?disabletls=yes
 </code></pre></div>
 </div>
 </div>
@@ -2720,23 +2725,29 @@
 <div class="highlight"><pre><span></span><code>homeassistant://LONG_LIVED_TOKEN@ha.example.com?service=notify.mobile_app_phone
 </code></pre></div>
 <h2 id="webhook_trigger">Webhook trigger<a class="headerlink" href="#webhook_trigger" title="Permanent link">&para;</a></h2>
-<p>Configure a webhook trigger in Home Assistant, then POST JSON to <code>/api/webhook/&lt;WEBHOOK_ID&gt;</code>.
-In the automation, read the message from <code>{{ trigger.json.message }}</code>.</p>
+<p>Configure a webhook trigger in Home Assistant, then POST JSON to <code>/api/webhook/WEBHOOK_ID</code>.
+Replace the following:</p>
+<ul>
+<li><code>HOST</code>: the host name or IP address of your Home Assistant instance</li>
+<li><code>PORT</code>: the port Home Assistant listens on, usually <code>8123</code></li>
+<li><code>WEBHOOK_ID</code>: the ID of the webhook trigger</li>
+</ul>
+<p>In the automation, read the message from <code>{{ trigger.json.message }}</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">HTTPS (Default)</label><label for="__tabbed_2_2">HTTP</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><span class="filename">Generic Service URL for HTTPS</span><pre><span></span><code>generic://&lt;HA_IP_ADDRESS&gt;:&lt;HA_PORT&gt;/api/webhook/&lt;WEBHOOK_ID&gt;?template=json
+<div class="highlight"><span class="filename">Generic Service URL for HTTPS</span><pre><span></span><code>generic://HOST:PORT/api/webhook/WEBHOOK_ID?template=json
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><span class="filename">Generic Service URL for HTTP</span><pre><span></span><code>generic://&lt;HA_IP_ADDRESS&gt;:&lt;HA_PORT&gt;/api/webhook/&lt;WEBHOOK_ID&gt;?template=json&amp;disabletls=yes
+<div class="highlight"><span class="filename">Generic Service URL for HTTP</span><pre><span></span><code>generic://HOST:PORT/api/webhook/WEBHOOK_ID?template=json&amp;disabletls=yes
 </code></pre></div>
 </div>
 </div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Command to a webhook</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"generic://192.168.1.100:8123/api/webhook/abc123?template=json&amp;disabletls=yes"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span>
+<div class="highlight"><span class="filename">Send Command to a webhook</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"generic://192.0.2.10:8123/api/webhook/WEBHOOK_ID?template=json&amp;disabletls=yes"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -2767,7 +2778,7 @@ In the automation, read the message from <code>{{ trigger.json.message }}</code>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 8, 2026 05:08:00 UTC"><span class="timeago" datetime="2026-09-08T05:08:00+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 8, 2026 05:08:00 UTC">2026-09-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

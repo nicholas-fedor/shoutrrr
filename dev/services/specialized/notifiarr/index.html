@@ -2360,17 +2360,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#complete_url_format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Complete URL Format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#url_fields" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2976,17 +2965,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#complete_url_format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Complete URL Format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#url_fields" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3360,12 +3338,8 @@ It supports routing notifications to Discord channels and other configured servi
 </table>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>notifiarr://<strong><code>apikey</code></strong>?name=<strong><code>name</code></strong>&amp;channel=<strong><code>channel</code></strong>&amp;thumbnail=<strong><code>thumbnail</code></strong>&amp;image=<strong><code>image</code></strong>&amp;color=<strong><code>color</code></strong></p>
+<p>notifiarr://<strong><code>API_KEY</code></strong>[?name=<strong><code>NAME</code></strong>][&amp;channel=<strong><code>CHANNEL_ID</code></strong>][&amp;thumbnail=<strong><code>THUMBNAIL_URL</code></strong>][&amp;image=<strong><code>IMAGE_URL</code></strong>][&amp;color=<strong><code>COLOR</code></strong>]</p>
 </div>
-<h3 id="complete_url_format">Complete URL Format<a class="headerlink" href="#complete_url_format" title="Permanent link">&para;</a></h3>
-<p>The full URL format supports all configuration parameters:</p>
-<div class="highlight"><pre><span></span><code>notifiarr://[apikey]?name=[app_name]&amp;channel=[channel_id]&amp;thumbnail=[thumbnail_url]&amp;image=[image_url]&amp;color=[color_value]
-</code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>apikey</code> (required): Your Notifiarr API key</li>
@@ -3375,6 +3349,8 @@ It supports routing notifications to Discord channels and other configured servi
 <li><code>image</code> (optional): Image URL for Discord notifications</li>
 <li><code>color</code> (optional): Color for Discord embed as 6-digit hex code (without # prefix) or color name</li>
 </ul>
+<p>A URL with any other query key is rejected, so a misspelled key is reported instead of ignored.
+The same holds for a Notifiarr webhook URL given with the <code>notifiarr+</code> prefix, since the passthrough API reads no query parameters.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument or through the URL using
@@ -3414,7 +3390,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a simple notification using your Notifiarr API key:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Basic Notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from Shoutrrr!"</span>
+<div class="highlight"><span class="filename">Send Basic Notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from Shoutrrr!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3423,7 +3399,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification that will be forwarded to a specific Discord channel:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to Discord Channel</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Alert: System status changed"</span>
+<div class="highlight"><span class="filename">Send to Discord Channel</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Alert: System status changed"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3432,7 +3408,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification with custom thumbnail and color:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Thumbnail and Color</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/alert.png&amp;color=FF0000"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Critical Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Server is down!"</span>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Color</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID&amp;thumbnail=https://example.com/alert.png&amp;color=FF0000"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Critical Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Server is down!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3441,7 +3417,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification with a custom image:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;image=https://example.com/chart.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Sales Report"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Monthly sales chart attached"</span>
+<div class="highlight"><span class="filename">Send Notification with Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID&amp;image=https://example.com/chart.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Sales Report"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Monthly sales chart attached"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3450,7 +3426,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification with both thumbnail and image:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Thumbnail and Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/icon.png&amp;image=https://example.com/full-image.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Product Update"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"New product launch details"</span>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID&amp;thumbnail=https://example.com/icon.png&amp;image=https://example.com/full-image.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Product Update"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"New product launch details"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3459,7 +3435,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification that mentions specific Discord users (parsed from message content). Both standard mentions <code>&lt;@123&gt;</code> and nickname mentions <code>&lt;@!456&gt;</code> are supported. <strong>Note:</strong> Only the first user mention and first role mention in the message will be used for pinging.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with User Mentions</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hey &lt;@123456789&gt; and &lt;@!987654321&gt;, the deployment is complete!"</span>
+<div class="highlight"><span class="filename">Send Notification with User Mentions</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hey &lt;@123456789&gt; and &lt;@!987654321&gt;, the deployment is complete!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3468,7 +3444,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification with a custom app name:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Custom App Name</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?name=MyApp"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from MyApp!"</span>
+<div class="highlight"><span class="filename">Send Notification with Custom App Name</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?name=MyApp"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from MyApp!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3477,13 +3453,13 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
 <p>Send a notification with a custom title (appears in Discord embed):</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Title</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"System Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Disk space running low on server"</span>
+<div class="highlight"><span class="filename">Send Notification with Title</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://API_KEY?channel=CHANNEL_ID"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"System Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Disk space running low on server"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
 </div>
 <h2 id="api_documentation_reference">API Documentation Reference<a class="headerlink" href="#api_documentation_reference" title="Permanent link">&para;</a></h2>
-<p>The Notifiarr service sends notifications to the Notifiarr API endpoint at <code>https://notifiarr.com/api/v1/notification/passthrough/{apikey}</code>.</p>
+<p>The Notifiarr service sends notifications to the Notifiarr API endpoint at <code>https://notifiarr.com/api/v1/notification/passthrough/API_KEY</code>.</p>
 <h3 id="request_format">Request Format<a class="headerlink" href="#request_format" title="Permanent link">&para;</a></h3>
 <p>The service sends a POST request with a JSON payload containing the notification data. The payload structure follows the official Notifiarr API specification:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
@@ -3610,7 +3586,7 @@ Any other param fails the send, so a misspelled one is reported instead of ignor
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 30, 2026 08:14:36 UTC"><span class="timeago" datetime="2026-10-30T08:14:36+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 08:14:36 UTC">2026-10-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

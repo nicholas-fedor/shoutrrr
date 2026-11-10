@@ -2806,64 +2806,64 @@
 <tbody>
 <tr>
 <td><a href="../chat/discord/">Discord</a></td>
-<td><em>discord://<strong><code>token</code></strong>@<strong><code>id</code></strong>[?thread_id=<strong><code>threadid</code></strong>]</em></td>
+<td><em>discord://<strong><code>TOKEN</code></strong>@<strong><code>WEBHOOK_ID</code></strong>[?thread_id=<strong><code>THREAD_ID</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/googlechat/">Google Chat</a></td>
-<td><em>googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&amp;token=baz</em></td>
+<td><em>googlechat://chat.googleapis.com/v1/spaces/<strong><code>SPACE_ID</code></strong>/messages?key=<strong><code>KEY</code></strong>&amp;token=<strong><code>TOKEN</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../chat/hangouts/">Hangouts</a>*</td>
-<td><em>hangouts://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&amp;token=baz</em></td>
+<td><em>hangouts://chat.googleapis.com/v1/spaces/<strong><code>SPACE_ID</code></strong>/messages?key=<strong><code>KEY</code></strong>&amp;token=<strong><code>TOKEN</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../chat/lark/">Lark</a></td>
-<td><em>lark://<strong><code>host</code></strong>/<strong><code>token</code></strong>?secret=<strong><code>secret</code></strong>&amp;title=<strong><code>title</code></strong>&amp;link=<strong><code>url</code></strong></em></td>
+<td><em>lark://<strong><code>HOST</code></strong>/<strong><code>TOKEN</code></strong>[?secret=<strong><code>SECRET</code></strong>][&amp;title=<strong><code>TITLE</code></strong>][&amp;link=<strong><code>LINK</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/matrix/">Matrix</a></td>
-<td><em>matrix://<strong><code>username</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>:<strong><code>port</code></strong>/[?rooms=<strong><code>!roomID1</code></strong>[,<strong><code>roomAlias2</code></strong>]]</em></td>
+<td><em>matrix://[<strong><code>USER</code></strong>]:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/[?rooms=<strong><code>ROOM_1</code></strong>[,<strong><code>ROOM_2</code></strong>]]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/mattermost/">Mattermost</a></td>
-<td><em>mattermost://[<strong><code>username</code></strong>@]<strong><code>mattermost-host</code></strong>/<strong><code>token</code></strong>[/<strong><code>channel</code></strong>]</em></td>
+<td><em>mattermost://[<strong><code>USERNAME</code></strong>@]<strong><code>HOST</code></strong>/<strong><code>TOKEN</code></strong>[/<strong><code>CHANNEL</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/rocketchat/">Rocketchat</a></td>
-<td><em>rocketchat://[<strong><code>username</code></strong>@]<strong><code>rocketchat-host</code></strong>/<strong><code>token</code></strong>[/<strong><code>channel</code>&#124;<code>@recipient</code></strong>]</em></td>
+<td><em>rocketchat://[<strong><code>USERNAME</code></strong>@]<strong><code>HOST</code></strong>/<strong><code>INTEGRATION_ID</code></strong>/<strong><code>TOKEN</code></strong>[/<strong><code>CHANNEL</code></strong>&#124;@<strong><code>USER</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/signal/">Signal</a>†</td>
-<td><em>signal://[<strong><code>user</code></strong>[:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>source_phone</code></strong>/<strong><code>recipient1</code></strong>[/<strong><code>recipient2</code></strong>/...]</em></td>
+<td><em>signal://[<strong><code>USER</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/<strong><code>SOURCE_PHONE</code></strong>/<strong><code>RECIPIENT_1</code></strong>[/<strong><code>RECIPIENT_2</code></strong>/...]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/slack/">Slack</a></td>
-<td><em>slack://<strong><code>hook</code></strong>&#124;<strong><code>xoxb</code></strong>:<strong><code>token</code></strong>@<strong><code>channel</code></strong>[?botname=<strong><code>botname</code></strong>]</em></td>
+<td><em>slack://{hook&#124;xoxb}:<strong><code>TOKEN</code></strong>@<strong><code>CHANNEL</code></strong>[?botname=<strong><code>BOT_NAME</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/teams/">Teams</a></td>
-<td><em>teams://?host=<strong><code>Power Automate workflow URL</code></strong></em></td>
+<td><em>teams://?host=<strong><code>WORKFLOW_URL</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../chat/telegram/">Telegram</a></td>
-<td><em>telegram://<strong><code>token</code></strong>@telegram?chats=<strong><code>@channel-1</code></strong>[,<strong><code>chat-id-1</code></strong>,...]</em></td>
+<td><em>telegram://<strong><code>TOKEN</code></strong>@telegram?chats=<strong><code>CHAT_1</code></strong>[,<strong><code>CHAT_2</code></strong>,...]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/wecom/">WeCom</a></td>
-<td><em>wecom://<strong><code>key</code></strong></em></td>
+<td><em>wecom://<strong><code>KEY</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../chat/xmpp/">XMPP</a></td>
-<td><em>xmpp://<strong><code>user</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/?to=<strong><code>jid</code></strong>[&amp;rooms=<strong><code>roomjid</code></strong>]</em> or <em>xmpps://<strong><code>user</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/?to=<strong><code>jid</code></strong>[&amp;rooms=<strong><code>roomjid</code></strong>]</em></td>
+<td><em>xmpp://<strong><code>USER</code></strong>:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?to=<strong><code>JID</code></strong>[&amp;rooms=<strong><code>ROOM_JID</code></strong>]</em> or <em>xmpps://<strong><code>USER</code></strong>:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?to=<strong><code>JID</code></strong>[&amp;rooms=<strong><code>ROOM_JID</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../chat/zulip/">Zulip Chat</a></td>
-<td><em>zulip://<strong><code>bot-mail</code></strong>:<strong><code>bot-key</code></strong>@<strong><code>zulip-domain</code></strong>/?stream=<strong><code>name-or-id</code></strong>&amp;topic=<strong><code>name</code></strong></em></td>
+<td><em>zulip://<strong><code>BOT_MAIL</code></strong>:<strong><code>BOT_KEY</code></strong>@<strong><code>HOST</code></strong>/[?stream=<strong><code>STREAM</code></strong>][&amp;topic=<strong><code>TOPIC</code></strong>]</em></td>
 </tr>
 </tbody>
 </table>
 <p>* Deprecated</p>
-<p>† A group ID can contain <code>/</code> and span several path segments, ending at the next phone number, username, or group ID. For example, <code>signal://localhost:8080/+1234567890/group.ABCD/EFGH=/+0987654321</code> sends to the group <code>group.ABCD/EFGH=</code> and the phone number <code>+0987654321</code>.</p>
+<p>† A group ID can contain <code>/</code> and span several path segments, ending at the next phone number, username, or group ID. For example, <code>signal://localhost:8080/+18005550100/group.ABCD/EFGH=/+18005550101</code> sends to the group <code>group.ABCD/EFGH=</code> and the phone number <code>+18005550101</code>.</p>
 <h2 id="push_services">Push Services<a class="headerlink" href="#push_services" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2875,43 +2875,43 @@
 <tbody>
 <tr>
 <td><a href="../push/bark/">Bark</a></td>
-<td><em>bark://<strong><code>devicekey</code></strong>@<strong><code>host</code></strong></em></td>
+<td><em>bark://<strong><code>DEVICE_KEY</code></strong>@<strong><code>HOST</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../push/gotify/">Gotify</a></td>
-<td><em>gotify://<strong><code>gotify-host</code></strong>/<strong><code>token</code></strong></em></td>
+<td><em>gotify://<strong><code>HOST</code></strong>/<strong><code>TOKEN</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../push/homeassistant/">Home Assistant</a></td>
-<td><em>homeassistant://<strong><code>token</code></strong>@<strong><code>host</code></strong>[:<strong><code>port</code></strong>][/<strong><code>basepath</code></strong>]</em></td>
+<td><em>homeassistant://<strong><code>LONG_LIVED_TOKEN</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>][/<strong><code>BASE_PATH</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../push/ifttt/">IFTTT</a></td>
-<td><em>ifttt://<strong><code>key</code></strong>/?events=<strong><code>event1</code></strong>[,<strong><code>event2</code></strong>,...]&amp;value1=<strong><code>value1</code></strong>&amp;value2=<strong><code>value2</code></strong>&amp;value3=<strong><code>value3</code></strong></em></td>
+<td><em>ifttt://<strong><code>KEY</code></strong>/?events=<strong><code>EVENT_1</code></strong>[,<strong><code>EVENT_2</code></strong>,...][&amp;value1=<strong><code>VALUE_1</code></strong>][&amp;value2=<strong><code>VALUE_2</code></strong>][&amp;value3=<strong><code>VALUE_3</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../push/join/">Join</a></td>
-<td><em>join://shoutrrr:<strong><code>api-key</code></strong>@join/?devices=<strong><code>device1</code></strong>[,<strong><code>device2</code></strong>, ...][&amp;icon=<strong><code>icon</code></strong>][&amp;title=<strong><code>title</code></strong>]</em></td>
+<td><em>join://shoutrrr:<strong><code>API_KEY</code></strong>@join/?devices=<strong><code>DEVICE_ID_1</code></strong>[,<strong><code>DEVICE_ID_2</code></strong>,...][&amp;icon=<strong><code>ICON</code></strong>][&amp;title=<strong><code>TITLE</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../push/mqtt/">MQTT</a></td>
-<td><em>mqtt://[<strong><code>username</code></strong>[:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>topic</code></strong></em></td>
+<td><em>mqtt://[[<strong><code>USERNAME</code></strong>][:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/<strong><code>TOPIC</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../push/ntfy/">Ntfy</a></td>
-<td><em>ntfy://<strong><code>username</code></strong>:<strong><code>password</code><a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#95;&#95;&#64;&#110;&#116;&#102;&#121;&#46;&#115;&#104;">&#95;&#95;&#64;&#110;&#116;&#102;&#121;&#46;&#115;&#104;</a>/</strong><code>topic</code>__</em></td>
+<td><em>ntfy://[<strong><code>USERNAME</code></strong>:<strong><code>PASSWORD</code></strong>@]<strong><code>HOST</code></strong>/<strong><code>TOPIC</code></strong></em></td>
 </tr>
 <tr>
 <td><a href="../push/pushbullet/">Pushbullet</a></td>
-<td><em>pushbullet://<strong><code>api-token</code></strong>[/<strong><code>device</code></strong>/#<strong><code>channel</code></strong>/<strong><code>email</code></strong>]</em></td>
+<td><em>pushbullet://<strong><code>API_TOKEN</code></strong>[/<strong><code>DEVICE</code></strong>/#<strong><code>CHANNEL</code></strong>/<strong><code>EMAIL</code></strong>]</em></td>
 </tr>
 <tr>
 <td><a href="../push/pushover/">Pushover</a></td>
-<td><em>pushover://shoutrrr:<strong><code>apiToken</code></strong>@<strong><code>userKey</code></strong>/?devices=<strong><code>device1</code></strong>[,<strong><code>device2</code></strong>, ...]</em></td>
+<td><em>pushover://shoutrrr:<strong><code>API_TOKEN</code></strong>@<strong><code>USER_KEY</code></strong>/[?devices=<strong><code>DEVICE_1</code></strong>[,<strong><code>DEVICE_2</code></strong>,...]]</em></td>
 </tr>
 <tr>
 <td><a href="../push/signalgrid/">Signalgrid</a></td>
-<td><em>signalgrid://<strong><code>client-key</code></strong>@<strong><code>channel</code></strong></em></td>
+<td><em>signalgrid://<strong><code>CLIENT_KEY</code></strong>@<strong><code>CHANNEL</code></strong></em></td>
 </tr>
 </tbody>
 </table>
@@ -2926,11 +2926,11 @@
 <tbody>
 <tr>
 <td><a href="../incident/opsgenie/">OpsGenie</a></td>
-<td><em>opsgenie://<strong><code>host</code></strong>/token?responders=<strong><code>responder1</code></strong>[,<strong><code>responder2</code></strong>]</em></td>
+<td><em>opsgenie://[<strong><code>HOST</code></strong>]/<strong><code>API_KEY</code></strong>[?responders=<strong><code>RESPONDER_1</code></strong>[,<strong><code>RESPONDER_2</code></strong>]]</em></td>
 </tr>
 <tr>
 <td><a href="../incident/pagerduty/">PagerDuty</a></td>
-<td><em>pagerduty://[host[:port]]/<strong><code>integration-key</code></strong>[?query-parameters]</em></td>
+<td><em>pagerduty://[<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]]/<strong><code>INTEGRATION_KEY</code></strong>[?<strong><code>QUERY_PARAMETERS</code></strong>]</em></td>
 </tr>
 </tbody>
 </table>
@@ -2945,7 +2945,7 @@
 <tbody>
 <tr>
 <td><a href="../email/smtp/">Email</a></td>
-<td><em>smtp://<strong><code>username</code></strong>:<strong><code>password</code></strong>@<strong><code>host</code></strong>:<strong><code>port</code></strong>/?fromaddress=<strong><code>fromAddress</code></strong>&amp;toaddresses=<strong><code>recipient1</code></strong>[,<strong><code>recipient2</code></strong>,...][&amp;additional_params]</em></td>
+<td><em>smtp://[<strong><code>USERNAME</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?fromaddress=<strong><code>FROM_ADDRESS</code></strong>&amp;toaddresses=<strong><code>TO_ADDRESS_1</code></strong>[,<strong><code>TO_ADDRESS_2</code></strong>,...][&amp;<strong><code>QUERY_PARAMETERS</code></strong>]</em></td>
 </tr>
 </tbody>
 </table>
@@ -2960,7 +2960,7 @@
 <tbody>
 <tr>
 <td><a href="../sms/twilio/">Twilio</a></td>
-<td><em>twilio://<strong><code>accountSID</code></strong>:<strong><code>authToken</code></strong>@<strong><code>fromNumber</code></strong>/<strong><code>toNumber</code></strong></em></td>
+<td><em>twilio://<strong><code>ACCOUNT_SID</code></strong>:<strong><code>AUTH_TOKEN</code></strong>@<strong><code>FROM_NUMBER</code></strong>/<strong><code>TO_NUMBER_1</code></strong>[/<strong><code>TO_NUMBER_2</code></strong>/...]</em></td>
 </tr>
 </tbody>
 </table>
@@ -3013,7 +3013,7 @@ A list whose entries are all empty counts as left out.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 4, 2026 10:04:38 UTC"><span class="timeago" datetime="2026-11-04T10:04:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 10:04:38 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     

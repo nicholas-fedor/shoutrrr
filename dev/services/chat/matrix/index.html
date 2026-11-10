@@ -3074,7 +3074,7 @@
 </ul>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>matrix://[<strong><code>user</code></strong>:<strong><code>password</code></strong>@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/[?rooms=<strong><code>!roomID1</code></strong>[,<strong><code>roomAlias2</code></strong>]][&amp;disabletls=yes][&amp;skiptlsverify=yes]</p>
+<p>matrix://[<strong><code>USER</code></strong>]:<strong><code>PASSWORD</code></strong>@<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/[?rooms=<strong><code>ROOM_1</code></strong>[,<strong><code>ROOM_2</code></strong>]][&amp;disabletls=yes][&amp;skiptlsverify=yes]</p>
 </div>
 <p>If the port is omitted, the default port 443 (HTTPS) is used.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
@@ -3112,11 +3112,11 @@
 <h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
 <p>The Matrix service supports two authentication methods:</p>
 <h3 id="token-based_login_default">Token-based Login (Default)<a class="headerlink" href="#token-based_login_default" title="Permanent link">&para;</a></h3>
-<p>If no <code>user</code> is specified, the <code>password</code> is treated as an authentication token.
+<p>If no <code>USER</code> is specified, the <code>PASSWORD</code> is treated as an authentication token.
 This allows you to use a pre-generated access token from your Matrix server, which is useful for CI/CD pipelines or when you don't want to store your password.
-Simply omit the <code>user</code> parameter and provide your access token as the <code>password</code>.</p>
+Simply omit <code>USER</code> and provide your access token as <code>PASSWORD</code>.</p>
 <h3 id="password_login">Password Login<a class="headerlink" href="#password_login" title="Permanent link">&para;</a></h3>
-<p>If a <code>user</code> and <code>password</code> are both supplied, the service will attempt to authenticate using the <code>m.login.password</code> flow (if supported by your server).
+<p>If a <code>USER</code> and <code>PASSWORD</code> are both supplied, the service will attempt to authenticate using the <code>m.login.password</code> flow (if supported by your server).
 The first send logs in.
 Later sends reuse that login while the homeserver, user, and password stay the same.
 When code changes the service's config to another homeserver or account, the next send logs in again, so an access token only goes to the homeserver that issued it.</p>
@@ -3156,7 +3156,7 @@ A message send keeps its transaction ID, so a retry cannot post the message twic
 <p>The Matrix service now supports the <code>title</code> parameter. When provided, the title is prepended to the message body.</p>
 <div class="admonition example">
 <p class="admonition-title">With Title</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--title<span class="w"> </span><span class="s2">"Notification Title"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"This is the message body"</span><span class="w"> </span>matrix://...
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--title<span class="w"> </span><span class="s2">"Notification Title"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"This is the message body"</span><span class="w"> </span>--url<span class="w"> </span><span class="s2">"matrix://USER:PASSWORD@matrix.example.com"</span>
 </code></pre></div>
 <p>Output in Matrix:</p>
 <div class="highlight"><pre><span></span><code>Notification Title
@@ -3206,32 +3206,32 @@ The first send that skips certificate verification through Shoutrrr's own client
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
 <p class="admonition-title">Basic Notification</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">To Specific Room</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?rooms=!roomID:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com?rooms=!ROOM_ID:matrix.example.com
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With Room Alias</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?rooms=%23general:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com?rooms=%23ROOM_ALIAS:matrix.example.com
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Multiple Rooms</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?rooms=!room1:matrix.example.com,%23room2:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com?rooms=!ROOM_ID:matrix.example.com,%23ROOM_ALIAS:matrix.example.com
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">With Custom Port</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com:8448?rooms=!roomID:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com:8448?rooms=!ROOM_ID:matrix.example.com
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Without TLS (Not Recommended)</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?disabletls=yes&amp;rooms=!roomID:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://USER:PASSWORD@matrix.example.com?disabletls=yes&amp;rooms=!ROOM_ID:matrix.example.com
 </code></pre></div>
 </div>
 
@@ -3256,7 +3256,7 @@ The first send that skips certificate verification through Shoutrrr's own client
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 4, 2026 03:40:30 UTC"><span class="timeago" datetime="2026-11-04T03:40:30+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 03:40:30 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
   </span>
 
     
