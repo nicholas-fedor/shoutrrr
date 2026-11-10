@@ -83,7 +83,7 @@ func configSchemaJSON(serviceName string) string {
 	}
 
 	configNode := format.GetConfigFormat(config)
-	fields := convertFields(configNode.Items, config)
+	fields := convertFields(configNode.Items)
 
 	// Add synthetic WebhookURL field for services with nil *url.URL fields.
 	// These services (e.g., generic) need a webhook URL set via SetURL().
@@ -126,54 +126,40 @@ func configSchemaJSON(serviceName string) string {
 	return string(data)
 }
 
-// convertFields converts a slice of format.Node items to fieldSchema structs.
-// It maps each field's metadata (type, required, description, enums) to the
-// JSON-serializable format used by the frontend.
-func convertFields(nodes []format.Node, config types.ServiceConfig) []fieldSchema {
+// convertFields converts the fields of a config format to the schemas the
+// frontend renders.
+//
+// A field that [format.FieldInfo.IsEnum] reports as an enum also lists the
+// names of its values.
+//
+// Parameters:
+//   - nodes: the items of the config format.
+//
+// Returns:
+//   - []fieldSchema: one schema for each field, in the order of the items.
+func convertFields(nodes []format.Node) []fieldSchema {
 	fields := make([]fieldSchema, 0, len(nodes))
-	enums := config.Enums()
 
 	for _, node := range nodes {
 		field := node.Field()
+		isEnum := field.IsEnum()
 
-		//nolint:exhaustruct_v5 // EnumValues set conditionally below.
-		schema := fieldSchema{
+		var enumValues []string
+		if isEnum {
+			enumValues = field.EnumFormatter.Names()
+		}
+
+		fields = append(fields, fieldSchema{
 			Name:         field.Name,
-			Type:         classifyType(field.Type, field.IsEnum()),
-			Required:     field.Required,
+			Type:         classifyType(field.Type, isEnum),
 			Description:  field.Description,
 			DefaultValue: field.DefaultValue,
 			URLPart:      urlPartToString(field.URLParts),
 			Keys:         field.Keys,
-		}
-
-		if field.IsEnum() {
-			schema.EnumValues = getEnumNames(field.EnumFormatter)
-		}
-
-		// Check for enums defined via config.Enums() map (e.g., ntfy Priority).
-		if schema.EnumValues == nil && isIntegerKind(field.Type.Kind()) {
-			if ef, ok := enums[field.Name]; ok {
-				schema.EnumValues = getEnumNames(ef)
-				schema.Type = "enum"
-			}
-		}
-
-		fields = append(fields, schema)
+			EnumValues:   enumValues,
+			Required:     field.Required,
+		})
 	}
 
 	return fields
-}
-
-// isIntegerKind returns true for all signed and unsigned integer kinds.
-//
-//nolint:exhaustive // Using default case for non-integer kinds.
-func isIntegerKind(k reflect.Kind) bool {
-	switch k {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return true
-	default:
-		return false
-	}
 }

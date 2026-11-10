@@ -89,6 +89,28 @@ func TestConfigSchemaJSON(t *testing.T) {
 		assert.Equal(t, "ntfy", schema.Service)
 	})
 
+	t.Run("lists the names of an enum field only", func(t *testing.T) {
+		t.Parallel()
+
+		fields := map[string]fieldSchema{}
+
+		for _, service := range []string{"ntfy", "gotify"} {
+			var schema configSchema
+
+			require.NoError(t, json.Unmarshal([]byte(configSchemaJSON(service)), &schema))
+
+			for _, field := range schema.Fields {
+				fields[service+"."+field.Name] = field
+			}
+		}
+
+		// ntfy's priority is an enum, while Gotify's is a plain int.
+		assert.Equal(t, "enum", fields["ntfy.Priority"].Type)
+		assert.Equal(t, []string{"Min", "Low", "Default", "High", "Max"}, fields["ntfy.Priority"].EnumValues)
+		assert.Equal(t, "int", fields["gotify.Priority"].Type)
+		assert.Nil(t, fields["gotify.Priority"].EnumValues)
+	})
+
 	t.Run("includes webhookURL field for generic service", func(t *testing.T) {
 		t.Parallel()
 
