@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Let the format package parse prompted answers by @nicholas-fedor in [#2143](https://github.com/nicholas-fedor/shoutrrr/pull/2143)
 - Set fields by name through the format package by @nicholas-fedor in [#2141](https://github.com/nicholas-fedor/shoutrrr/pull/2141)
 - Name each field's URL part in the generated config docs by @nicholas-fedor in [#2135](https://github.com/nicholas-fedor/shoutrrr/pull/2135)
 - Write markdown URL parts as uppercase placeholders by @nicholas-fedor in [#2129](https://github.com/nicholas-fedor/shoutrrr/pull/2129)
