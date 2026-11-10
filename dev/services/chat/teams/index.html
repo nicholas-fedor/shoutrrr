@@ -2777,10 +2777,14 @@ Existing configurations using the old URL format must be migrated to the new
 </div>
 <p>Where:</p>
 <ul>
-<li><code>WORKFLOW_URL</code>: The full Power Automate workflow incoming webhook URL, percent-encoded (required).</li>
+<li><code>WORKFLOW_URL</code>: The full Power Automate workflow incoming webhook URL, percent-encoded. Each send needs one. A service URL may leave <code>host</code> out, and each send then has to provide it as a <code>host</code> param.</li>
 <li><code>COLOR</code> <em>(optional)</em>: Title text color. Accepts Adaptive Card color names (<code>accent</code>, <code>good</code>, <code>warning</code>, <code>attention</code>, <code>dark</code>, <code>light</code>, <code>default</code>) or common color names (<code>red</code>, <code>green</code>, <code>blue</code>, <code>yellow</code>, <code>orange</code>).</li>
 <li><code>TITLE</code> <em>(optional)</em>: Title displayed as a bold header in the Adaptive Card.</li>
 </ul>
+<p>Shoutrrr checks <code>WORKFLOW_URL</code> when it reads the service URL, so <code>shoutrrr verify</code> reports a webhook URL that the check rejects.
+The check covers only the start of the URL, so a URL that passes can still fail to send, for example with a wrong signature.
+The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on a <code>logic.azure.com</code> or <code>environment.api.powerplatform.com</code> host.
+A retired <code>webhook.office.com</code> connector URL is rejected.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument or through the URL using
@@ -2838,7 +2842,7 @@ trigger. Copy the generated webhook URL from the trigger.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 20:31:15 UTC"><span class="timeago" datetime="2026-11-10T20:31:15+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 20:31:15 UTC">2026-11-10</span>
   </span>
 
     
