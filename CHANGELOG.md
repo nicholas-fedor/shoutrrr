@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Drop an unreachable check and assert bare-URL results by @nicholas-fedor in [#2152](https://github.com/nicholas-fedor/shoutrrr/pull/2152)
 - Follow the format package's enum rule by @nicholas-fedor in [#2145](https://github.com/nicholas-fedor/shoutrrr/pull/2145)
 - Use one zero-config rule for unconfigured services by @nicholas-fedor in [#2139](https://github.com/nicholas-fedor/shoutrrr/pull/2139)
 - Remove the unused field name width from field info by @nicholas-fedor in [#2133](https://github.com/nicholas-fedor/shoutrrr/pull/2133)
