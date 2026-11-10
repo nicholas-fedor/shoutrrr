@@ -18,6 +18,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
 // mockConfig implements types.ServiceConfig.
@@ -51,8 +52,41 @@ type deprecatedFieldConfig struct {
 	OldName string `deprecated:"Name"`
 }
 
+// answerConfig has an enum, an int, and a duration field.
+//
+// The format package parses the prompted answers of these kinds. The embedded
+// config provides the service config methods and is not prompted for.
+type answerConfig struct {
+	mockConfig
+
+	// Level is an enum field, answered by name.
+	Level int `default:"None" key:"level"`
+	// Count is an int field, read in base 16 after a 0x or # prefix.
+	Count int `default:"1" key:"count"`
+	// Timeout is a duration field.
+	Timeout time.Duration `default:"10s" key:"timeout"`
+}
+
+// answerService is a test service whose Config is an [answerConfig].
+//
+// The embedded service provides the service methods.
+type answerService struct {
+	mockServiceConfig
+
+	// Config is the config the generator fills.
+	Config *answerConfig
+}
+
 func (m *mockConfig) Enums() map[string]types.EnumFormatter {
 	return nil
+}
+
+// Enums returns the formatter of the Level field, whose values are None, Low,
+// and High.
+func (a *answerConfig) Enums() map[string]types.EnumFormatter {
+	return map[string]types.EnumFormatter{
+		"Level": format.CreateEnumFormatter([]string{"None", "Low", "High"}),
+	}
 }
 
 // ConfigQueryResolver methods.
@@ -300,6 +334,96 @@ func TestGenerator_Generate(t *testing.T) {
 	}
 }
 
+// TestGenerator_GenerateParsesAnswers verifies that a prompted answer is read
+// as the field's URL value would be.
+//
+// An enum takes its name, and an int takes a 0x or # prefix in base 16. A
+// rejected answer prompts again, and when the input then ends, the generation
+// fails.
+func TestGenerator_GenerateParsesAnswers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		// name describes the case.
+		name string
+		// input holds the answers in prompt order, which sorts the fields by
+		// name, so Count comes before Level and Timeout.
+		input string
+		// want is the generated config, unless wantErr is set.
+		want answerConfig
+		// wantErr is the error the generation fails with, or nil.
+		wantErr error
+	}{
+		{
+			name:  "enum name",
+			input: "\nHigh\n\n",
+			want:  answerConfig{Level: 2, Count: 1, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "enum name in any case",
+			input: "\nlow\n\n",
+			want:  answerConfig{Level: 1, Count: 1, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "hex int",
+			input: "0x1f\n\n\n",
+			want:  answerConfig{Level: 0, Count: 31, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "hash hex int",
+			input: "#ff\n\n\n",
+			want:  answerConfig{Level: 0, Count: 255, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "duration",
+			input: "\n\n45s\n",
+			want:  answerConfig{Level: 0, Count: 1, Timeout: 45 * time.Second},
+		},
+		{
+			name:  "invalid enum name prompts again",
+			input: "\nHighest\nHigh\n\n",
+			want:  answerConfig{Level: 2, Count: 1, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "invalid int prompts again",
+			input: "many\n7\n\n\n",
+			want:  answerConfig{Level: 0, Count: 7, Timeout: 10 * time.Second},
+		},
+		{
+			name:  "duration without a unit prompts again",
+			input: "\n\n30\n30s\n",
+			want:  answerConfig{Level: 0, Count: 1, Timeout: 30 * time.Second},
+		},
+		{
+			name:    "input ends after an invalid duration",
+			input:   "\n\n30\n",
+			wantErr: generator.ErrInputClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &answerService{Config: &answerConfig{}}
+			g := &Generator{Input: strings.NewReader(tt.input)}
+
+			got, err := g.Generate(service, map[string]string{}, nil)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Same(t, service.Config, got)
+			assert.Equal(t, tt.want.Level, service.Config.Level)
+			assert.Equal(t, tt.want.Count, service.Config.Count)
+			assert.Equal(t, tt.want.Timeout, service.Config.Timeout)
+		})
+	}
+}
+
 func TestGenerator_promptUserForFields(t *testing.T) {
 	t.Parallel()
 
@@ -406,24 +530,6 @@ func TestGenerator_getInputValue(t *testing.T) {
 			input:   "\n",
 			want:    "localhost",
 			wantErr: false,
-		},
-		{
-			name:    "duration from user input",
-			field:   &format.FieldInfo{Name: "Timeout", Type: reflect.TypeFor[time.Duration]()},
-			propKey: "timeout",
-			props:   map[string]string{},
-			input:   "30s\n",
-			want:    "30s",
-			wantErr: false,
-		},
-		{
-			name:    "duration rejects a value without a unit",
-			field:   &format.FieldInfo{Name: "Timeout", Type: reflect.TypeFor[time.Duration]()},
-			propKey: "timeout",
-			props:   map[string]string{},
-			input:   "30\n",
-			want:    "",
-			wantErr: true,
 		},
 	}
 

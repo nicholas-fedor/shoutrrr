@@ -27,6 +27,7 @@ shoutrrr generate [FLAGS] [SERVICE] [GENERATOR] [GENERATOR ARGS...]
 The default generator that dynamically prompts for service configuration fields.
 
 - Inspects service struct tags (`key`, `desc`, `default`) to generate prompts, in alphabetical order of the field names.
+- Reads each answer as a service URL reads the field, so an enum field takes one of its names and a number may use a `0x` or `#` prefix for base 16. An invalid answer is reported, and the field is prompted for again until it gets a valid answer or input ends, which fails the generation.
 - Fails when a required field is left blank, or when input ends before a required field has a value.
 - Integrates with `-p` properties to skip prompts for prefilled fields. A property whose value is invalid is reported, and the field is prompted for instead.
 
