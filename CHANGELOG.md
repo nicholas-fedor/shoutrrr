@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Cache config defaults for default checks by @nicholas-fedor in [#2137](https://github.com/nicholas-fedor/shoutrrr/pull/2137)
 - Reuse gzip writers for encrypted fields by @nicholas-fedor in [#2119](https://github.com/nicholas-fedor/shoutrrr/pull/2119)
 
 ### Changed
