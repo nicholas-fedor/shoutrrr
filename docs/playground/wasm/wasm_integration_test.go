@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
@@ -195,18 +198,18 @@ func TestAliasMapConsistency(t *testing.T) {
 	}
 }
 
-// TestAllServicesValidateURL logs the result of validating a bare URL for
-// every registered service, without asserting.
+// TestAllServicesValidateURL verifies that validating a bare URL gives a
+// well-formed result for every registered service.
 //
-// A bare "scheme://" URL fails for services that require a host or a path, so
-// the results are logged for inspection during development instead.
+// Whether a bare "scheme://" URL is valid is each service's own rule, so the
+// result may go either way. It must be {"valid":true} or an errorResult with a
+// message.
 func TestAllServicesValidateURL(t *testing.T) {
 	t.Parallel()
 
 	r := router.ServiceRouter{}
-	schemes := r.ListServices()
 
-	for _, scheme := range schemes {
+	for _, scheme := range r.ListServices() {
 		rawURL := scheme + "://"
 
 		t.Run(scheme, func(t *testing.T) {
@@ -214,15 +217,18 @@ func TestAllServicesValidateURL(t *testing.T) {
 
 			result := validateURLString(rawURL)
 
-			var valid map[string]bool
-			if err := json.Unmarshal([]byte(result), &valid); err != nil {
-				// Some services may return errors for empty URLs - acceptable.
-				t.Logf("validateURLString(%q) returned non-boolean result: %s", rawURL, result)
-
-				return
+			var outcome struct {
+				Error string `json:"error"`
+				Valid bool   `json:"valid"`
 			}
 
-			t.Logf("validateURLString(%q) = %v", rawURL, valid["valid"])
+			require.NoError(t, json.Unmarshal([]byte(result), &outcome), result)
+
+			if outcome.Valid {
+				assert.JSONEq(t, `{"valid":true}`, result)
+			} else {
+				assert.NotEmpty(t, outcome.Error, result)
+			}
 		})
 	}
 }
