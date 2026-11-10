@@ -6,7 +6,7 @@ Shoutrrr's Zulip service sends notifications to Zulip streams using bot credenti
 ## URL Format
 
 !!! info ""
-    zulip://__`botmail`__:__`botkey`__@__`host`__/?stream=__`stream`__&topic=__`topic`__
+    zulip://__`BOT_MAIL`__:__`BOT_KEY`__@__`HOST`__/[?stream=__`STREAM`__][&topic=__`TOPIC`__]
 
 --8<-- "docs/services/chat/zulip/config.md"
 
@@ -15,7 +15,7 @@ Shoutrrr's Zulip service sends notifications to Zulip streams using bot credenti
     URL-encoded as `%40`. When using the Go API or the playground, this is handled automatically.
 
 !!! note
-    The __`host`__ field may include a non-standard port (e.g., `zulip.example.com:8443`).
+    The __`HOST`__ field may include a non-standard port (e.g., `zulip.example.com:8443`).
     When using the default HTTPS port (443), the port can be omitted.
     For a self-hosted server, the host can also be a single-label name such as `localhost`, an IPv4 address, or an IPv6 address in brackets (e.g., `[2001:db8::1]:8443`).
 
@@ -30,7 +30,7 @@ To use Shoutrrr with Zulip, you need to create a bot in your Zulip organization:
 5. Click __Create bot__
 6. Copy the bot's __email__ and __API key__
 
-Use the bot email as the `botmail` and the API key as the `botkey` in your service URL.
+Use the bot email as `BOT_MAIL` and the API key as `BOT_KEY` in your service URL.
 Zulip authenticates every request with both, so a URL that leaves out either one is rejected.
 So is a URL with an empty API key.
 
@@ -51,17 +51,17 @@ If neither is specified, the message is sent to the default stream configured fo
 
 !!! example "Basic notification (default stream)"
     ```uri
-    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com
+    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com
     ```
 
 !!! example "With stream and topic in URL"
     ```uri
-    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=alerts&topic=monitoring
+    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?stream=alerts&topic=monitoring
     ```
 
 !!! example "With custom port"
     ```uri
-    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com:8443?stream=general
+    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com:8443?stream=general
     ```
 
 !!! example "Override stream and topic at send time"
@@ -93,7 +93,7 @@ If neither is specified, the message is sent to the default stream configured fo
 
 !!! example "Using the CLI"
     ```bash
-    shoutrrr send --url "zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts" --message "Server restarted"
+    shoutrrr send --url "zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?stream=alerts" --message "Server restarted"
     ```
 
 ## Direct Messages
@@ -107,14 +107,14 @@ User IDs are sent to Zulip as numbers.
     ```go
     params := make(types.Params)
     params["type"] = "direct"
-    params["to"] = "user1@example.com,user2@example.com"
+    params["to"] = "dana@example.com,kai@example.com"
 
     sender.Send("Hello via DM", &params)
     ```
 
 !!! example "Direct message service URL"
     ```
-    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?type=direct&to=user1@example.com,user2@example.com
+    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?type=direct&to=dana@example.com,kai@example.com
     ```
 
 ## TLS

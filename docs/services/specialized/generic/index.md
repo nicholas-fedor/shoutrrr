@@ -19,7 +19,7 @@ The following adds webhook-specific information:
 
 !!! example
     ```url
-    generic://api.example.com/webhook?@Authorization=Bearer%20token123&@X-Custom=value
+    generic://api.example.com/webhook?@Authorization=Bearer%20TOKEN&@X-Custom=value
     ```
 
 !!! note

@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    ifttt://__`key`__/?events=__`event1`__[,__`event2`__,...]&value1=__`value1`__&value2=__`value2`__&value3=__`value3`__
+    ifttt://__`KEY`__/?events=__`EVENT_1`__[,__`EVENT_2`__,...][&value1=__`VALUE_1`__][&value2=__`VALUE_2`__][&value3=__`VALUE_3`__]
 
 --8<-- "docs/services/push/ifttt/config.md"
 

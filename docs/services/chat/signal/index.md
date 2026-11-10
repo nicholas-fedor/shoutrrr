@@ -3,9 +3,9 @@
 ## URL Format
 
 !!! Info ""
-    signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]
+    signal://[__`USER`__[:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/__`SOURCE_PHONE`__/__`RECIPIENT_1`__[/__`RECIPIENT_2`__/...]
 
-A URL without a host, such as `signal:///+1234567890/+0987654321`, uses `localhost`, with port `8080` unless the URL sets one.
+A URL without a host, such as `signal:///+18005550100/+18005550101`, uses `localhost`, with port `8080` unless the URL sets one.
 
 --8<-- "docs/services/chat/signal/config.md"
 
@@ -38,7 +38,7 @@ The server must be able to receive SMS verification codes during initial setup a
 
 Recipients can be:
 
-- __Phone numbers__: With country code (e.g., +0987654321)
+- __Phone numbers__: With country code (e.g., +18005550101)
 - __Group IDs__: In the format `group.groupId`.
   A group ID can contain `/`, which you write as `%2F` so the group ID stays one path segment.
   The URLs Shoutrrr writes use this form.
@@ -67,13 +67,13 @@ Recipients set with the `recipients` (or `to`) query or send param are comma-sep
 ### Send to a single phone number
 
 ```
-signal://localhost:8080/+1234567890/+0987654321
+signal://localhost:8080/+18005550100/+18005550101
 ```
 
 ### Send to multiple recipients
 
 ```
-signal://localhost:8080/+1234567890/+0987654321/+1123456789/group.testgroup
+signal://localhost:8080/+18005550100/+18005550101/+18005550102/group.testgroup
 ```
 
 The two phone numbers are sent together. The group is a second `/v2/send` call.
@@ -81,46 +81,46 @@ The two phone numbers are sent together. The group is a second `/v2/send` call.
 ### Send to a group
 
 ```
-signal://localhost:8080/+1234567890/group.abcdefghijklmnop=
+signal://localhost:8080/+18005550100/group.abcdefghijklmnop=
 ```
 
 ### Send to a group ID that contains a slash
 
 ```
-signal://localhost:8080/+1234567890/group.ABCD%2FEFGH=/+0987654321
+signal://localhost:8080/+18005550100/group.ABCD%2FEFGH=/+18005550101
 ```
 
-The recipients are the group `group.ABCD/EFGH=` and the phone number `+0987654321`.
+The recipients are the group `group.ABCD/EFGH=` and the phone number `+18005550101`.
 The unescaped form `group.ABCD/EFGH=` reads the same.
 
 ### With authentication
 
 ```
-signal://user:password@localhost:8080/+1234567890/+0987654321
+signal://USER:PASSWORD@localhost:8080/+18005550100/+18005550101
 ```
 
 ### With API token (Bearer auth)
 
 ```
-signal://localhost:8080/+1234567890/+0987654321?token=YOUR_API_TOKEN
+signal://localhost:8080/+18005550100/+18005550101?token=API_TOKEN
 ```
 
 ### Send to a username
 
 ```
-signal://localhost:8080/+1234567890/u:someuser.123
+signal://localhost:8080/+18005550100/u:someuser.123
 ```
 
 ### Using HTTP instead of HTTPS
 
 ```
-signal://localhost:8080/+1234567890/+0987654321?disabletls=yes
+signal://localhost:8080/+18005550100/+18005550101?disabletls=yes
 ```
 
 ### Styled message
 
 ```
-signal://localhost:8080/+1234567890/+0987654321?textmode=styled
+signal://localhost:8080/+18005550100/+18005550101?textmode=styled
 ```
 
 !!! Note
@@ -135,7 +135,7 @@ A non-empty `title` (URL query, or the send `title` param) is prepended as the f
 With `textmode=styled` the title is wrapped in `**...**`.
 
 ```
-signal://localhost:8080/+1234567890/+0987654321?title=Alert&textmode=styled
+signal://localhost:8080/+18005550100/+18005550101?title=Alert&textmode=styled
 ```
 
 ## Attachments
@@ -144,7 +144,7 @@ Use the `attachments` query parameter or send param with comma-separated raw bas
 If the value contains `data:`, it is sent as a single data URI (data URIs contain commas, so they are not split).
 
 ```
-signal://localhost:8080/+1234567890/+0987654321?attachments=base64data1,base64data2
+signal://localhost:8080/+18005550100/+18005550101?attachments=BASE64_DATA_1,BASE64_DATA_2
 ```
 
 !!! Note "Attachment Format"

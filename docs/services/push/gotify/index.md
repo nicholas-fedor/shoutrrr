@@ -36,7 +36,7 @@ The `extras` parameter allows you to include additional metadata in the notifica
 !!! Example "With extras for actions"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
+    gotify://gotify.example.com/TOKEN?extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
     ```
 
     This sends a notification with an action button that opens `https://example.com` when clicked.
@@ -44,7 +44,7 @@ The `extras` parameter allows you to include additional metadata in the notifica
 !!! Example "With extras for images"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
+    gotify://gotify.example.com/TOKEN?extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
     ```
 
     This includes an image URL in the notification.
@@ -129,7 +129,7 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 !!! Example "Using header authentication"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?useheader=yes
+    gotify://gotify.example.com/TOKEN?useheader=yes
     ```
 
     This sends the token in the `X-Gotify-Key` header, with no token appearing in the URL.
@@ -144,7 +144,7 @@ Messages must contain at least one character. Empty messages are not allowed.
 
 !!! Failure "Validation Failure Example"
     ```bash
-    shoutrrr send --url "gotify://example.com/AzyoeNS.D4iJLVa" --message ""
+    shoutrrr send --url "gotify://gotify.example.com/TOKEN" --message ""
     ```
     **Error**: `message cannot be empty`
 
@@ -154,7 +154,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 !!! Failure "Validation Failure Example"
     ```bash
-    shoutrrr send --url "gotify://example.com/AzyoeNS.D4iJLVa?priority=15" --message "test"
+    shoutrrr send --url "gotify://gotify.example.com/TOKEN?priority=15" --message "test"
     ```
     **Error**: `priority must be between -2 and 10`
 
@@ -163,39 +163,39 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 !!! Example "Common usage"
 
     ```uri
-    gotify://gotify.example.com:443/AzyoeNS.D4iJLVa?title=Great+News&priority=1
+    gotify://gotify.example.com:443/TOKEN?title=Great+News&priority=1
     ```
 
 !!! Example "With subpath"
     ```uri
-    gotify://example.com:443/path/to/gotify/AzyoeNS.D4iJLVa?title=Great+News&priority=1
+    gotify://gotify.example.com:443/path/to/gotify/TOKEN?title=Great+News&priority=1
     ```
 
     The subpath cannot hold a `.` or `..` segment.
 
 !!! Example "With all parameters"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+    gotify://gotify.example.com/TOKEN?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
     ```
 
 !!! Example "Minimal configuration"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa
+    gotify://gotify.example.com/TOKEN
     ```
 
 !!! Example "With custom title and low priority"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=Info&priority=-1
+    gotify://gotify.example.com/TOKEN?title=Info&priority=-1
     ```
 
 !!! Example "With TLS disabled for self-signed certificates"
     ```uri
-    gotify://gotify.example.com:8080/AzyoeNS.D4iJLVa?disabletls=yes
+    gotify://gotify.example.com:8080/TOKEN?disabletls=yes
     ```
 
 !!! Example "With TLS certificate verification skipped"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?skiptlsverify=yes
+    gotify://gotify.example.com/TOKEN?skiptlsverify=yes
     ```
 
 ## Security Considerations
@@ -325,13 +325,13 @@ Shoutrrr employs several error handling strategies for malformed inputs:
 You can test your Gotify configuration using the Shoutrrr CLI:
 
 ```bash
-shoutrrr verify --url "gotify://your-server/token"
+shoutrrr verify --url "gotify://gotify.example.com/TOKEN"
 ```
 
 This validates the URL format and service configuration. To send a test notification, use:
 
 ```bash
-shoutrrr send --url "gotify://your-server/token" --message "Test notification"
+shoutrrr send --url "gotify://gotify.example.com/TOKEN" --message "Test notification"
 ```
 
 ### Gotify Server Logs

@@ -25,17 +25,19 @@ shoutrrr verify [FLAGS] [URL]
 
 ## Examples
 
+Replace `TOKEN` and `WEBHOOK_ID` with the token and ID of a Discord webhook, which the [Discord](../../../services/chat/discord/index.md) page shows how to find.
+
 <!-- markdownlint-disable -->
 ### Verify a Valid Discord URL
 
 !!! Example
     ```bash title="Verify Discord URL"
-    shoutrrr verify --url "discord://abc123@123456789"
+    shoutrrr verify --url "discord://TOKEN@WEBHOOK_ID"
     ```
 
     ```text title="Expected Output"
     Token: REDACTED
-    WebhookID: 123456789
+    WebhookID: WEBHOOK_ID
     ```
 
     Add `--show-sensitive` to display the token.
@@ -44,7 +46,7 @@ shoutrrr verify [FLAGS] [URL]
 
 !!! Example
     ```bash title="Verify Invalid URL"
-    shoutrrr verify --url "invalid://abc123"
+    shoutrrr verify --url "invalid://TOKEN"
     ```
 
     ```text title="Expected Output"

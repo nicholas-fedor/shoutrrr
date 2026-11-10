@@ -5,7 +5,7 @@ Upstream docs: <https://docs.signalgrid.co/api/push-api/>
 ## URL Format
 
 !!! info ""
-    signalgrid://__`client-key`__@__`channel`__[?title=__`title`__&type=__`type`__&critical=__`Yes`__]
+    signalgrid://__`CLIENT_KEY`__@__`CHANNEL`__[?title=__`TITLE`__][&type=__`TYPE`__][&critical=Yes]
 
 --8<-- "docs/services/push/signalgrid/config.md"
 

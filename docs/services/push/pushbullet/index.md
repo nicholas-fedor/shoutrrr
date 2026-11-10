@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! info ""
-    pushbullet://__`api-token`__[/__`device`__/#__`channel`__/__`email`__]
+    pushbullet://__`API_TOKEN`__[/__`DEVICE`__/#__`CHANNEL`__/__`EMAIL`__]
 
 --8<-- "docs/services/push/pushbullet/config.md"
 

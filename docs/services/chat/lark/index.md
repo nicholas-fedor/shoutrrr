@@ -5,20 +5,20 @@ Send notifications to Lark using a custom bot webhook.
 ## URL Format
 
 !!! info ""
-    lark://__`host`__/__`token`__?secret=__`secret`__&title=__`title`__&link=__`url`__
+    lark://__`HOST`__/__`TOKEN`__[?secret=__`SECRET`__][&title=__`TITLE`__][&link=__`LINK`__]
 
 --8<-- "docs/services/chat/lark/config.md"
 
-- `host`: The bot API host (`open.larksuite.com` for Lark, `open.feishu.cn` for Feishu).
-- `token`: The bot webhook token (required), the last segment of the webhook URL. It must be one path segment, so a token with a slash, or a token of `.` or `..`, is rejected.
-- `secret`: Optional bot secret for signed requests.
-- `title`: Optional message title (switches to post format if set).
-- `link`: Optional URL to include as a clickable link in the message.
+- `HOST`: The bot API host (`open.larksuite.com` for Lark, `open.feishu.cn` for Feishu).
+- `TOKEN`: The bot webhook token (required), the last segment of the webhook URL. It must be one path segment, so a token with a slash, or a token of `.` or `..`, is rejected.
+- `SECRET`: Optional bot secret for signed requests.
+- `TITLE`: Optional message title (switches to post format if set).
+- `LINK`: Optional URL to include as a clickable link in the message.
 
 ### Example URL
 
 ```url
-lark://open.larksuite.com/abc123?secret=xyz789&title=Alert&link=https://example.com
+lark://open.larksuite.com/TOKEN?secret=SECRET&title=Alert&link=https://example.com
 ```
 
 ## Message Size
@@ -46,10 +46,9 @@ Official Documentation: [Custom Bot Guide](https://open.larksuite.com/document/c
    f. Copy the webhook address and click `Finish`.
 
 2. __Get Host and Token__:
-   - For __Lark__: Use `host = open.larksuite.com`.
-   - For __Feishu__: Use `host = open.feishu.cn`.
-   - The `token` is the last segment of the webhook URL.
-    For example, in `https://open.larksuite.com/open-apis/bot/v2/hook/xxxxxxxxxxxxxxxxx`, the token is `xxxxxxxxxxxxxxxxx`.
+   - For __Lark__: Use `open.larksuite.com` as `HOST`.
+   - For __Feishu__: Use `open.feishu.cn` as `HOST`.
+   - `TOKEN` is the last segment of the webhook URL, as in `https://open.larksuite.com/open-apis/bot/v2/hook/TOKEN`.
 
 3. __Get Secret (Optional)__:
    a. In group settings, open the bot list, find your custom bot, and select it to access its configuration.

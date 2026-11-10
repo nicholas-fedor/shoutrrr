@@ -19,15 +19,7 @@ It supports routing notifications to Discord channels and other configured servi
 ## URL Format
 
 !!! info ""
-    notifiarr://**`apikey`**?name=**`name`**&channel=**`channel`**&thumbnail=**`thumbnail`**&image=**`image`**&color=**`color`**
-
-### Complete URL Format
-
-The full URL format supports all configuration parameters:
-
-```uri
-notifiarr://[apikey]?name=[app_name]&channel=[channel_id]&thumbnail=[thumbnail_url]&image=[image_url]&color=[color_value]
-```
+    notifiarr://__`API_KEY`__[?name=__`NAME`__][&channel=__`CHANNEL_ID`__][&thumbnail=__`THUMBNAIL_URL`__][&image=__`IMAGE_URL`__][&color=__`COLOR`__]
 
 **Parameters:**
 
@@ -58,7 +50,7 @@ Send a simple notification using your Notifiarr API key:
 
 !!! example
     ```bash title="Send Basic Notification"
-    shoutrrr send --url "notifiarr://your-api-key-here" --message "Hello from Shoutrrr!"
+    shoutrrr send --url "notifiarr://API_KEY" --message "Hello from Shoutrrr!"
     ```
 
     ```text title="Expected Output"
@@ -71,7 +63,7 @@ Send a notification that will be forwarded to a specific Discord channel:
 
 !!! example
     ```bash title="Send to Discord Channel"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678" --message "Alert: System status changed"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID" --message "Alert: System status changed"
     ```
 
     ```text title="Expected Output"
@@ -84,7 +76,7 @@ Send a notification with custom thumbnail and color:
 
 !!! example
     ```bash title="Send Notification with Thumbnail and Color"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678&thumbnail=https://example.com/alert.png&color=FF0000" --title "Critical Alert" --message "Server is down!"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID&thumbnail=https://example.com/alert.png&color=FF0000" --title "Critical Alert" --message "Server is down!"
     ```
 
     ```text title="Expected Output"
@@ -97,7 +89,7 @@ Send a notification with a custom image:
 
 !!! example
     ```bash title="Send Notification with Image"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678&image=https://example.com/chart.png" --title "Sales Report" --message "Monthly sales chart attached"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID&image=https://example.com/chart.png" --title "Sales Report" --message "Monthly sales chart attached"
     ```
 
     ```text title="Expected Output"
@@ -110,7 +102,7 @@ Send a notification with both thumbnail and image:
 
 !!! example
     ```bash title="Send Notification with Thumbnail and Image"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678&thumbnail=https://example.com/icon.png&image=https://example.com/full-image.png" --title "Product Update" --message "New product launch details"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID&thumbnail=https://example.com/icon.png&image=https://example.com/full-image.png" --title "Product Update" --message "New product launch details"
     ```
 
     ```text title="Expected Output"
@@ -123,7 +115,7 @@ Send a notification that mentions specific Discord users (parsed from message co
 
 !!! example
     ```bash title="Send Notification with User Mentions"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678" --message "Hey <@123456789> and <@!987654321>, the deployment is complete!"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID" --message "Hey <@123456789> and <@!987654321>, the deployment is complete!"
     ```
 
     ```text title="Expected Output"
@@ -136,7 +128,7 @@ Send a notification with a custom app name:
 
 !!! example
     ```bash title="Send Notification with Custom App Name"
-    shoutrrr send --url "notifiarr://your-api-key-here?name=MyApp" --message "Hello from MyApp!"
+    shoutrrr send --url "notifiarr://API_KEY?name=MyApp" --message "Hello from MyApp!"
     ```
 
     ```text title="Expected Output"
@@ -149,7 +141,7 @@ Send a notification with a custom title (appears in Discord embed):
 
 !!! example
     ```bash title="Send Notification with Title"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678" --title "System Alert" --message "Disk space running low on server"
+    shoutrrr send --url "notifiarr://API_KEY?channel=CHANNEL_ID" --title "System Alert" --message "Disk space running low on server"
     ```
 
     ```text title="Expected Output"
@@ -158,7 +150,7 @@ Send a notification with a custom title (appears in Discord embed):
 
 ## API Documentation Reference
 
-The Notifiarr service sends notifications to the Notifiarr API endpoint at `https://notifiarr.com/api/v1/notification/passthrough/{apikey}`.
+The Notifiarr service sends notifications to the Notifiarr API endpoint at `https://notifiarr.com/api/v1/notification/passthrough/API_KEY`.
 
 ### Request Format
 

@@ -5,16 +5,16 @@ Send notifications to WeChat Work (Enterprise WeChat) using webhook bots.
 ## URL Format
 
 !!! info ""
-    wecom://__`key`__
+    wecom://__`KEY`__
 
 --8<-- "docs/services/chat/wecom/config.md"
 
-- `key`: The webhook key from your WeChat Work bot (required). It consists of letters, digits, hyphens, and underscores, and a `key` query parameter or send param replaces it.
+- `KEY`: The webhook key from your WeChat Work bot (required). It consists of letters, digits, hyphens, and underscores, and a `key` query parameter or send param replaces it.
 
 ### Example URL
 
 ```url
-wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa
+wecom://693a91f6-7a0c-4bc4-97a0-0ec2f6a5aaa1
 ```
 
 ## Create a Webhook Bot in WeChat Work
@@ -30,11 +30,11 @@ Official Documentation: [Webhook Bot Guide](https://developer.work.weixin.qq.com
    f. You will receive a webhook URL.
 
 2. __Get the Webhook Key__:
-   - The webhook URL will look like: `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=XXXXXXXXXXXXXXXXXX`
-   - The `key` is the value after `?key=` in the URL.
+   - The webhook URL will look like: `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=KEY`
+   - `KEY` is the value after `?key=` in the URL.
 
 3. __Configure Shoutrrr__:
-   - Use the key in the Shoutrrr URL: `wecom://YOUR_WEBHOOK_KEY`
+   - Use the key in the Shoutrrr URL: `wecom://KEY`
 
 ### Message Features
 
@@ -46,5 +46,5 @@ Official Documentation: [Webhook Bot Guide](https://developer.work.weixin.qq.com
 ### Example with Mentions
 
 ```bash
-shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa?mentioned_list=@all" "Alert message"
-shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa?mentioned_list=wangqing,lisi&mentioned_mobile_list=13800001111" "Alert message"
+shoutrrr send "wecom://KEY?mentioned_list=@all" "Alert message"
+shoutrrr send "wecom://KEY?mentioned_list=USER_ID_1,USER_ID_2&mentioned_mobile_list=MOBILE_NUMBER" "Alert message"

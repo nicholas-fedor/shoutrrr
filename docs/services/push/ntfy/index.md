@@ -5,32 +5,32 @@ Upstream docs: <https://docs.ntfy.sh/publish/>
 ## URL Format
 
 !!! info ""
-    ntfy://__`host`__/__`topic`__?priority=__`priority`__&tags=__`tag1`__,__`tag2`__&title=__`title`__
+    ntfy://__`HOST`__/__`TOPIC`__[?priority=__`PRIORITY`__][&tags=__`TAG_1`__,__`TAG_2`__][&title=__`TITLE`__]
 
 --8<-- "docs/services/push/ntfy/config.md"
 
 ## Getting Started
 
 Ntfy supports both the public [ntfy.sh](https://ntfy.sh) service and self-hosted instances. For the public service, simply use `ntfy.sh` as the host. For self-hosted instances, specify your server's hostname and port.
-A URL without a host, such as `ntfy:///mytopic`, uses `ntfy.sh`.
+A URL without a host, such as `ntfy:///TOPIC`, uses `ntfy.sh`.
 
 !!! example "Public ntfy.sh service"
     ```uri
-    ntfy://ntfy.sh/mytopic
+    ntfy://ntfy.sh/TOPIC
     ```
 
 !!! example "Self-hosted instance"
     ```uri
-    ntfy://my-ntfy-server.com:8080/mytopic
+    ntfy://ntfy.example.com:8080/TOPIC
     ```
 
 Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy [requires](https://docs.ntfy.sh/publish/#picking-a-topic).
-For a server behind a reverse proxy, put its base path before the topic, as in `ntfy://example.com/ntfy/mytopic`.
+For a server behind a reverse proxy, put its base path before the topic, as in `ntfy://example.com/ntfy/TOPIC`.
 The base path cannot hold a `.` or `..` segment.
 If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
 
 !!! note
-    Shoutrrr sends the token as `Authorization: Bearer <token>`. If you set both a token and a username or password, the token wins and Shoutrrr skips Basic auth.
+    Shoutrrr sends the token as `Authorization: Bearer ACCESS_TOKEN`. If you set both a token and a username or password, the token wins and Shoutrrr skips Basic auth.
 
 ## Features
 
@@ -61,7 +61,7 @@ Commonly used parameters can be added as query parameters to customize notificat
 
 !!! example "High-priority notification with tags"
     ```uri
-    ntfy://ntfy.sh/alerts?priority=5&tags=warning,fire&title=System+Alert
+    ntfy://ntfy.sh/TOPIC?priority=5&tags=warning,fire&title=System+Alert
     ```
 
 ### Message Level
@@ -104,30 +104,30 @@ Shoutrrr logs a warning the first time a send skips certificate verification thr
 
 !!! example "Basic notification"
     ```uri
-    ntfy://ntfy.sh/mytopic
+    ntfy://ntfy.sh/TOPIC
     ```
 
 !!! example "With authentication"
     ```uri
-    ntfy://username:password@ntfy.sh/privatetopic
+    ntfy://USERNAME:PASSWORD@ntfy.sh/TOPIC
     ```
 
 !!! example "With access token"
     ```uri
-    ntfy://ntfy.sh/privatetopic?token=tk_mytoken
+    ntfy://ntfy.sh/TOPIC?token=ACCESS_TOKEN
     ```
 
 !!! example "With parameters"
     ```uri
-    ntfy://ntfy.sh/updates?priority=4&tags=info,computer&title=Server+Update
+    ntfy://ntfy.sh/TOPIC?priority=4&tags=info,computer&title=Server+Update
     ```
 
 !!! example "Delayed notification"
     ```uri
-    ntfy://ntfy.sh/reminders?delay=1h&title=Meeting+in+1+hour
+    ntfy://ntfy.sh/TOPIC?delay=1h&title=Meeting+in+1+hour
     ```
 
 !!! example "With action button"
     ```uri
-    ntfy://ntfy.sh/tasks?actions=[{"action":"view","label":"Open Dashboard","url":"https://dashboard.example.com"}]&title=Task+Completed
+    ntfy://ntfy.sh/TOPIC?actions=[{"action":"view","label":"Open Dashboard","url":"https://dashboard.example.com"}]&title=Task+Completed
     ```

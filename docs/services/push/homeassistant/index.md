@@ -9,7 +9,7 @@ An optional `service` query parameter can target notify actions such as companio
 ## URL Format
 
 !!! info ""
-    homeassistant://__`token`__@__`host`__[:__`port`__][/__`basepath`__]
+    homeassistant://__`LONG_LIVED_TOKEN`__@__`HOST`__[:__`PORT`__][/__`BASE_PATH`__]
 
 --8<-- "docs/services/push/homeassistant/config.md"
 
@@ -48,7 +48,7 @@ When the port is omitted, HTTPS uses port `443` and HTTP (`disabletls=yes`) uses
 ## Parameters
 
 - __`title`__: Optional notification title. Omitted from the request when empty.
-- __`service`__: Home Assistant action. Empty defaults to `persistent_notification.create`. A value without a dot is sent as `notify/<value>`. A value with a dot is sent as `<domain>/<action>`.
+- __`service`__: Home Assistant action. Empty defaults to `persistent_notification.create`. A value without a dot, such as `mobile_app_phone`, is sent as `notify/mobile_app_phone`. A value with a dot is sent as its domain and action, so `notify.mobile_app_phone` is sent as `notify/mobile_app_phone` too.
 - __`targets`__: Comma-separated notify destinations. Sent as the Home Assistant `target` field and omitted for persistent notifications. Empty entries are dropped, and without any targets the field is omitted, so the selected action delivers to its own default recipients.
 - __`nid`__: Persistent notification ID. When set, Home Assistant overwrites the notification with that ID. Omitted when empty.
 - __`disabletls`__: Use HTTP instead of HTTPS.
@@ -57,6 +57,6 @@ When the port is omitted, HTTPS uses port `443` and HTTP (`disabletls=yes`) uses
 Both TLS parameters work in the URL and in send params.
 Shoutrrr logs a warning the first time a send skips certificate verification through its own client, and the first time a send goes out over HTTP.
 
-The request is `POST /api/services/{domain}/{service}` with `Authorization: Bearer <token>` and a JSON body containing `message` plus any optional fields above.
+The request is `POST /api/services/DOMAIN/ACTION` with `Authorization: Bearer LONG_LIVED_TOKEN` and a JSON body containing `message` plus any optional fields above.
 
 Webhook triggers that fire automations are not part of this service. Those endpoints do not use a long-lived access token.

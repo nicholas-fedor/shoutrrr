@@ -14,7 +14,7 @@ Matrix is an open protocol for real-time communication. It is designed to allow 
 ## URL Format
 
 !!! Info ""
-    matrix://[__`user`__:__`password`__@]__`host`__[:__`port`__]/[?rooms=__`!roomID1`__[,__`roomAlias2`__]][&disabletls=yes][&skiptlsverify=yes]
+    matrix://[__`USER`__]:__`PASSWORD`__@__`HOST`__[:__`PORT`__]/[?rooms=__`ROOM_1`__[,__`ROOM_2`__]][&disabletls=yes][&skiptlsverify=yes]
 
 If the port is omitted, the default port 443 (HTTPS) is used.
 
@@ -26,13 +26,13 @@ The Matrix service supports two authentication methods:
 
 ### Token-based Login (Default)
 
-If no `user` is specified, the `password` is treated as an authentication token.
+If no `USER` is specified, the `PASSWORD` is treated as an authentication token.
 This allows you to use a pre-generated access token from your Matrix server, which is useful for CI/CD pipelines or when you don't want to store your password.
-Simply omit the `user` parameter and provide your access token as the `password`.
+Simply omit `USER` and provide your access token as `PASSWORD`.
 
 ### Password Login
 
-If a `user` and `password` are both supplied, the service will attempt to authenticate using the `m.login.password` flow (if supported by your server).
+If a `USER` and `PASSWORD` are both supplied, the service will attempt to authenticate using the `m.login.password` flow (if supported by your server).
 The first send logs in.
 Later sends reuse that login while the homeserver, user, and password stay the same.
 When code changes the service's config to another homeserver or account, the next send logs in again, so an access token only goes to the homeserver that issued it.
@@ -87,7 +87,7 @@ The Matrix service now supports the `title` parameter. When provided, the title 
 !!! Example "With Title"
 
     ```bash
-    shoutrrr send --title "Notification Title" --message "This is the message body" matrix://...
+    shoutrrr send --title "Notification Title" --message "This is the message body" --url "matrix://USER:PASSWORD@matrix.example.com"
     ```
 
     Output in Matrix:
@@ -148,30 +148,30 @@ The first send that skips certificate verification through Shoutrrr's own client
 
 !!! Example "Basic Notification"
     ```uri
-    matrix://user:token@matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com
     ```
 
 !!! Example "To Specific Room"
     ```uri
-    matrix://user:token@matrix.example.com?rooms=!roomID:matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com?rooms=!ROOM_ID:matrix.example.com
     ```
 
 !!! Example "With Room Alias"
     ```uri
-    matrix://user:token@matrix.example.com?rooms=%23general:matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com?rooms=%23ROOM_ALIAS:matrix.example.com
     ```
 
 !!! Example "Multiple Rooms"
     ```uri
-    matrix://user:token@matrix.example.com?rooms=!room1:matrix.example.com,%23room2:matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com?rooms=!ROOM_ID:matrix.example.com,%23ROOM_ALIAS:matrix.example.com
     ```
 
 !!! Example "With Custom Port"
     ```uri
-    matrix://user:token@matrix.example.com:8448?rooms=!roomID:matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com:8448?rooms=!ROOM_ID:matrix.example.com
     ```
 
 !!! Example "Without TLS (Not Recommended)"
     ```uri
-    matrix://user:token@matrix.example.com?disabletls=yes&rooms=!roomID:matrix.example.com
+    matrix://USER:PASSWORD@matrix.example.com?disabletls=yes&rooms=!ROOM_ID:matrix.example.com
     ```

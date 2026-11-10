@@ -113,6 +113,19 @@ After the first run, `task docs:serve` skips the environment setup.
 
 Note: Disable the markdown extension pymdownx.snippets > check_paths option if not generating the service config docs via the `scripts\generate-service-config-docs.sh` script.
 
+### Placeholders
+
+Service URLs in the docs and the README follow the [placeholder rules](https://developers.google.com/style/placeholders) of the Google developer documentation style guide.
+
+- A value the reader supplies is an uppercase placeholder with underscores between words, such as `TOKEN`, `WEBHOOK_ID`, or `API_KEY`. This covers tokens, keys, IDs, user names, and passwords.
+- A placeholder names what it stands for. It never starts with `MY_` or `YOUR_`, and it is never a run of `x` characters.
+- Angle brackets never mark a placeholder. Markdown can read them as HTML tags, and an unquoted shell reads them as redirections.
+- Hosts use [example domains](https://developers.google.com/style/examples) such as `gotify.example.com`. Phone numbers use the reserved range from `+18005550100` to `+18005550199`. IP addresses use the documentation ranges of RFC 5737 and RFC 3849.
+- A service page's URL format box and its examples use the same placeholder names. The box marks each placeholder as bold code and puts optional parts in square brackets.
+- A usage or guide page explains each placeholder the first time it appears. Two or more placeholders get a "Replace the following" list in the order they appear.
+- A realistic fictitious value fits only where the text explains a format, and in example output. A Twilio account SID and an MQTT topic hierarchy are such formats.
+- Example URLs in a package's `doc.go` follow the same rules.
+
 ### Playground
 
 The Playground is an interactive WASM-based tool for configuring and testing Shoutrrr URLs in the browser.

@@ -6,7 +6,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 ## URL Format
 
 !!! info ""
-    smtp://__`username`__:__`password`__@__`host`__:__`port`__/?fromaddress=__`fromAddress`__&toaddresses=__`recipient1`__[,__`recipient2`__,...]&subject=__`subject`__&auth=__`auth`__&encryption=__`encryption`__&useStartTLS=__`yes/no`__&useHTML=__`yes/no`__&clientHost=__`hostname`__&requirestarttls=__`yes/no`__&skiptlsverify=__`yes/no`__&timeout=__`duration`__&clientid=__`clientID`__&clientsecret=__`clientSecret`__&refreshtoken=__`refreshToken`__&tokenurl=__`tokenURL`__
+    smtp://[__`USERNAME`__[:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/?fromaddress=__`FROM_ADDRESS`__&toaddresses=__`TO_ADDRESS_1`__[,__`TO_ADDRESS_2`__,...][&subject=__`SUBJECT`__][&auth=__`AUTH`__][&encryption=__`ENCRYPTION`__][&useStartTLS={yes|no}][&useHTML={yes|no}][&clientHost=__`CLIENT_HOST`__][&requirestarttls={yes|no}][&skiptlsverify={yes|no}][&timeout=__`DURATION`__][&clientid=__`CLIENT_ID`__][&clientsecret=__`CLIENT_SECRET`__][&refreshtoken=__`REFRESH_TOKEN`__][&tokenurl=__`TOKEN_URL`__]
 
 --8<-- "docs/services/email/smtp/config.md"
 
@@ -19,7 +19,7 @@ A `Username` and `Password` are required only when the server expects authentica
 !!! Example "Minimal authenticated send"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
     Connects to `mail.example.com` on port 587, authenticates as `user`, and sends to `ops@example.com`.
@@ -41,7 +41,7 @@ Common ports:
 !!! Example "Submission on 587"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 ### Username and Password
@@ -65,7 +65,7 @@ Common ports:
 !!! Example "Named sender"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&fromname=Shoutrrr&toaddresses=ops@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&fromname=Shoutrrr&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 ### Recipients
@@ -78,13 +78,13 @@ Common ports:
 !!! Example "Multiple recipients"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com,oncall@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com,oncall@example.com&requirestarttls=yes
     ```
 
 !!! Example "Plus-address recipient"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
     ```
 
 ### Subject
@@ -95,7 +95,7 @@ Common ports:
 !!! Example "Custom subject"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&subject=Disk%20space%20low&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&subject=Disk%20space%20low&requirestarttls=yes
     ```
 
 ### Authentication
@@ -116,13 +116,13 @@ Common ports:
 !!! Example "AUTH LOGIN"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=Login&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=Login&requirestarttls=yes
     ```
 
 !!! Example "OAuth2 access token"
 
     ```uri
-    smtp://user:ya29.token@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&requirestarttls=yes
+    smtp://USERNAME:ACCESS_TOKEN@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&requirestarttls=yes
     ```
 
     The access token is used as is.
@@ -150,16 +150,16 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 | Provider      | Token URL                                                      | Notes                                                                                                                                                                         |
 |---------------|----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Gmail         | `https://oauth2.googleapis.com/token`                          | Use the scope `https://mail.google.com/`. A project whose consent screen is in testing gets refresh tokens that expire after 7 days.                                          |
-| Microsoft 365 | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` | Add the `offline_access` scope next to `https://outlook.office.com/SMTP.Send` to get a refresh token. Refresh tokens expire after 90 days, so generate a new URL before then. |
+| Microsoft 365 | `https://login.microsoftonline.com/TENANT_ID/oauth2/v2.0/token` | Add the `offline_access` scope next to `https://outlook.office.com/SMTP.Send` to get a refresh token. Refresh tokens expire after 90 days, so generate a new URL before then. |
 
 !!! Example "OAuth2 with a refresh token"
 
     ```uri
-    smtp://alerts%40example.com@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&clientid=1234.apps.googleusercontent.com&clientsecret=secret&refreshtoken=1%2F%2F0abc&tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken&requirestarttls=yes
+    smtp://alerts%40example.com@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&clientid=CLIENT_ID&clientsecret=CLIENT_SECRET&refreshtoken=REFRESH_TOKEN&tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken&requirestarttls=yes
     ```
 
     Shoutrrr refreshes the access token as needed.
-    When writing the URL by hand, percent-encode the values, as the example does.
+    When writing the URL by hand, percent-encode the values, as the example does for the token URL.
 
 ### Encryption
 
@@ -177,7 +177,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Implicit TLS on 465"
 
     ```uri
-    smtp://user:pass@mail.example.com:465/?fromaddress=alerts@example.com&toaddresses=ops@example.com&encryption=ImplicitTLS
+    smtp://USERNAME:PASSWORD@mail.example.com:465/?fromaddress=alerts@example.com&toaddresses=ops@example.com&encryption=ImplicitTLS
     ```
 
 ### StartTLS
@@ -196,7 +196,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Disable STARTTLS"
 
     ```uri
-    smtp://user:pass@mail.example.com:25/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usestarttls=no
+    smtp://USERNAME:PASSWORD@mail.example.com:25/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usestarttls=no
     ```
 
 ### Require StartTLS
@@ -207,7 +207,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Fail closed without STARTTLS"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 ### Skip TLS Certificate Verification
@@ -223,7 +223,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Skip verify on an internal relay"
 
     ```uri
-    smtp://user:pass@mail.internal:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&skiptlsverify=yes&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.internal:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&skiptlsverify=yes&requirestarttls=yes
     ```
 
 ### HTML Body
@@ -236,7 +236,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "HTML notification"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&requirestarttls=yes
     ```
 
     Pass HTML as the message body, for example `<p>Disk usage is <strong>92%</strong>.</p>`.
@@ -250,7 +250,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Auto client host"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&clienthost=auto&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&clienthost=auto&requirestarttls=yes
     ```
 
 ### Timeout
@@ -263,7 +263,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "Thirty-second timeout"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&timeout=30s&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&timeout=30s&requirestarttls=yes
     ```
 
 ## Message Templates
@@ -290,25 +290,25 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 !!! Example "STARTTLS on port 587"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 !!! Example "Implicit TLS on port 465"
 
     ```uri
-    smtp://user:pass@mail.example.com:465/?fromaddress=alerts@example.com&toaddresses=ops@example.com&encryption=ImplicitTLS
+    smtp://USERNAME:PASSWORD@mail.example.com:465/?fromaddress=alerts@example.com&toaddresses=ops@example.com&encryption=ImplicitTLS
     ```
 
 !!! Example "HTML body"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&subject=Alert&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&subject=Alert&requirestarttls=yes
     ```
 
 !!! Example "Plus-address recipient"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
     ```
 
 !!! Example "Unauthenticated local relay"

@@ -5,14 +5,14 @@
 Your Discord Webhook-URL will look like this:
 
 !!! info ""
-    <https://discord.com/api/webhooks/__`webhookid`__/__`token`>__
+    https://discord.com/api/webhooks/__`WEBHOOK_ID`__/__`TOKEN`__
 
 For more information about Discord webhooks, see the [official documentation](https://discord.com/developers/docs/resources/webhook).
 
 The shoutrrr service URL should look like this:
 
 !!! info ""
-    discord://__`token`__@__`webhookid`__[?thread_id=__`threadid`__]
+    discord://__`TOKEN`__@__`WEBHOOK_ID`__[?thread_id=__`THREAD_ID`__]
 
 The webhook URL that Discord shows has no API version in its path.
 Shoutrrr takes only the webhook ID and token from it, and sends to Discord API v10 at `https://discord.com/api/v10/webhooks/`.
@@ -26,7 +26,7 @@ The webhook ID is a number, and Shoutrrr rejects a service URL whose webhook ID 
 To send messages to a specific thread in a Discord channel, include the `thread_id` query parameter in the service URL with the ID of the target thread. For example:
 
 !!! info ""
-    discord://__`token`__@__`webhookid`__?thread_id=123456789
+    discord://__`TOKEN`__@__`WEBHOOK_ID`__?thread_id=__`THREAD_ID`__
 
 You can obtain the `thread_id` by right-clicking a thread in Discord and selecting "Copy ID" (requires Developer Mode to be enabled in Discord settings). For more details on threads, see Discord's [thread documentation](https://discord.com/developers/docs/resources/channel#thread-object). Learn how to enable Developer Mode in Discord's [support article](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-).
 

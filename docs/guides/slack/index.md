@@ -29,12 +29,12 @@ Get a Webhook URL using the legacy [WebHooks Integration](https://slack.com/apps
 
 !!! info "Slack Webhook URL"
     ```url
-    https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+    https://hooks.slack.com/services/WORKSPACE_ID/WEBHOOK_ID/WEBHOOK_TOKEN
     ```
 
 !!! info "Shoutrrr URL"
     ```url
-    slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook
+    slack://hook:WORKSPACE_ID-WEBHOOK_ID-WEBHOOK_TOKEN@webhook
     ```
 
 ## Getting the Channel ID

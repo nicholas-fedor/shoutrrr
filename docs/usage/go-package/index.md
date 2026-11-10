@@ -16,6 +16,17 @@ Go release information can be reviewed here: <https://go.dev/doc/devel/release>
 import "github.com/nicholas-fedor/shoutrrr"
 ```
 
+The examples send to Slack, Telegram, and Discord.
+Replace the following:
+
+- `WEBHOOK_TOKEN`: the part of a Slack webhook URL after `/services/`, with each slash replaced by a hyphen
+- `BOT_TOKEN`: the token of a Telegram bot
+- `CHANNEL`: the name of a public Telegram channel
+- `TOKEN`: the token of a Discord webhook
+- `WEBHOOK_ID`: the ID of a Discord webhook
+
+The [service pages](../../services/overview.md) show where to find these values.
+
 ### Direct Send
 
 Sends a notification to a single service URL.
@@ -32,7 +43,7 @@ Sends a notification to a single service URL.
 
 !!! Example
     ```go title="Send to a Single Slack URL"
-    url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
+    url := "slack://hook:WEBHOOK_TOKEN@webhook"
     err := shoutrrr.Send(url, "Hello, Slack!")
     if err != nil {
         fmt.Println("Error:", err)
@@ -93,8 +104,8 @@ Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support m
 !!! Example
     ```go title="Create Sender with Multiple URLs"
     urls := []string{
-        "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
-        "telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel",
+        "slack://hook:WEBHOOK_TOKEN@webhook",
+        "telegram://BOT_TOKEN@telegram?chats=@CHANNEL",
     }
     sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
     if err != nil {
@@ -121,7 +132,7 @@ Allows queuing messages for deferred sending, useful for aggregating notificatio
 <!-- markdownlint-disable -->
 !!! Example
     ```go title="Queue and Flush Notifications"
-    url := "discord://abc123@123456789"
+    url := "discord://TOKEN@WEBHOOK_ID"
     sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
     if err != nil {
         log.Fatal(err)
@@ -276,7 +287,7 @@ if services.SupportsSchema("discord") {
 
 !!! Example
     ```go title="Send with Title and Error Handling"
-    url := "discord://abc123@123456789"
+    url := "discord://TOKEN@WEBHOOK_ID"
     params := types.Params{}
     params.SetTitle("Alert")
     if err := shoutrrr.SendContext(context.Background(), url, "System alert!", &params); err != nil {
@@ -297,8 +308,8 @@ if services.SupportsSchema("discord") {
 !!! Example
     ```go title="Queue Messages for Multiple Services"
     urls := []string{
-        "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
-        "discord://abc123@123456789",
+        "slack://hook:WEBHOOK_TOKEN@webhook",
+        "discord://TOKEN@WEBHOOK_ID",
     }
     sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
     if err != nil {

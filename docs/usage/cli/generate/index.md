@@ -99,6 +99,13 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
 
 ## Examples
 
+The examples show the answers typed at each prompt.
+Replace the following:
+
+- `BOT_TOKEN`: the token of a Telegram bot
+- `TOKEN`: the token of a Discord webhook
+- `WEBHOOK_ID`: the ID of a Discord webhook
+
 <!-- markdownlint-disable -->
 ### Generate a Telegram URL with the Telegram Generator
 !!! Example
@@ -110,7 +117,7 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     To start we need your bot token. If you haven't created a bot yet, you can use this link:
       https://t.me/botfather?start
 
-    Enter your bot token: 110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+    Enter your bot token: BOT_TOKEN
     Fetching bot info...
 
     Okay! @MyBot will listen for any messages in PMs and group chats it is invited to.
@@ -150,13 +157,13 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     SplitLines[Yes]:
     ThreadID:
     Title:
-    Token: abc123
+    Token: TOKEN
     Username:
-    WebhookID: 123456789
+    WebhookID: WEBHOOK_ID
     ```
 
     ```text
-    URL: discord://REDACTED@123456789?color=0x50d9ff
+    URL: discord://REDACTED@WEBHOOK_ID?color=0x50d9ff
     ```
 
 ### Generate an SMTP URL with the OAuth2 Generator for Gmail
