@@ -1474,6 +1474,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#webhook_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook URL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Webhook URL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#accepted_hosts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accepted Hosts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what_shoutrrr_checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Shoutrrr Checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#percent-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Percent-encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2759,6 +2809,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#webhook_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook URL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Webhook URL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#accepted_hosts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accepted Hosts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what_shoutrrr_checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Shoutrrr Checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#percent-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Percent-encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2792,12 +2892,10 @@
 <h1 id="teams">Teams<a class="headerlink" href="#teams" title="Permanent link">&para;</a></h1>
 <div class="admonition attention">
 <p class="admonition-title">Office 365 Connector Retirement</p>
-<p>As noted in Microsoft's <a href="https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/">update</a>,
-Office 365 Connectors within Microsoft Teams have been retired.</p>
+<p>As noted in Microsoft's <a href="https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/">update</a>, Office 365 Connectors within Microsoft Teams have been retired.</p>
 <p>The legacy <code>webhook.office.com</code> webhook URLs and MessageCard format are no longer functional.</p>
 <p>Shoutrrr now uses Power Automate workflow incoming webhooks exclusively.
-Existing configurations using the old URL format must be migrated to the new
-<code>teams://?host=WORKFLOW_URL</code> format documented below.</p>
+Existing configurations using the old URL format must be migrated to the new <code>teams://?host=WORKFLOW_URL</code> format documented below.</p>
 </div>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
@@ -2809,20 +2907,6 @@ Existing configurations using the old URL format must be migrated to the new
 <li><code>COLOR</code> <em>(optional)</em>: Title text color. Accepts Adaptive Card color names (<code>accent</code>, <code>good</code>, <code>warning</code>, <code>attention</code>, <code>dark</code>, <code>light</code>, <code>default</code>) or common color names (<code>red</code>, <code>green</code>, <code>blue</code>, <code>yellow</code>, <code>orange</code>).</li>
 <li><code>TITLE</code> <em>(optional)</em>: Title displayed as a bold header in the Adaptive Card.</li>
 </ul>
-<p>Shoutrrr checks <code>WORKFLOW_URL</code> when it reads the service URL, so <code>shoutrrr verify</code> reports a webhook URL that the check rejects.
-The check covers the host, the path up to <code>workflows/</code>, and the presence of a signature.
-A URL that passes can still fail to send, for example with a wrong signature.
-The webhook URL must start like the workflow URLs Microsoft issues.
-Power Automate uses an <code>environment.api.powerplatform.com</code> host.
-Azure Logic Apps uses <code>logic.azure.com</code>, or <code>logic.azure.us</code> and <code>logic.azure.cn</code> in the US Government and China clouds.
-Its query must carry a <code>sig</code> signature.
-A workflow that anyone can trigger has one, and Shoutrrr cannot sign in to a workflow that requires sign-in.
-Power Automate flows left <code>logic.azure.com</code> on November 30, 2025, and their old URLs on that domain no longer trigger them.
-Copy the current URL from the flow's trigger.
-Shoutrrr cannot tell an old flow URL from an Azure Logic Apps URL, which has the same form, so it accepts both.
-Retired <code>webhook.office.com</code> connector URLs are rejected too.
-Percent-encode the webhook URL in <code>host</code>, as the example below does.
-Its parameters would otherwise become separate keys of the service URL, which Shoutrrr rejects as unknown.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument or through the URL using
@@ -2841,11 +2925,61 @@ Its parameters would otherwise become separate keys of the service URL, which Sh
 </li>
 </ul>
 <h2 id="setting_up_a_webhook">Setting up a webhook<a class="headerlink" href="#setting_up_a_webhook" title="Permanent link">&para;</a></h2>
-<p>To use the Microsoft Teams notification service with Power Automate, create a new
-workflow in Power Automate and add the "When a Teams webhook request is received"
-trigger. Copy the generated webhook URL from the trigger.</p>
-<p>For more information, see the
-<a href="https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook">Microsoft Learn documentation</a>.</p>
+<p>To use the Microsoft Teams notification service with Power Automate, create a new workflow in Power Automate and add the "When a Teams webhook request is received" trigger.
+Copy the generated webhook URL from the trigger.</p>
+<p>For more information, see the <a href="https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook">Microsoft Learn documentation</a>.</p>
+<h2 id="webhook_url">Webhook URL<a class="headerlink" href="#webhook_url" title="Permanent link">&para;</a></h2>
+<p>Shoutrrr checks the webhook URL when it reads the service URL, so <code>shoutrrr verify</code> reports a webhook URL it rejects.</p>
+<h3 id="accepted_hosts">Accepted Hosts<a class="headerlink" href="#accepted_hosts" title="Permanent link">&para;</a></h3>
+<p>The webhook URL must use one of the workflow hosts Microsoft issues:</p>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Host ends in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Power Automate</td>
+<td><code>.environment.api.powerplatform.com</code></td>
+</tr>
+<tr>
+<td>Azure Logic Apps</td>
+<td><code>.logic.azure.com</code></td>
+</tr>
+<tr>
+<td>Azure Logic Apps, US Government</td>
+<td><code>.logic.azure.us</code></td>
+</tr>
+<tr>
+<td>Azure Logic Apps, China</td>
+<td><code>.logic.azure.cn</code></td>
+</tr>
+</tbody>
+</table>
+<p>Retired <code>webhook.office.com</code> connector URLs are rejected.</p>
+<div class="admonition note">
+<p class="admonition-title">Power Automate URLs on <code>logic.azure.com</code></p>
+<p>Power Automate flows left <code>logic.azure.com</code> on November 30, 2025, and their old URLs on that domain no longer trigger them.
+Copy the current URL from the flow's trigger.</p>
+<p>Shoutrrr still accepts <code>logic.azure.com</code> URLs.
+An Azure Logic Apps URL has the same form as an old flow URL, so Shoutrrr cannot tell the two apart.</p>
+</div>
+<h3 id="what_shoutrrr_checks">What Shoutrrr Checks<a class="headerlink" href="#what_shoutrrr_checks" title="Permanent link">&para;</a></h3>
+<p>The check covers these parts of the webhook URL:</p>
+<ul>
+<li>The scheme, which must be <code>https</code>.</li>
+<li>The host, which must be one of the accepted hosts.</li>
+<li>The path, up to <code>workflows/</code>.</li>
+<li>A non-empty <code>sig</code> signature in the query.</li>
+</ul>
+<p>A workflow that anyone can trigger has a <code>sig</code> signature.
+Shoutrrr cannot sign in to a workflow that requires sign-in.</p>
+<p>A URL that passes the check can still fail to send, for example when its signature is wrong.</p>
+<h3 id="percent-encoding">Percent-encoding<a class="headerlink" href="#percent-encoding" title="Permanent link">&para;</a></h3>
+<p>Percent-encode the webhook URL in <code>host</code>, as the <a href="#example">example</a> below does.
+Without the encoding, the webhook URL's own parameters become separate keys of the service URL, which Shoutrrr rejects as unknown.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
 <p>Teams/Power Automate workflow webhook URL:</p>
 <div class="highlight"><pre><span></span><code>https://ENVIRONMENT.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/WORKFLOW_ID/triggers/manual/paths/invoke?api-version=1&amp;sp=%2Ftriggers%2Fmanual%2Frun&amp;sv=1.0&amp;sig=SIGNATURE
@@ -2880,7 +3014,7 @@ trigger. Copy the generated webhook URL from the trigger.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 11, 2026 06:30:20 UTC"><span class="timeago" datetime="2026-11-11T06:30:20+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 06:30:20 UTC">2026-11-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 11, 2026 21:09:39 UTC"><span class="timeago" datetime="2026-11-11T21:09:39+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 21:09:39 UTC">2026-11-11</span>
   </span>
 
     

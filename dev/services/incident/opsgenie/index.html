@@ -2856,10 +2856,23 @@
 
 
 <h1 id="opsgenie">OpsGenie<a class="headerlink" href="#opsgenie" title="Permanent link">&para;</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">OpsGenie end of support</p>
+<p>Atlassian ends support for OpsGenie on April 5, 2027.
+OpsGenie accounts move to Jira Service Management or Compass before then, as Atlassian's <a href="https://support.atlassian.com/opsgenie/docs/migrate-opsgenie-to-jira-service-management/">migration guide</a> describes.</p>
+<p>After the move, set the host to <code>api.atlassian.com</code> to send to Jira Service Management's alert API.</p>
+<div class="highlight"><pre><span></span><code>opsgenie://api.atlassian.com/API_KEY
+</code></pre></div>
+<p>Replace <code>API_KEY</code> with the key of an API integration in Jira Service Management.
+Atlassian's guide to <a href="https://support.atlassian.com/jira-service-management-cloud/docs/set-up-an-api-integration/">setting up an API integration</a> shows where to find it.
+Shoutrrr then sends each alert to <code>https://api.atlassian.com/jsm/ops/integration/v2/alerts</code>.
+The alert fields, parameters, and priorities work as they do with OpsGenie.
+An account that has not moved keeps its OpsGenie host.</p>
+</div>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Host</strong> - The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances
+<li><strong>Host</strong> - The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances, or 'api.atlassian.com' for Jira Service Management
   Default: <code>api.opsgenie.com</code>
 <br>URL part: Host</li>
 <li><strong>Port</strong> - The OpsGenie API port.
@@ -2945,9 +2958,10 @@
 <p>Format the service URL</p>
 </li>
 </ol>
-<p>The host can be either api.opsgenie.com or api.eu.opsgenie.com depending on the location of your instance. See
-the <a href="https://docs.opsgenie.com/docs/alert-api">OpsGenie documentation</a> for details.
-The host can be left out, as in <code>opsgenie:///API_KEY</code>, in which case <code>api.opsgenie.com</code> is used.</p>
+<p>The OpsGenie host is api.opsgenie.com or api.eu.opsgenie.com, depending on the location of your instance.
+See the <a href="https://docs.opsgenie.com/docs/alert-api">OpsGenie documentation</a> for details.
+The host can be left out, as in <code>opsgenie:///API_KEY</code>, in which case <code>api.opsgenie.com</code> is used.
+An account that has moved to Jira Service Management uses the host <code>api.atlassian.com</code>, as the note at the top of this page describes.</p>
 <div class="highlight"><pre><span></span><code>opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889
                             └───────────────────────────────────┘
                                            token
@@ -3050,7 +3064,7 @@ A <code>priority</code> in the URL or the send params takes precedence over the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 11, 2026 20:46:06 UTC"><span class="timeago" datetime="2026-11-11T20:46:06+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 20:46:06 UTC">2026-11-11</span>
   </span>
 
     
