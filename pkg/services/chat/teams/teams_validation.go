@@ -2,45 +2,191 @@ package teams
 
 import (
 	"fmt"
-	"regexp"
+	"net/url"
+	"slices"
+	"strings"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-// workflowURLValidator matches the Power Automate workflow webhook URL formats
-// documented by Microsoft for the "When a Teams webhook request is received"
-// trigger.
+// Parts of the Power Automate workflow webhook URLs that the "When a Teams
+// webhook request is received" trigger issues.
 //
-// Two host patterns are accepted:
-//   - Legacy Logic Apps: https://*.logic.azure.com/workflows/...
-//   - Current Power Platform: https://*.environment.api.powerplatform.com/powerautomate/automations/direct/.../workflows/...
+// Power Platform URLs look like
+// https://*.environment.api.powerplatform.com/powerautomate/automations/direct/.../workflows/....
+// Logic Apps URLs in the US Government and China clouds look like
+// https://*.logic.azure.us/workflows/... and https://*.logic.azure.cn/workflows/....
 //
-// The Power Platform path may contain optional routing segments between
-// "direct/" and "workflows/" (e.g. ".../direct/cu/04/workflows/..."), which
-// Microsoft inserts when routing through the Power Platform ingress gateway.
+// Logic Apps URLs on logic.azure.com stopped working on 2025-11-30, when
+// Microsoft moved those flows to new URLs. Azure Germany (logic.azure.de)
+// closed on 2021-10-29.
 //
 // References:
 //   - https://learn.microsoft.com/en-us/troubleshoot/power-platform/power-automate/flow-run-issues/triggers-troubleshoot?tabs=new-designer#changes-to-http-or-teams-webhook-trigger-flows
-//   - https://learn.microsoft.com/en-us/power-automate/overview
-var workflowURLValidator = regexp.MustCompile(
-	`^https://[a-zA-Z0-9][a-zA-Z0-9.-]*\.logic\.azure(?:\.[a-z]{2,})?(:\d+)?/(?:powerautomate/automations/direct/(?:[A-Za-z0-9-]+/)*)?workflows/|` +
-		`^https://[a-zA-Z0-9][a-zA-Z0-9.-]*\.environment\.api\.powerplatform\.com(:\d+)?/powerautomate/automations/direct/(?:[A-Za-z0-9-]+/)*workflows/`,
+//   - https://learn.microsoft.com/en-us/entra/identity-platform/authentication-national-cloud
+const (
+	// powerPlatformHostSuffix ends the host of a Power Platform workflow URL.
+	powerPlatformHostSuffix = ".environment.api.powerplatform.com"
+	// directPathPrefix starts the path of a Power Platform workflow URL. Routing
+	// segments that Microsoft inserts for its ingress gateway, such as "cu/04/",
+	// may follow it before "workflows/".
+	directPathPrefix = "/powerautomate/automations/direct/"
+	// workflowsSegment is the path segment, with its slash, that the path of a
+	// workflow URL reaches.
+	workflowsSegment = "workflows/"
+	// signatureKey is the query key of the shared access signature that
+	// authorizes a call to a workflow that anyone can trigger.
+	signatureKey = "sig"
 )
 
-// ValidateWebhookURL checks that the webhook URL starts with a Power Automate
-// workflow webhook prefix.
+// logicAppsHostSuffixes end the hosts of the Logic Apps workflow URLs that
+// still work.
+var logicAppsHostSuffixes = []string{".logic.azure.us", ".logic.azure.cn"}
+
+// ValidateWebhookURL checks that the webhook URL is a Power Automate workflow
+// webhook URL that Shoutrrr can send to.
 //
-// The prefix is the part up to and including "workflows/". The rest of the URL
-// is not checked.
+// The URL is read as an HTTP request reads it. Its host must be a Power
+// Platform or a US Government or China cloud Logic Apps workflow host, with a
+// port from 1 to 65535 if it has one, and its path must lead to "workflows/".
+// Its query must carry a signature in a non-empty sig parameter. A trigger that
+// anyone can call authorizes requests by that signature. A URL without one
+// belongs to a trigger that requires sign-in, which Shoutrrr cannot provide.
+// The rest of the URL is not checked.
 //
 // Parameters:
-//   - url: the webhook URL.
+//   - rawURL: the webhook URL.
 //
 // Returns:
-//   - error: [ErrInvalidWebhookURL] for a URL that does not start with a
-//     Power Automate workflow webhook prefix.
-func ValidateWebhookURL(url string) error {
-	if !workflowURLValidator.MatchString(url) {
-		return fmt.Errorf("%w", ErrInvalidWebhookURL)
+//   - error: an error wrapping [ErrInvalidWebhookURL] for a URL that fails
+//     these checks. The error never includes the URL, whose signature is a
+//     secret.
+func ValidateWebhookURL(rawURL string) error {
+	webhookURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("%w: the URL does not parse", ErrInvalidWebhookURL)
+	}
+
+	if !isWorkflowURL(webhookURL) {
+		return fmt.Errorf("%w: not a Power Automate workflow webhook URL", ErrInvalidWebhookURL)
+	}
+
+	query, err := util.ParseURLQuery(webhookURL)
+	if err != nil {
+		return fmt.Errorf("%w: the URL's query does not parse", ErrInvalidWebhookURL)
+	}
+
+	if query.Get(signatureKey) == "" {
+		return fmt.Errorf("%w: the URL has no sig parameter", ErrInvalidWebhookURL)
 	}
 
 	return nil
+}
+
+// isWorkflowURL reports whether a URL has the scheme, host, and path of a
+// Power Automate workflow webhook URL.
+//
+// Parameters:
+//   - webhookURL: the parsed webhook URL.
+//
+// Returns:
+//   - bool: true for an https URL without userinfo whose host is a workflow
+//     host and whose path leads to "workflows/" as that host's URLs do.
+func isWorkflowURL(webhookURL *url.URL) bool {
+	if webhookURL.Scheme != "https" || webhookURL.User != nil || webhookURL.Opaque != "" {
+		return false
+	}
+
+	hostname, _, err := util.SplitURLHost(webhookURL)
+	if err != nil {
+		return false
+	}
+
+	// Hostnames are case-insensitive, and url.Parse keeps their case.
+	hostname = strings.ToLower(hostname)
+	path := webhookURL.EscapedPath()
+	rest, direct := strings.CutPrefix(path, directPathPrefix)
+
+	switch {
+	case hasSubdomain(hostname, powerPlatformHostSuffix):
+		return direct && reachesWorkflows(rest)
+	case slices.ContainsFunc(logicAppsHostSuffixes, func(suffix string) bool { return hasSubdomain(hostname, suffix) }):
+		if direct {
+			return reachesWorkflows(rest)
+		}
+
+		return strings.HasPrefix(path, "/"+workflowsSegment)
+	default:
+		return false
+	}
+}
+
+// hasSubdomain reports whether a hostname is a subdomain of a domain.
+//
+// Parameters:
+//   - hostname: the lowercase hostname.
+//   - suffix: the domain, with its leading dot.
+//
+// Returns:
+//   - bool: true when the hostname ends with the suffix after one or more
+//     labels of letters, digits, and hyphens.
+func hasSubdomain(hostname, suffix string) bool {
+	labels, found := strings.CutSuffix(hostname, suffix)
+	if !found {
+		return false
+	}
+
+	for label := range strings.SplitSeq(labels, ".") {
+		if !isLDHToken(label) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// reachesWorkflows reports whether a path, after the direct path prefix,
+// reaches the workflows segment through routing segments only.
+//
+// Parameters:
+//   - path: the rest of the path after the direct path prefix.
+//
+// Returns:
+//   - bool: true when the path starts with "workflows/" after zero or more
+//     segments of letters, digits, and hyphens.
+func reachesWorkflows(path string) bool {
+	for !strings.HasPrefix(path, workflowsSegment) {
+		segment, rest, found := strings.Cut(path, "/")
+		if !found || !isLDHToken(segment) {
+			return false
+		}
+
+		path = rest
+	}
+
+	return true
+}
+
+// isLDHToken reports whether a hostname label or a path segment holds only
+// ASCII letters, digits, and hyphens.
+//
+// Parameters:
+//   - token: the label or segment, without dots or slashes.
+//
+// Returns:
+//   - bool: true for a non-empty token of ASCII letters, digits, and hyphens.
+func isLDHToken(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	for _, c := range []byte(token) {
+		switch {
+		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9', c == '-':
+		default:
+			return false
+		}
+	}
+
+	return true
 }

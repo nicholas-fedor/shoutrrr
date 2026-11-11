@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
 // failingResolver is a config resolver whose Set always returns err.
@@ -15,10 +17,19 @@ type failingResolver struct {
 	err error
 }
 
-// testWorkflowURL is a valid Logic Apps workflow webhook URL whose query
-// carries a signature that must never appear in errors.
-const testWorkflowURL = "https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke" +
-	"?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX"
+// Parts of the test workflow URL, a valid Power Platform workflow webhook URL
+// whose query carries a signature that must never appear in errors.
+const (
+	// testWorkflowOrigin is the scheme, host, and port of the test workflow URL.
+	testWorkflowOrigin = "https://default0123.environment.api.powerplatform.com:443"
+	// testWorkflowPath is the path of the test workflow URL.
+	testWorkflowPath = "/powerautomate/automations/direct/workflows/abc123/triggers/manual/paths/invoke"
+	// testWorkflowQuery is the query of the test workflow URL, with its
+	// signature.
+	testWorkflowQuery = "?api-version=1&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX"
+	// testWorkflowURL is the test workflow URL.
+	testWorkflowURL = testWorkflowOrigin + testWorkflowPath + testWorkflowQuery
+)
 
 // testServiceURL is the Teams service URL that carries testWorkflowURL as its host.
 var testServiceURL = "teams://?host=" + url.QueryEscape(testWorkflowURL)
@@ -97,11 +108,6 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: testWorkflowURL, Title: "Test", Color: "red"},
 		},
 		{
-			name:   "unknown workflow query params are skipped",
-			rawURL: testServiceURL + "&api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX",
-			want:   Config{Host: testWorkflowURL},
-		},
-		{
 			name:   "empty values are skipped",
 			rawURL: testServiceURL + "&title=&color=",
 			want:   Config{Host: testWorkflowURL},
@@ -157,6 +163,33 @@ func TestConfigSetURLRejectsNonWorkflowHost(t *testing.T) {
 			err := config.SetURL(mustParseURL(t, "teams://?host="+url.QueryEscape(tt.host)))
 
 			require.ErrorIs(t, err, ErrInvalidWebhookURL)
+		})
+	}
+}
+
+// TestConfigSetURLRejectsUnknownKeys verifies that SetURL rejects a query key
+// that is not a Teams setting.
+//
+// A webhook URL that was not percent-encoded spreads its own parameters, such
+// as sig, over the service URL's query. Rejecting them keeps a send from going
+// out without the signature.
+func TestConfigSetURLRejectsUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	// rawURLs lists service URLs, by name, with a key that is not a setting.
+	rawURLs := map[string]string{
+		"webhook URL that was not percent-encoded": "teams://?host=" + testWorkflowURL,
+		"misspelled key": testServiceURL + "&titel=Alert",
+	}
+
+	for name, rawURL := range rawURLs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&Config{}).SetURL(mustParseURL(t, rawURL))
+
+			require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+			assert.NotContains(t, err.Error(), "XXXXXXXX")
 		})
 	}
 }

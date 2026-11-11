@@ -344,7 +344,7 @@ func TestServiceSendRedactsTransportError(t *testing.T) {
 	require.ErrorIs(t, err, ErrSendFailed)
 	require.ErrorIs(t, err, errTransport)
 	assert.Equal(t, 1, calls)
-	require.ErrorContains(t, err, "https://prod-00.westus.logic.azure.com:443")
+	require.ErrorContains(t, err, testWorkflowOrigin)
 	assert.NotContains(t, err.Error(), "abc123")
 	assert.NotContains(t, err.Error(), "sig=")
 }
@@ -489,12 +489,6 @@ func TestServiceSendErrorsBeforeRequest(t *testing.T) {
 			params:  &types.Params{"bogus": "value"},
 			wantErr: format.ErrInvalidConfigKey,
 		},
-		{
-			name:    "webhook URL that cannot form a request",
-			rawURL:  testServiceURL,
-			params:  &types.Params{"host": "https://prod-00.westus.logic.azure.com/workflows/%zz"},
-			wantErr: ErrSendFailed,
-		},
 	}
 
 	for _, tt := range tests {
@@ -551,21 +545,19 @@ func TestColorToEnum(t *testing.T) {
 	}
 }
 
-// TestServiceSendRedactsUnparsableWebhookURL verifies that a webhook URL that
-// passes validation but cannot form a request fails the send without its
+// TestServiceSendRejectsUnparsableWebhookURL verifies that a host param that
+// does not parse as a URL fails the send before a request, without the URL's
 // signature in the error.
-func TestServiceSendRedactsUnparsableWebhookURL(t *testing.T) {
+func TestServiceSendRejectsUnparsableWebhookURL(t *testing.T) {
 	t.Parallel()
 
 	// The mock has no expectations, so a request fails the test.
 	service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
-	params := &types.Params{"host": "https://prod-00.westus.logic.azure.com/workflows/%zz?sig=SECRETsig"}
+	params := &types.Params{"host": testWorkflowOrigin + "/powerautomate/automations/direct/workflows/%zz?sig=SECRETsig"}
 
 	err := service.Send("Message", params)
 
-	require.ErrorIs(t, err, ErrSendFailed)
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v does not wrap a *url.Error", err)
+	require.ErrorIs(t, err, ErrInvalidWebhookURL)
 	assert.NotContains(t, err.Error(), "SECRETsig")
 }
 

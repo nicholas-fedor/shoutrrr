@@ -22,9 +22,15 @@ Where:
 - `TITLE` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
 Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a webhook URL that the check rejects.
-The check covers only the start of the URL, so a URL that passes can still fail to send, for example with a wrong signature.
-The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on a `logic.azure.com` or `environment.api.powerplatform.com` host.
-A retired `webhook.office.com` connector URL is rejected.
+The check covers the host, the path up to `workflows/`, and the presence of a signature.
+A URL that passes can still fail to send, for example with a wrong signature.
+The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on an `environment.api.powerplatform.com` host, or on `logic.azure.us` or `logic.azure.cn` in the US Government and China clouds.
+Its query must carry a `sig` signature.
+A workflow that anyone can trigger has one, and Shoutrrr cannot sign in to a workflow that requires sign-in.
+Workflow URLs on `logic.azure.com` stopped working on November 30, 2025, so they are rejected.
+Retired `webhook.office.com` connector URLs are rejected too.
+Percent-encode the webhook URL in `host`, as the example below does.
+Its parameters would otherwise become separate keys of the service URL, which Shoutrrr rejects as unknown.
 
 --8<-- "docs/services/chat/teams/config.md"
 
@@ -42,13 +48,13 @@ For more information, see the
 Teams/Power Automate workflow webhook URL:
 
 ```text
-https://prod-00.westus.logic.azure.com:443/workflows/WORKFLOW_ID/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=SIGNATURE
+https://ENVIRONMENT.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/WORKFLOW_ID/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=SIGNATURE
 ```
 
 Shoutrrr URL:
 
 ```text
-teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2FWORKFLOW_ID%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DSIGNATURE&title=Alert
+teams://?host=https%3A%2F%2FENVIRONMENT.environment.api.powerplatform.com%3A443%2Fpowerautomate%2Fautomations%2Fdirect%2Fworkflows%2FWORKFLOW_ID%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D1%26sp%3D%252Ftriggers%252Fmanual%252Frun%26sv%3D1.0%26sig%3DSIGNATURE&title=Alert
 ```
 
 In this example:
