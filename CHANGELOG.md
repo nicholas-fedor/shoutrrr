@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency backrefs to v8.2.1 by @renovate[bot] in [#2163](https://github.com/nicholas-fedor/shoutrrr/pull/2163)
+- Update emqx/emqx:latest docker digest to 54778db by @renovate[bot] in [#2162](https://github.com/nicholas-fedor/shoutrrr/pull/2162)
 - Update matrixdotorg/synapse:latest docker digest to c6b5dba by @renovate[bot] in [#2156](https://github.com/nicholas-fedor/shoutrrr/pull/2156)
 - Update peter-evans/create-pull-request action to v8.1.3 by @renovate[bot] in [#2150](https://github.com/nicholas-fedor/shoutrrr/pull/2150)
 - Update go toolchain directive to v1.27.4 by @renovate[bot] in [#2149](https://github.com/nicholas-fedor/shoutrrr/pull/2149)
