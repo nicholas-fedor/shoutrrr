@@ -1,14 +1,12 @@
 # Teams
 
 !!! Attention "Office 365 Connector Retirement"
-    As noted in Microsoft's [update](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/),
-    Office 365 Connectors within Microsoft Teams have been retired.
+    As noted in Microsoft's [update](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/), Office 365 Connectors within Microsoft Teams have been retired.
 
     The legacy `webhook.office.com` webhook URLs and MessageCard format are no longer functional.
 
     Shoutrrr now uses Power Automate workflow incoming webhooks exclusively.
-    Existing configurations using the old URL format must be migrated to the new
-    `teams://?host=WORKFLOW_URL` format documented below.
+    Existing configurations using the old URL format must be migrated to the new `teams://?host=WORKFLOW_URL` format documented below.
 
 ## URL Format
 
@@ -21,31 +19,57 @@ Where:
 - `COLOR` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
 - `TITLE` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
-Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a webhook URL that the check rejects.
-The check covers the host, the path up to `workflows/`, and the presence of a signature.
-A URL that passes can still fail to send, for example with a wrong signature.
-The webhook URL must start like the workflow URLs Microsoft issues.
-Power Automate uses an `environment.api.powerplatform.com` host.
-Azure Logic Apps uses `logic.azure.com`, or `logic.azure.us` and `logic.azure.cn` in the US Government and China clouds.
-Its query must carry a `sig` signature.
-A workflow that anyone can trigger has one, and Shoutrrr cannot sign in to a workflow that requires sign-in.
-Power Automate flows left `logic.azure.com` on November 30, 2025, and their old URLs on that domain no longer trigger them.
-Copy the current URL from the flow's trigger.
-Shoutrrr cannot tell an old flow URL from an Azure Logic Apps URL, which has the same form, so it accepts both.
-Retired `webhook.office.com` connector URLs are rejected too.
-Percent-encode the webhook URL in `host`, as the example below does.
-Its parameters would otherwise become separate keys of the service URL, which Shoutrrr rejects as unknown.
-
 --8<-- "docs/services/chat/teams/config.md"
 
 ## Setting up a webhook
 
-To use the Microsoft Teams notification service with Power Automate, create a new
-workflow in Power Automate and add the "When a Teams webhook request is received"
-trigger. Copy the generated webhook URL from the trigger.
+To use the Microsoft Teams notification service with Power Automate, create a new workflow in Power Automate and add the "When a Teams webhook request is received" trigger.
+Copy the generated webhook URL from the trigger.
 
-For more information, see the
-[Microsoft Learn documentation](https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook).
+For more information, see the [Microsoft Learn documentation](https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook).
+
+## Webhook URL
+
+Shoutrrr checks the webhook URL when it reads the service URL, so `shoutrrr verify` reports a webhook URL it rejects.
+
+### Accepted Hosts
+
+The webhook URL must use one of the workflow hosts Microsoft issues:
+
+| Platform                        | Host ends in                         |
+|---------------------------------|--------------------------------------|
+| Power Automate                  | `.environment.api.powerplatform.com` |
+| Azure Logic Apps                | `.logic.azure.com`                   |
+| Azure Logic Apps, US Government | `.logic.azure.us`                    |
+| Azure Logic Apps, China         | `.logic.azure.cn`                    |
+
+Retired `webhook.office.com` connector URLs are rejected.
+
+!!! note "Power Automate URLs on `logic.azure.com`"
+    Power Automate flows left `logic.azure.com` on November 30, 2025, and their old URLs on that domain no longer trigger them.
+    Copy the current URL from the flow's trigger.
+
+    Shoutrrr still accepts `logic.azure.com` URLs.
+    An Azure Logic Apps URL has the same form as an old flow URL, so Shoutrrr cannot tell the two apart.
+
+### What Shoutrrr Checks
+
+The check covers these parts of the webhook URL:
+
+- The scheme, which must be `https`.
+- The host, which must be one of the accepted hosts.
+- The path, up to `workflows/`.
+- A non-empty `sig` signature in the query.
+
+A workflow that anyone can trigger has a `sig` signature.
+Shoutrrr cannot sign in to a workflow that requires sign-in.
+
+A URL that passes the check can still fail to send, for example when its signature is wrong.
+
+### Percent-encoding
+
+Percent-encode the webhook URL in `host`, as the [example](#example) below does.
+Without the encoding, the webhook URL's own parameters become separate keys of the service URL, which Shoutrrr rejects as unknown.
 
 ## Example
 
