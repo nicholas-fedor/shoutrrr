@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Send to jira service management for host api.atlassian.com by @nicholas-fedor in [#2165](https://github.com/nicholas-fedor/shoutrrr/pull/2165)
 - Get OAuth2 access tokens with the client credentials grant by @nicholas-fedor in [#2160](https://github.com/nicholas-fedor/shoutrrr/pull/2160)
 - Support emergency priority by @nicholas-fedor in [#2101](https://github.com/nicholas-fedor/shoutrrr/pull/2101)
 
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Structure the webhook URL rules into their own section by @nicholas-fedor in [#2168](https://github.com/nicholas-fedor/shoutrrr/pull/2168)
 - Document every function and test by @nicholas-fedor in [#2147](https://github.com/nicholas-fedor/shoutrrr/pull/2147)
 - Document every declaration in the format package by @nicholas-fedor in [#2131](https://github.com/nicholas-fedor/shoutrrr/pull/2131)
 - Use one placeholder convention for service URLs by @nicholas-fedor in [#2127](https://github.com/nicholas-fedor/shoutrrr/pull/2127)
@@ -60,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/crypto to v0.59.0 by @renovate[bot] in [#2167](https://github.com/nicholas-fedor/shoutrrr/pull/2167)
+- Update dependency pymdown-extensions to v13.1 by @renovate[bot] in [#2166](https://github.com/nicholas-fedor/shoutrrr/pull/2166)
 - Update dependency backrefs to v8.2.1 by @renovate[bot] in [#2163](https://github.com/nicholas-fedor/shoutrrr/pull/2163)
 - Update emqx/emqx:latest docker digest to 54778db by @renovate[bot] in [#2162](https://github.com/nicholas-fedor/shoutrrr/pull/2162)
 - Update matrixdotorg/synapse:latest docker digest to c6b5dba by @renovate[bot] in [#2156](https://github.com/nicholas-fedor/shoutrrr/pull/2156)
