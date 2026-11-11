@@ -24,10 +24,14 @@ Where:
 Shoutrrr checks `WORKFLOW_URL` when it reads the service URL, so `shoutrrr verify` reports a webhook URL that the check rejects.
 The check covers the host, the path up to `workflows/`, and the presence of a signature.
 A URL that passes can still fail to send, for example with a wrong signature.
-The webhook URL must start like the Power Automate workflow URLs Microsoft issues, on an `environment.api.powerplatform.com` host, or on `logic.azure.us` or `logic.azure.cn` in the US Government and China clouds.
+The webhook URL must start like the workflow URLs Microsoft issues.
+Power Automate uses an `environment.api.powerplatform.com` host.
+Azure Logic Apps uses `logic.azure.com`, or `logic.azure.us` and `logic.azure.cn` in the US Government and China clouds.
 Its query must carry a `sig` signature.
 A workflow that anyone can trigger has one, and Shoutrrr cannot sign in to a workflow that requires sign-in.
-Workflow URLs on `logic.azure.com` stopped working on November 30, 2025, so they are rejected.
+Power Automate flows left `logic.azure.com` on November 30, 2025, and their old URLs on that domain no longer trigger them.
+Copy the current URL from the flow's trigger.
+Shoutrrr cannot tell an old flow URL from an Azure Logic Apps URL, which has the same form, so it accepts both.
 Retired `webhook.office.com` connector URLs are rejected too.
 Percent-encode the webhook URL in `host`, as the example below does.
 Its parameters would otherwise become separate keys of the service URL, which Shoutrrr rejects as unknown.

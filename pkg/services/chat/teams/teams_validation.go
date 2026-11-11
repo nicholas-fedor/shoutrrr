@@ -14,15 +14,18 @@ import (
 //
 // Power Platform URLs look like
 // https://*.environment.api.powerplatform.com/powerautomate/automations/direct/.../workflows/....
-// Logic Apps URLs in the US Government and China clouds look like
-// https://*.logic.azure.us/workflows/... and https://*.logic.azure.cn/workflows/....
+// Azure Logic Apps URLs look like https://*.logic.azure.com/workflows/..., and
+// https://*.logic.azure.us/workflows/... and https://*.logic.azure.cn/workflows/...
+// in the US Government and China clouds.
 //
-// Logic Apps URLs on logic.azure.com stopped working on 2025-11-30, when
-// Microsoft moved those flows to new URLs. Azure Germany (logic.azure.de)
-// closed on 2021-10-29.
+// Power Automate flows left logic.azure.com on 2025-11-30, and their old URLs
+// on that domain stopped working. Azure Logic Apps workflows still use it, and
+// their URLs have the same form, so the domain stays accepted. Azure Germany
+// (logic.azure.de) closed on 2021-10-29.
 //
 // References:
 //   - https://learn.microsoft.com/en-us/troubleshoot/power-platform/power-automate/flow-run-issues/triggers-troubleshoot?tabs=new-designer#changes-to-http-or-teams-webhook-trigger-flows
+//   - https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-http-endpoint
 //   - https://learn.microsoft.com/en-us/entra/identity-platform/authentication-national-cloud
 const (
 	// powerPlatformHostSuffix ends the host of a Power Platform workflow URL.
@@ -39,16 +42,16 @@ const (
 	signatureKey = "sig"
 )
 
-// logicAppsHostSuffixes end the hosts of the Logic Apps workflow URLs that
-// still work.
-var logicAppsHostSuffixes = []string{".logic.azure.us", ".logic.azure.cn"}
+// logicAppsHostSuffixes end the hosts of Azure Logic Apps workflow URLs in
+// the global, US Government, and China clouds.
+var logicAppsHostSuffixes = []string{".logic.azure.com", ".logic.azure.us", ".logic.azure.cn"}
 
 // ValidateWebhookURL checks that the webhook URL is a Power Automate workflow
 // webhook URL that Shoutrrr can send to.
 //
 // The URL is read as an HTTP request reads it. Its host must be a Power
-// Platform or a US Government or China cloud Logic Apps workflow host, with a
-// port from 1 to 65535 if it has one, and its path must lead to "workflows/".
+// Platform or an Azure Logic Apps workflow host, with a port from 1 to 65535
+// if it has one, and its path must lead to "workflows/".
 // Its query must carry a signature in a non-empty sig parameter. A trigger that
 // anyone can call authorizes requests by that signature. A URL without one
 // belongs to a trigger that requires sign-in, which Shoutrrr cannot provide.

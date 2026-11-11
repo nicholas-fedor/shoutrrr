@@ -10,9 +10,11 @@
 //   - Title: The notification title displayed as a bold header in the card (optional)
 //   - Color: The title's text color (optional)
 //
-// A service URL whose host is not a signed Power Automate workflow webhook URL
-// is rejected when it is read. That covers retired Office 365 connector URLs
-// and workflow URLs on logic.azure.com, which stopped working on 2025-11-30.
+// A service URL whose host is not a signed Power Automate or Azure Logic Apps
+// workflow webhook URL is rejected when it is read. That covers retired Office
+// 365 connector URLs and URLs without a sig signature. Power Automate flows
+// left logic.azure.com on 2025-11-30, so copy a flow's current URL from its
+// trigger. Azure Logic Apps workflows keep their logic.azure.com URLs.
 // A query key that is not a Teams setting is rejected too, such as a parameter
 // of a webhook URL that was not percent-encoded. A URL without a host is read,
 // and a send fails unless a host param sets one.

@@ -326,6 +326,44 @@ func TestServiceSendWithHTTPClient(t *testing.T) {
 	assert.Equal(t, []string{testWorkflowURL}, requested)
 }
 
+// TestServiceSendLogicAppsURL verifies that an Azure Logic Apps workflow URL
+// on logic.azure.com passes both URL reading and the send.
+//
+// Azure Logic Apps still issues these URLs, so the webhook URL can come from
+// the service URL or from a host param on each send.
+func TestServiceSendLogicAppsURL(t *testing.T) {
+	t.Parallel()
+
+	const logicAppsURL = "https://prod-24.northcentralus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke" +
+		"?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXXXXXXX"
+
+	// tests lists, by name, where the webhook URL comes from.
+	tests := map[string]struct {
+		rawURL string
+		params *types.Params
+	}{
+		"service URL": {rawURL: "teams://?host=" + url.QueryEscape(logicAppsURL)},
+		"host param":  {rawURL: "teams://", params: &types.Params{"host": logicAppsURL}},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var requested []string
+
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requested = append(requested, req.URL.String())
+
+				return newResponse(http.StatusOK), nil
+			})}
+
+			require.NoError(t, newTestService(t, tt.rawURL, client).Send("Message", tt.params))
+			assert.Equal(t, []string{logicAppsURL}, requested)
+		})
+	}
+}
+
 // TestServiceSendRedactsTransportError verifies that a transport error from an
 // injected *http.Client reports only the webhook's scheme and host, not the
 // path or signature query.

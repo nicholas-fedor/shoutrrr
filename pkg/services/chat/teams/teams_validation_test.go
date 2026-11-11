@@ -8,11 +8,11 @@ import (
 )
 
 // TestValidateWebhookURL verifies that ValidateWebhookURL accepts signed Power
-// Platform and sovereign-cloud Logic Apps workflow URLs and rejects everything
-// else with ErrInvalidWebhookURL.
+// Platform and Azure Logic Apps workflow URLs and rejects everything else with
+// ErrInvalidWebhookURL.
 //
-// Logic Apps URLs on logic.azure.com stopped working on 2025-11-30, and Azure
-// Germany closed in 2021, so both are rejected.
+// Azure Logic Apps still issues logic.azure.com URLs, so they are accepted.
+// Azure Germany closed in 2021, so logic.azure.de URLs are rejected.
 func TestValidateWebhookURL(t *testing.T) {
 	t.Parallel()
 
@@ -40,6 +40,8 @@ func TestValidateWebhookURL(t *testing.T) {
 			name: "power platform with routing segments",
 			url:  "https://default0123456789abcdef.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/04/workflows/abc123" + sig,
 		},
+		{name: "logic apps global cloud", url: "https://prod-24.northcentralus.logic.azure.com" + logicPath + sig},
+		{name: "logic apps global cloud with port", url: "https://prod-24.northcentralus.logic.azure.com:443" + logicPath + sig},
 		{name: "logic apps US government cloud", url: "https://prod-00.usgovvirginia.logic.azure.us" + logicPath + sig},
 		{name: "logic apps US government cloud with port", url: "https://prod-00.usgovvirginia.logic.azure.us:443" + logicPath + sig},
 		{name: "logic apps China cloud", url: "https://prod-00.chinaeast.logic.azure.cn" + logicPath + sig},
@@ -54,7 +56,8 @@ func TestValidateWebhookURL(t *testing.T) {
 		{name: "signature only", url: pp + "?sig=X"},
 		{name: "percent-encoded signature key", url: pp + "?%73ig=X"},
 		{name: "signature before a fragment", url: pp + "?sig=X#top"},
-		{name: "retired logic apps cloud", url: "https://prod-00.westus.logic.azure.com:443" + logicPath + sig, wantErr: true},
+		{name: "logic apps without signature", url: "https://prod-24.northcentralus.logic.azure.com" + logicPath + "?api-version=2016-10-01", wantErr: true},
+		{name: "logic apps global cloud without workflows path", url: "https://prod-24.northcentralus.logic.azure.com/triggers/manual" + sig, wantErr: true},
 		{name: "closed Germany cloud", url: "https://prod-00.germanycentral.logic.azure.de" + logicPath + sig, wantErr: true},
 		{name: "logic apps bare TLD", url: "https://prod-00.westus.logic.azure" + logicPath + sig, wantErr: true},
 		{name: "no query", url: pp, wantErr: true},
