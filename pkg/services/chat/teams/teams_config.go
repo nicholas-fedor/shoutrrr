@@ -2,8 +2,6 @@ package teams
 
 import (
 	"net/url"
-	"slices"
-	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -40,13 +38,18 @@ func (c *Config) GetURL() *url.URL {
 
 // SetURL updates the Config from a URL.
 //
+// A query key that is not a Teams setting is rejected. That includes a
+// parameter of a webhook URL that was not percent-encoded, such as sig, which
+// would otherwise be lost from the webhook URL.
+//
 // Parameters:
 //   - serviceURL: the service URL.
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
-//     a query prop error, or [ErrInvalidWebhookURL] for a webhook URL that is
-//     not a Power Automate workflow webhook URL.
+//     a query prop error, such as [format.ErrInvalidConfigKey] for an unknown
+//     key, or an error wrapping [ErrInvalidWebhookURL] for a webhook URL that
+//     Shoutrrr cannot send to.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -71,7 +74,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from the query of a URL using the provided
-// resolver, applying only the config keys, and then checks it.
+// resolver, and then checks it.
 //
 // Parameters:
 //   - resolver: the resolver that sets the config props from the query.
@@ -79,8 +82,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
-//     a query prop error, or [ErrInvalidWebhookURL] for a webhook URL that is
-//     not a Power Automate workflow webhook URL.
+//     a query prop error, or an error wrapping [ErrInvalidWebhookURL] for a
+//     webhook URL that Shoutrrr cannot send to.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Color = ""
 	c.Title = ""
@@ -91,18 +94,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	// The query also carries the workflow webhook's own parameters, such as
-	// sig, so only the config keys apply.
-	configKeys := resolver.QueryFields()
-	configQuery := url.Values{}
-
-	for key, vals := range query {
-		if slices.Contains(configKeys, strings.ToLower(key)) {
-			configQuery[key] = vals
-		}
-	}
-
-	if err := format.ApplyQuery(resolver, configQuery); err != nil {
+	if err := format.ApplyQuery(resolver, query); err != nil {
 		return err
 	}
 
@@ -115,8 +107,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // without one fails with [ErrMissingHost].
 //
 // Returns:
-//   - error: [ErrInvalidWebhookURL] for a webhook URL that is not a Power
-//     Automate workflow webhook URL, or nil.
+//   - error: an error wrapping [ErrInvalidWebhookURL] for a webhook URL that
+//     Shoutrrr cannot send to, or nil.
 func (c *Config) validate() error {
 	if c.Host == "" {
 		return nil

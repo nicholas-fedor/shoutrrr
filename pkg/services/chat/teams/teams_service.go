@@ -70,8 +70,8 @@ func (s *Service) GetID() string {
 //
 // Returns:
 //   - error: the error from applying the default props or reading the URL,
-//     including [ErrInvalidWebhookURL] for a webhook URL that is not a Power
-//     Automate workflow webhook URL.
+//     including an error wrapping [ErrInvalidWebhookURL] for a webhook URL
+//     that Shoutrrr cannot send to.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -187,9 +187,9 @@ func colorToEnum(color string) string {
 //   - message: the message to send.
 //
 // Returns:
-//   - error: [ErrMissingHost], [ErrInvalidWebhookURL], [ErrSendFailed]
-//     wrapping the request error, or [ErrSendFailedStatus] for a non-success
-//     status.
+//   - error: [ErrMissingHost], an error wrapping [ErrInvalidWebhookURL],
+//     [ErrSendFailed] wrapping the request error, or [ErrSendFailedStatus] for
+//     a non-success status.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	if config.Host == "" {
 		return ErrMissingHost

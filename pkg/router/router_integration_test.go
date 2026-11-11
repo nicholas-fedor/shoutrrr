@@ -553,8 +553,9 @@ var fixtures = []fixture{
 	},
 	{
 		scheme: "teams",
-		url: "teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2F00000000000000000000000000000000" +
-			"%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-01%26sp%3D%252Ftriggers%252Fmanual%252Frun" +
+		url: "teams://?host=https%3A%2F%2Fdefault0123.environment.api.powerplatform.com%3A443" +
+			"%2Fpowerautomate%2Fautomations%2Fdirect%2Fworkflows%2F00000000000000000000000000000000" +
+			"%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D1%26sp%3D%252Ftriggers%252Fmanual%252Frun" +
 			"%26sv%3D1.0%26sig%3DSECRETteamsSIG",
 		secrets: []string{"SECRETteamsSIG"},
 	},

@@ -49,10 +49,11 @@ type fakeWebhook struct {
 // Values shared by the integration tests.
 const (
 	// testWorkflowHost is the host and port of the test workflow URL.
-	testWorkflowHost = "prod-00.westus.logic.azure.com:443"
+	testWorkflowHost = "default0123.environment.api.powerplatform.com:443"
 	// testWorkflowRequestURI is the path and query of the test workflow URL.
-	testWorkflowRequestURI = "/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=SECRETsig"
-	// testWorkflowURL is a Logic Apps workflow webhook URL with a signature.
+	testWorkflowRequestURI = "/powerautomate/automations/direct/workflows/abc123/triggers/manual/paths/invoke" +
+		"?api-version=1&sp=/triggers/manual/run&sv=1.0&sig=SECRETsig"
+	// testWorkflowURL is a Power Platform workflow webhook URL with a signature.
 	testWorkflowURL = "https://" + testWorkflowHost + testWorkflowRequestURI
 	// testCertName is the DNS name in the certificate of [httptest.NewTLSServer].
 	testCertName = "example.com"

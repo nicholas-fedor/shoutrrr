@@ -326,6 +326,44 @@ func TestServiceSendWithHTTPClient(t *testing.T) {
 	assert.Equal(t, []string{testWorkflowURL}, requested)
 }
 
+// TestServiceSendLogicAppsURL verifies that an Azure Logic Apps workflow URL
+// on logic.azure.com passes both URL reading and the send.
+//
+// Azure Logic Apps still issues these URLs, so the webhook URL can come from
+// the service URL or from a host param on each send.
+func TestServiceSendLogicAppsURL(t *testing.T) {
+	t.Parallel()
+
+	const logicAppsURL = "https://prod-24.northcentralus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke" +
+		"?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXXXXXXX"
+
+	// tests lists, by name, where the webhook URL comes from.
+	tests := map[string]struct {
+		rawURL string
+		params *types.Params
+	}{
+		"service URL": {rawURL: "teams://?host=" + url.QueryEscape(logicAppsURL)},
+		"host param":  {rawURL: "teams://", params: &types.Params{"host": logicAppsURL}},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var requested []string
+
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requested = append(requested, req.URL.String())
+
+				return newResponse(http.StatusOK), nil
+			})}
+
+			require.NoError(t, newTestService(t, tt.rawURL, client).Send("Message", tt.params))
+			assert.Equal(t, []string{logicAppsURL}, requested)
+		})
+	}
+}
+
 // TestServiceSendRedactsTransportError verifies that a transport error from an
 // injected *http.Client reports only the webhook's scheme and host, not the
 // path or signature query.
@@ -344,7 +382,7 @@ func TestServiceSendRedactsTransportError(t *testing.T) {
 	require.ErrorIs(t, err, ErrSendFailed)
 	require.ErrorIs(t, err, errTransport)
 	assert.Equal(t, 1, calls)
-	require.ErrorContains(t, err, "https://prod-00.westus.logic.azure.com:443")
+	require.ErrorContains(t, err, testWorkflowOrigin)
 	assert.NotContains(t, err.Error(), "abc123")
 	assert.NotContains(t, err.Error(), "sig=")
 }
@@ -489,12 +527,6 @@ func TestServiceSendErrorsBeforeRequest(t *testing.T) {
 			params:  &types.Params{"bogus": "value"},
 			wantErr: format.ErrInvalidConfigKey,
 		},
-		{
-			name:    "webhook URL that cannot form a request",
-			rawURL:  testServiceURL,
-			params:  &types.Params{"host": "https://prod-00.westus.logic.azure.com/workflows/%zz"},
-			wantErr: ErrSendFailed,
-		},
 	}
 
 	for _, tt := range tests {
@@ -551,21 +583,19 @@ func TestColorToEnum(t *testing.T) {
 	}
 }
 
-// TestServiceSendRedactsUnparsableWebhookURL verifies that a webhook URL that
-// passes validation but cannot form a request fails the send without its
+// TestServiceSendRejectsUnparsableWebhookURL verifies that a host param that
+// does not parse as a URL fails the send before a request, without the URL's
 // signature in the error.
-func TestServiceSendRedactsUnparsableWebhookURL(t *testing.T) {
+func TestServiceSendRejectsUnparsableWebhookURL(t *testing.T) {
 	t.Parallel()
 
 	// The mock has no expectations, so a request fails the test.
 	service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
-	params := &types.Params{"host": "https://prod-00.westus.logic.azure.com/workflows/%zz?sig=SECRETsig"}
+	params := &types.Params{"host": testWorkflowOrigin + "/powerautomate/automations/direct/workflows/%zz?sig=SECRETsig"}
 
 	err := service.Send("Message", params)
 
-	require.ErrorIs(t, err, ErrSendFailed)
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v does not wrap a *url.Error", err)
+	require.ErrorIs(t, err, ErrInvalidWebhookURL)
 	assert.NotContains(t, err.Error(), "SECRETsig")
 }
 
