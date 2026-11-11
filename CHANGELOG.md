@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Get OAuth2 access tokens with the client credentials grant by @nicholas-fedor in [#2160](https://github.com/nicholas-fedor/shoutrrr/pull/2160)
 - Support emergency priority by @nicholas-fedor in [#2101](https://github.com/nicholas-fedor/shoutrrr/pull/2101)
 
 ### Fixed
