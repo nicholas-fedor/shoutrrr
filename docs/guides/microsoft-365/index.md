@@ -52,8 +52,10 @@ These steps follow Microsoft's guide to [authenticating an SMTP connection with 
 
 1. Register an application in Microsoft Entra ID with the redirect URI `http://localhost`, and create a client secret for it. Entra ignores the port of a `localhost` redirect URI, so the generator can listen on any free port.
 2. Add the delegated `SMTP.Send` permission. The sending user consents when signing in, unless the tenant requires an administrator to grant consent.
-3. Run the [OAuth2 generator](../../usage/cli/generate/index.md#oauth2) with `shoutrrr generate smtp oauth2`, and answer its prompts with the values below.
+3. Run the [OAuth2 generator](../../usage/cli/generate/index.md#oauth2) with `shoutrrr generate smtp oauth2 -x`, and answer its prompts with the values below. The `-x` flag prints the client secret and refresh token, which the generator otherwise masks.
 4. Open the authorization URL it prints, and sign in as the sending user.
+5. Change the port in the generated URL from 25 to 587, which Microsoft recommends for SMTP AUTH. Some networks and providers block port 25.
+6. Store the URL as you would a password, since it holds the client secret and refresh token.
 
 | Prompt        | Value                                                               |
 |---------------|---------------------------------------------------------------------|
