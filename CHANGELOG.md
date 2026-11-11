@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require signed webhook URLs on current workflow hosts by @nicholas-fedor in [#2158](https://github.com/nicholas-fedor/shoutrrr/pull/2158)
 - Check the webhook URL when the service URL is read by @nicholas-fedor in [#2154](https://github.com/nicholas-fedor/shoutrrr/pull/2154)
 - Let the format package parse prompted answers by @nicholas-fedor in [#2143](https://github.com/nicholas-fedor/shoutrrr/pull/2143)
 - Set fields by name through the format package by @nicholas-fedor in [#2141](https://github.com/nicholas-fedor/shoutrrr/pull/2141)
