@@ -51,8 +51,8 @@ const (
 	FailHandshake
 	// FailResetSession is returned when the server rejects RSET between recipients.
 	FailResetSession
-	// FailTokenRefresh is returned when a new OAuth2 access token could not be obtained.
-	FailTokenRefresh
+	// FailGetAccessToken is returned when a new OAuth2 access token could not be obtained.
+	FailGetAccessToken
 )
 
 // fail creates an SMTP-specific failure with a descriptive message and ID.
@@ -79,8 +79,8 @@ func fail(failureID failures.FailureID, err error, args ...any) failures.Failure
 		msg = "error creating smtp client"
 	case FailEnableStartTLS:
 		msg = "error enabling StartTLS"
-	case FailTokenRefresh:
-		msg = "error refreshing the OAuth2 access token"
+	case FailGetAccessToken:
+		msg = "error getting the OAuth2 access token"
 	case FailAuthenticating:
 		msg = "error authenticating"
 	case FailAuthType:

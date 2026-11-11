@@ -32,8 +32,8 @@ const (
 
 // auth authenticates the SMTP client using the configured mechanism.
 //
-// When the server rejects a refreshed OAuth2 access token, the cached token is
-// dropped, so the next send gets a new one.
+// When the server rejects an OAuth2 access token from the token endpoint, the
+// cached token is dropped, so the next send gets a new one.
 //
 // Returns:
 //   - An error if authentication cannot be configured or the server rejects it.
@@ -45,7 +45,7 @@ func (s *session) auth() error {
 
 	if mechanism != nil {
 		if err := s.client.Auth(mechanism); err != nil {
-			if s.config.usesTokenRefresh() {
+			if s.config.grant() != grantNone {
 				s.svc.forgetToken(s.config)
 			}
 
@@ -196,8 +196,10 @@ func (s *session) quit(ctx context.Context, errs []error) []error {
 	return errs
 }
 
-// run conducts the SMTP session: handshake, optional STARTTLS, authentication,
-// delivery, and QUIT. Pre-delivery failures close the client without sending QUIT.
+// run conducts the SMTP session.
+//
+// It runs the handshake, optional STARTTLS, authentication, delivery, and
+// QUIT. Pre-delivery failures close the client without sending QUIT.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its log records.
@@ -331,8 +333,9 @@ func (s *session) startTLS(ctx context.Context) error {
 }
 
 // warnConnection logs, once per service instance, that the session sends
-// without TLS, or that its TLS connection skips certificate verification. It
-// runs after the TLS setup, so it reports what the session actually uses.
+// without TLS or that its TLS connection skips certificate verification.
+//
+// It runs after the TLS setup, so it reports what the session actually uses.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to the warnings.

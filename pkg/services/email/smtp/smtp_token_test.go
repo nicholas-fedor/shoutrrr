@@ -64,6 +64,12 @@ type failingTokenClient struct{}
 const testRefreshURL = "smtp://user@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no" +
 	"&clientid=client&clientsecret=secret&refreshtoken=refresh&tokenurl=https%3A%2F%2Foauth.example.com%2Ftoken"
 
+// testClientCredentialsURL is a service URL whose sends get their access token
+// with the client credentials grant, for two scopes.
+const testClientCredentialsURL = "smtp://user@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com" +
+	"&usestarttls=no&clientid=client&clientsecret=secret&scopes=https%3A%2F%2Foutlook.office365.com%2F.default,extra" +
+	"&tokenurl=https%3A%2F%2Foauth.example.com%2Ftoken"
+
 // newFakeTokenEndpoint returns an endpoint that answers with the given
 // responses in order.
 //
@@ -97,12 +103,16 @@ func grant(accessToken, expiresIn, refreshToken string) tokenResponse {
 
 // Do records the token request and answers it.
 //
+// The recorded form holds the client ID and secret whether the request sends
+// them in its body or in its Authorization header, so a test can check them in
+// either style.
+//
 // Parameters:
 //   - req: the token request.
 //
 // Returns:
 //   - *http.Response: the scripted response.
-//   - error: the error reading the request body.
+//   - error: the error reading the request body or its credentials.
 func (e *fakeTokenEndpoint) Do(req *http.Request) (*http.Response, error) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -112,6 +122,22 @@ func (e *fakeTokenEndpoint) Do(req *http.Request) (*http.Response, error) {
 	form, err := url.ParseQuery(string(body))
 	if err != nil {
 		return nil, err
+	}
+
+	// RFC 6749 section 2.3.1 form-encodes the credentials in the header.
+	if user, password, ok := req.BasicAuth(); ok {
+		clientID, err := url.QueryUnescape(user)
+		if err != nil {
+			return nil, err
+		}
+
+		clientSecret, err := url.QueryUnescape(password)
+		if err != nil {
+			return nil, err
+		}
+
+		form.Set("client_id", clientID)
+		form.Set("client_secret", clientSecret)
 	}
 
 	e.mu.Lock()
@@ -173,10 +199,14 @@ func xoauth2Line(accessToken string) string {
 	return "AUTH XOAUTH2 " + base64.StdEncoding.EncodeToString([]byte("user=user\x01auth=Bearer "+accessToken+"\x01\x01"))
 }
 
-// TestValidateOAuth2Refresh verifies that refresh settings are optional, but
-// when set need OAuth2, a refresh token, a client ID, and an HTTPS token URL
-// or an HTTP one to a loopback host.
-func TestValidateOAuth2Refresh(t *testing.T) {
+// TestValidateTokenSettings verifies that token settings are optional, but
+// when set need OAuth2, a client ID, an HTTPS token URL or an HTTP one to a
+// loopback host, and one grant.
+//
+// The refresh grant needs a refresh token and no scopes. The client
+// credentials grant needs scopes, a client secret, and the mailbox as the
+// username.
+func TestValidateTokenSettings(t *testing.T) {
 	t.Parallel()
 
 	valid := Config{
@@ -184,17 +214,42 @@ func TestValidateOAuth2Refresh(t *testing.T) {
 		RefreshToken: "refresh", TokenURL: "https://oauth.example.com/token",
 	}
 
+	// clientCredentials changes the valid refresh settings into valid client
+	// credentials settings.
+	clientCredentials := func(c *Config) {
+		c.RefreshToken = ""
+		c.Scopes = []string{"https://outlook.office365.com/.default"}
+		c.Username = "alerts@example.com"
+	}
+
 	tests := map[string]struct {
 		change  func(*Config)
 		wantErr bool
 	}{
-		"valid":                  {change: func(*Config) {}},
-		"no client secret":       {change: func(c *Config) { c.ClientSecret = "" }},
-		"HTTP to localhost":      {change: func(c *Config) { c.TokenURL = "http://localhost:8080/token" }},
-		"HTTP to IPv6 loopback":  {change: func(c *Config) { c.TokenURL = "http://[::1]:8080/token" }},
-		"no refresh settings":    {change: func(c *Config) { *c = Config{Auth: AuthTypes.Plain} }},
-		"other auth":             {change: func(c *Config) { c.Auth = AuthTypes.Plain }, wantErr: true},
-		"no refresh token":       {change: func(c *Config) { c.RefreshToken = "" }, wantErr: true},
+		"valid":              {change: func(*Config) {}},
+		"no client secret":   {change: func(c *Config) { c.ClientSecret = "" }},
+		"client credentials": {change: clientCredentials},
+		"scopes with refresh token": {
+			change:  func(c *Config) { c.Scopes = []string{"scope"}; c.Username = "alerts@example.com" },
+			wantErr: true,
+		},
+		"client credentials without client secret": {
+			change:  func(c *Config) { clientCredentials(c); c.ClientSecret = "" },
+			wantErr: true,
+		},
+		"client credentials without username": {
+			change:  func(c *Config) { clientCredentials(c); c.Username = "" },
+			wantErr: true,
+		},
+		"only scopes":           {change: func(c *Config) { *c = Config{Auth: AuthTypes.OAuth2, Scopes: []string{"scope"}} }, wantErr: true},
+		"HTTP to localhost":     {change: func(c *Config) { c.TokenURL = "http://localhost:8080/token" }},
+		"HTTP to IPv6 loopback": {change: func(c *Config) { c.TokenURL = "http://[::1]:8080/token" }},
+		"no refresh settings":   {change: func(c *Config) { *c = Config{Auth: AuthTypes.Plain} }},
+		"other auth":            {change: func(c *Config) { c.Auth = AuthTypes.Plain }, wantErr: true},
+		"no refresh token or scopes": {
+			change:  func(c *Config) { c.RefreshToken = ""; c.Username = "alerts@example.com" },
+			wantErr: true,
+		},
 		"no client ID":           {change: func(c *Config) { c.ClientID = "" }, wantErr: true},
 		"no token URL":           {change: func(c *Config) { c.TokenURL = "" }, wantErr: true},
 		"HTTP to another host":   {change: func(c *Config) { c.TokenURL = "http://oauth.example.com/token" }, wantErr: true},
@@ -210,9 +265,9 @@ func TestValidateOAuth2Refresh(t *testing.T) {
 			config := valid
 			tc.change(&config)
 
-			err := validateOAuth2Refresh(&config)
+			err := validateTokenSettings(&config)
 			if tc.wantErr {
-				require.ErrorIs(t, err, ErrInvalidOAuth2Refresh)
+				require.ErrorIs(t, err, ErrInvalidOAuth2Settings)
 			} else {
 				require.NoError(t, err)
 			}
@@ -230,7 +285,7 @@ func TestInitializeOAuth2Refresh(t *testing.T) {
 	assert.Equal(t, AuthTypes.OAuth2, service.Config.Auth)
 
 	err := (&Service{}).Initialize(parseConfigURL(t, testRefreshURL+"&auth=Plain"), log.New(t.Output(), "", 0))
-	require.ErrorIs(t, err, ErrInvalidOAuth2Refresh)
+	require.ErrorIs(t, err, ErrInvalidOAuth2Settings)
 }
 
 // TestConfigURLRefreshSettings verifies that the config URL holds the refresh
@@ -263,6 +318,85 @@ func TestSendRefreshesAccessToken(t *testing.T) {
 	assert.Equal(t, "refresh_token", requests[0].Get("grant_type"))
 	assert.Equal(t, "refresh", requests[0].Get("refresh_token"))
 	assert.Contains(t, server.received(), xoauth2Line("fresh-token"))
+}
+
+// TestSendClientCredentials verifies that a send with scopes and no refresh
+// token gets its access token with the client credentials grant.
+//
+// The request carries the client ID and secret and the scopes joined with
+// spaces. The send authenticates as the URL's user with that token.
+func TestSendClientCredentials(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP("AUTH XOAUTH2")
+	endpoint := newFakeTokenEndpoint(grant("app-token", "3600", ""))
+	service := newRefreshingService(t, testClientCredentialsURL, server, endpoint)
+
+	require.NoError(t, service.Send("one", nil))
+	require.NoError(t, service.Send("two", nil))
+
+	requests := endpoint.requests()
+	require.Len(t, requests, 1, "a valid token is reused")
+	assert.Equal(t, "client_credentials", requests[0].Get("grant_type"))
+	assert.Equal(t, "https://outlook.office365.com/.default extra", requests[0].Get("scope"))
+	assert.Equal(t, "client", requests[0].Get("client_id"))
+	assert.Equal(t, "secret", requests[0].Get("client_secret"))
+	assert.False(t, requests[0].Has("refresh_token"))
+	assert.Contains(t, server.received(), xoauth2Line("app-token"))
+}
+
+// TestSendClientCredentialsForgetsRejectedToken verifies that an access token
+// from the client credentials grant that the server rejects is dropped, so the
+// next send requests a new one with the same grant.
+func TestSendClientCredentialsForgetsRejectedToken(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP("AUTH XOAUTH2")
+	server.replies["AUTH"] = []string{"535 5.7.3 Authentication unsuccessful"}
+
+	endpoint := newFakeTokenEndpoint(grant("revoked", "3600", ""), grant("fresh", "3600", ""))
+	service := newRefreshingService(t, testClientCredentialsURL, server, endpoint)
+
+	require.Error(t, service.Send("one", nil))
+	require.NoError(t, service.Send("two", nil))
+
+	requests := endpoint.requests()
+	require.Len(t, requests, 2)
+	assert.Equal(t, "client_credentials", requests[1].Get("grant_type"))
+	assert.Contains(t, server.received(), xoauth2Line("fresh"))
+}
+
+// TestSendClientCredentialsScopesFromCode verifies that a config built in code
+// trims its scopes and drops blank ones before the token request, as reading
+// a URL does, and that other scopes get their own token.
+func TestSendClientCredentialsScopesFromCode(t *testing.T) {
+	t.Parallel()
+
+	endpoint := newFakeTokenEndpoint(grant("token-1", "3600", ""), grant("token-2", "3600", ""))
+	service := newRefreshingService(t, testClientCredentialsURL, newFakeSMTP("AUTH XOAUTH2"), endpoint)
+	service.Config.Scopes = []string{"", " scope-a ", " "}
+
+	require.NoError(t, service.Send("one", nil))
+	require.NoError(t, service.Send("two", &types.Params{"scopes": "scope-b, scope-c"}))
+
+	requests := endpoint.requests()
+	require.Len(t, requests, 2)
+	assert.Equal(t, "scope-a", requests[0].Get("scope"))
+	assert.Equal(t, "scope-b scope-c", requests[1].Get("scope"))
+}
+
+// TestInitializeClientCredentials verifies that client credentials settings
+// without an auth setting select OAuth2, and that the config URL keeps the
+// scopes and reads back to the same config.
+func TestInitializeClientCredentials(t *testing.T) {
+	t.Parallel()
+
+	config := newTestService(t, testClientCredentialsURL, newFakeSMTP()).Config
+	assert.Equal(t, AuthTypes.OAuth2, config.Auth)
+	assert.Equal(t, []string{"https://outlook.office365.com/.default", "extra"}, config.Scopes)
+
+	reread := newTestService(t, config.GetURL().String(), newFakeSMTP()).Config
+	assert.Equal(t, config, reread)
 }
 
 // TestSendCachesAccessToken verifies that a token is reused until it expires,
@@ -367,7 +501,7 @@ func TestSendFailedRefresh(t *testing.T) {
 	err := service.Send("Hello", nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "error refreshing the OAuth2 access token")
+	assert.Contains(t, err.Error(), "error getting the OAuth2 access token")
 	assert.NotEmpty(t, endpoint.requests())
 	assert.Empty(t, server.received(), "a failed refresh must not connect to the SMTP server")
 }
@@ -383,7 +517,7 @@ func TestSendRejectsInvalidRefreshParams(t *testing.T) {
 
 	err := service.Send("Hello", &types.Params{"tokenurl": "http://oauth.example.com/token"})
 
-	require.ErrorIs(t, err, ErrInvalidOAuth2Refresh)
+	require.ErrorIs(t, err, ErrInvalidOAuth2Settings)
 	assert.Empty(t, endpoint.requests())
 	assert.Empty(t, server.received())
 }
@@ -563,9 +697,11 @@ func refreshConfig(refreshToken string) *Config {
 }
 
 // TestAccessTokenInFlight verifies how sends coordinate while a token request
-// is in flight. Waiters give up when their own context ends. They retry when
-// the sender that made the request was canceled, and otherwise share its
-// result. Sends with other refresh settings do not wait at all.
+// is in flight.
+//
+// Waiters give up when their own context ends. They retry when the sender that
+// made the request was canceled, and otherwise share its result. Sends with
+// other token settings do not wait at all.
 func TestAccessTokenInFlight(t *testing.T) {
 	t.Parallel()
 

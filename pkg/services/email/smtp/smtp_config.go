@@ -30,19 +30,25 @@ type Config struct {
 	Subject string `default:"" desc:"The subject of the sent mail" key:"subject,title"`
 	// ClientHost is the hostname sent in the SMTP EHLO/HELO handshake.
 	ClientHost string `default:"localhost" desc:"SMTP client hostname" key:"clienthost"`
-	// ClientID is the OAuth2 client ID used to refresh the access token.
-	ClientID string `desc:"OAuth2 client ID, for refreshing the access token" key:"clientid" optional:""`
-	// ClientSecret is the OAuth2 client secret used to refresh the access
-	// token. Some providers do not need one.
-	ClientSecret string `desc:"OAuth2 client secret, for refreshing the access token" key:"clientsecret" optional:"" sensitive:"true"`
+	// ClientID is the OAuth2 client ID used to get the access token.
+	ClientID string `desc:"OAuth2 client ID, for getting the access token" key:"clientid" optional:""`
+	// ClientSecret is the OAuth2 client secret used to get the access token.
+	// The client credentials grant needs one. Some providers do not need one
+	// to refresh a token.
+	ClientSecret string `desc:"OAuth2 client secret, for getting the access token" key:"clientsecret" optional:"" sensitive:"true"`
 	// RefreshToken is the OAuth2 refresh token. When it is set, each send
 	// gets a current access token from TokenURL, and Password is not used.
 	RefreshToken string `desc:"OAuth2 refresh token, for refreshing the access token" key:"refreshtoken" optional:"" sensitive:"true"`
 	// TokenURL is the provider's OAuth2 token endpoint, such as
 	// https://oauth2.googleapis.com/token.
-	TokenURL string `desc:"OAuth2 token endpoint, for refreshing the access token" key:"tokenurl" optional:""`
+	TokenURL string `desc:"OAuth2 token endpoint, for getting the access token" key:"tokenurl" optional:""`
 	// ToAddresses is the list of recipient e-mail addresses.
 	ToAddresses []string `desc:"List of recipient e-mails" key:"toaddresses,to"`
+	// Scopes are the OAuth2 scopes of the client credentials grant, such as
+	// https://outlook.office365.com/.default for Microsoft 365. When they are
+	// set without a refresh token, each send gets a current access token from
+	// TokenURL with the client ID and secret, and Password is not used.
+	Scopes []string `desc:"OAuth2 scopes, for the client credentials grant" key:"scopes" optional:""`
 	// Auth is the SMTP authentication method. See [AuthTypes].
 	Auth authType `default:"Unknown" desc:"SMTP authentication method" key:"auth"`
 	// Encryption is the SMTP transport encryption method. See [EncMethods].
@@ -69,13 +75,15 @@ const Scheme = "smtp"
 
 // Clone returns a copy of the config.
 //
-// [Config.ToAddresses] is copied so later mutations do not affect the original.
+// [Config.ToAddresses] and [Config.Scopes] are copied so later mutations do
+// not affect the original.
 //
 // Returns:
-//   - A copy of the configuration with an independent recipient list.
+//   - A copy of the configuration with independent recipient and scope lists.
 func (c *Config) Clone() Config {
 	clone := *c
 	clone.ToAddresses = slices.Clone(c.ToAddresses)
+	clone.Scopes = slices.Clone(c.Scopes)
 
 	return clone
 }
@@ -114,10 +122,11 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// applyDefaults fills in the settings a config needs to connect. A zero port
-// uses [DefaultSMTPPort] and an empty client host uses localhost. An unknown
-// auth method is inferred as follows.
-//   - [AuthOAuth2] when a refresh token is set.
+// applyDefaults fills in the settings a config needs to connect.
+//
+// A zero port uses [DefaultSMTPPort] and an empty client host uses localhost.
+// An unknown auth method is inferred as follows.
+//   - [AuthOAuth2] when a refresh token or client credentials scopes are set.
 //   - [AuthPlain] when a username is present.
 //   - [AuthNone] otherwise.
 func (c *Config) applyDefaults() {
@@ -131,7 +140,7 @@ func (c *Config) applyDefaults() {
 
 	if c.Auth == AuthTypes.Unknown {
 		switch {
-		case c.usesTokenRefresh():
+		case c.grant() != grantNone:
 			c.Auth = AuthTypes.OAuth2
 		case c.Username != "":
 			c.Auth = AuthTypes.Plain
@@ -144,7 +153,7 @@ func (c *Config) applyDefaults() {
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
 // [Config.RequireStartTLS] and [Config.SkipTLSVerify] are included only when
-// true, and the OAuth2 refresh settings only when set.
+// true, and the OAuth2 token settings only when set.
 //
 // Parameters:
 //   - resolver: Resolver used to serialize configuration query keys.
@@ -184,16 +193,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
 	}
-	// Include the OAuth2 refresh settings only when set, in a fixed order.
-	for _, prop := range [][2]string{
-		{"clientid", c.ClientID},
-		{"clientsecret", c.ClientSecret},
-		{"refreshtoken", c.RefreshToken},
-		{"tokenurl", c.TokenURL},
-	} {
-		if prop[1] != "" {
-			queryParts = append(queryParts, fmt.Sprintf("%s=%s", prop[0], url.QueryEscape(prop[1])))
+	// Include the OAuth2 token settings only when set, in a fixed order.
+	for _, key := range []string{"clientid", "clientsecret", "refreshtoken", "scopes", "tokenurl"} {
+		value, err := resolver.Get(key)
+		if err != nil || value == "" {
+			continue
 		}
+
+		queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
 	}
 	// Only include requirestarttls if explicitly set to true.
 	if c.RequireStartTLS {
@@ -209,14 +216,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return serviceURL
 }
 
-// prepare readies a config for a send. It normalizes the addresses and fills
-// in the defaults, then checks the result. Reading a service URL and each send
-// run it, so a config built in code fails before the token request or the dial.
+// prepare readies a config for a send.
+//
+// It normalizes the addresses and scopes, then fills in the defaults and checks
+// the result. Reading a service URL and each send run it, so a config built in
+// code fails before the token request or the dial.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrHostMissing].
 func (c *Config) prepare() error {
 	c.restorePlusAddresses()
+	c.trimScopes()
 	c.applyDefaults()
 
 	return c.validate()
@@ -334,19 +344,32 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.prepare()
 }
 
+// trimScopes trims each scope and drops the ones left empty.
+//
+// A scope never holds a space (RFC 6749 section 3.3), so spaces around one
+// come from the list separator, as in "scope-a, scope-b". A list of only blank
+// scopes is empty, so it selects no client credentials grant.
+func (c *Config) trimScopes() {
+	for i, scope := range c.Scopes {
+		c.Scopes[i] = strings.TrimSpace(scope)
+	}
+
+	c.Scopes = util.NonEmpty(c.Scopes)
+}
+
 // validate checks that the config has a server host, a sender, and a
 // recipient.
 //
 // No address may hold a CR or LF, which would break the SMTP commands and
 // headers. The authentication and encryption methods must be defined ones. It
-// also checks that the OAuth2 refresh settings are complete.
+// also checks that the OAuth2 token settings are complete.
 //
 // Returns:
 //   - error: [ErrHostMissing], [ErrFromAddressMissing], [ErrToAddressMissing],
 //     an error wrapping [util.ErrInvalidHost] for a host that holds a port or
 //     brackets, an error for an address with a line break, an error wrapping
 //     [format.ErrInvalidEnumValue] for an undefined method,
-//     [ErrInvalidOAuth2Refresh] for invalid refresh settings, or nil.
+//     [ErrInvalidOAuth2Settings] for invalid token settings, or nil.
 func (c *Config) validate() error {
 	// An SMTP server has no default host.
 	if c.Host == "" {
@@ -383,11 +406,13 @@ func (c *Config) validate() error {
 		return fmt.Errorf("encryption: %w", err)
 	}
 
-	return validateOAuth2Refresh(c)
+	return validateTokenSettings(c)
 }
 
 // newTLSConfig builds the [tls.Config] used for implicit TLS and STARTTLS from
-// the shared helpers. It verifies the server's certificate against Host unless
+// the shared helpers.
+//
+// It verifies the server's certificate against Host unless
 // [Config.SkipTLSVerify] is set.
 //
 // Parameters:

@@ -6,7 +6,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 ## URL Format
 
 !!! info ""
-    smtp://[__`USERNAME`__[:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/?fromaddress=__`FROM_ADDRESS`__&toaddresses=__`TO_ADDRESS_1`__[,__`TO_ADDRESS_2`__,...][&subject=__`SUBJECT`__][&auth=__`AUTH`__][&encryption=__`ENCRYPTION`__][&useStartTLS={yes|no}][&useHTML={yes|no}][&clientHost=__`CLIENT_HOST`__][&requirestarttls={yes|no}][&skiptlsverify={yes|no}][&timeout=__`DURATION`__][&clientid=__`CLIENT_ID`__][&clientsecret=__`CLIENT_SECRET`__][&refreshtoken=__`REFRESH_TOKEN`__][&tokenurl=__`TOKEN_URL`__]
+    smtp://[__`USERNAME`__[:__`PASSWORD`__]@]__`HOST`__[:__`PORT`__]/?fromaddress=__`FROM_ADDRESS`__&toaddresses=__`TO_ADDRESS_1`__[,__`TO_ADDRESS_2`__,...][&subject=__`SUBJECT`__][&auth=__`AUTH`__][&encryption=__`ENCRYPTION`__][&useStartTLS={yes|no}][&useHTML={yes|no}][&clientHost=__`CLIENT_HOST`__][&requirestarttls={yes|no}][&skiptlsverify={yes|no}][&timeout=__`DURATION`__][&clientid=__`CLIENT_ID`__][&clientsecret=__`CLIENT_SECRET`__][&refreshtoken=__`REFRESH_TOKEN`__][&scopes=__`SCOPES`__][&tokenurl=__`TOKEN_URL`__]
 
 --8<-- "docs/services/email/smtp/config.md"
 
@@ -49,7 +49,7 @@ Common ports:
 - `Username` and `Password` are the SMTP credentials.
 - Both default to empty.
 - Leave them empty for servers that allow unauthenticated relay.
-- For `auth=OAuth2`, put the access token in the password field, or leave it empty and set the [refresh settings](#oauth2-token-refresh).
+- For `auth=OAuth2`, put the access token in the password field, or leave it empty and set the [refresh settings](#oauth2_token_refresh) or the [client credentials settings](#oauth2_client_credentials).
 
 !!! Example "No credentials"
 
@@ -108,10 +108,13 @@ Common ports:
 | `Plain`   | AUTH PLAIN (username and password)                                                    |
 | `Login`   | AUTH LOGIN, for servers that do not support PLAIN                                     |
 | `CRAMMD5` | AUTH CRAM-MD5                                                                         |
-| `OAuth2`  | SASL XOAUTH2 with the access token in the password field, or one from a refresh token |
-| `Unknown` | `OAuth2` if a refresh token is set, `Plain` if a username is set, otherwise `None`    |
+| `OAuth2`  | SASL XOAUTH2 with the access token in the password field, or one from the token endpoint |
+| `Unknown` | `OAuth2` if a refresh token or scopes are set, `Plain` if a username is set, otherwise `None` |
 
 `Plain`, `Login`, and `OAuth2` refuse to send credentials on an unencrypted connection unless the server name is `localhost`, `127.0.0.1`, or `::1`.
+
+Microsoft 365 is retiring `Plain` and `Login` for SMTP AUTH.
+The [Microsoft 365 guide](../../../guides/microsoft-365/index.md) covers the OAuth2 alternatives.
 
 !!! Example "AUTH LOGIN"
 
@@ -126,7 +129,7 @@ Common ports:
     ```
 
     The access token is used as is.
-    It expires after about an hour, so set the [refresh settings](#oauth2-token-refresh) for a URL that keeps working.
+    It expires after about an hour, so set the [refresh settings](#oauth2_token_refresh) or the [client credentials settings](#oauth2_client_credentials) for a URL that keeps working.
 
 ### OAuth2 Token Refresh
 
@@ -161,6 +164,25 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
     Shoutrrr refreshes the access token as needed.
     When writing the URL by hand, percent-encode the values, as the example does for the token URL.
 
+### OAuth2 Client Credentials
+
+With the client credentials grant, an application gets its access token with its own client ID and secret, without a user's sign-in or a refresh token.
+Shoutrrr requests a current access token from the provider's token endpoint before it connects to the SMTP server.
+
+- `clientid` is the OAuth2 client ID.
+- `clientsecret` is the OAuth2 client secret, which this grant requires.
+- `scopes` lists the scopes to request, separated by commas.
+- `tokenurl` is the provider's token endpoint.
+- The username is the mailbox the application sends as.
+- The token URL must use HTTPS, except for HTTP to `localhost`, `127.0.0.1`, or `::1`.
+- Setting scopes selects `auth=OAuth2` by default.
+- Scopes with a refresh token are an error, since a refresh request sends no scopes.
+- The password is ignored when scopes are set.
+- An access token is reused until it expires.
+- When the server rejects an access token, the next send gets a new one.
+
+The [Microsoft 365 guide](../../../guides/microsoft-365/index.md) shows how to set up client credentials for Exchange Online.
+
 ### Encryption
 
 - `encryption` selects how TLS is applied. Default: `Auto`.
@@ -169,10 +191,10 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 
 | Value         | Behavior                                                                                             |
 |---------------|------------------------------------------------------------------------------------------------------|
-| `None`        | No implicit TLS; STARTTLS is still attempted unless `usestarttls=no`                                 |
-| `ExplicitTLS` | STARTTLS after connect when `usestarttls` is enabled; with `usestarttls=no` the session is plaintext |
+| `None`        | No implicit TLS. STARTTLS is still attempted unless `usestarttls=no`                                 |
+| `ExplicitTLS` | STARTTLS after connect when `usestarttls` is enabled. With `usestarttls=no` the session is plaintext |
 | `ImplicitTLS` | TLS from the first byte (typical for port 465)                                                       |
-| `Auto`        | Implicit TLS on port 465; otherwise STARTTLS when `usestarttls` is enabled                           |
+| `Auto`        | Implicit TLS on port 465, otherwise STARTTLS when `usestarttls` is enabled                           |
 
 !!! Example "Implicit TLS on 465"
 

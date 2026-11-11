@@ -397,7 +397,7 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "host with a port", change: func(config *Config) { config.Host = "mail.example.com:587" }, wantErr: util.ErrInvalidHost},
 		{name: "blank sender param", params: &types.Params{"fromaddress": " "}, wantErr: ErrFromAddressMissing},
 		{name: "empty sender param", params: &types.Params{"fromaddress": ""}, wantErr: ErrFromAddressMissing},
-		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Refresh},
+		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Settings},
 		{name: "sender with a line break", params: &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
 		{name: "recipient with a line break", params: &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
 		{name: "undefined auth method", change: func(config *Config) { config.Auth = -1 }, wantErr: format.ErrInvalidEnumValue},

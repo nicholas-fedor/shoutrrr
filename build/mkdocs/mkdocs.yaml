@@ -157,6 +157,7 @@ nav:
           - Logger: services/specialized/logger/index.md
           - Notifiarr: services/specialized/notifiarr/index.md
   - Guides:
+      - Configuring Microsoft 365 Email: guides/microsoft-365/index.md
       - Configuring Slack: guides/slack/index.md
       - Proxy Setup: guides/proxy/index.md
   - Examples:

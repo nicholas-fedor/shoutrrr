@@ -16,10 +16,12 @@ var (
 	// ErrHostMissing is returned when the config has no SMTP server host.
 	ErrHostMissing = errors.New("host missing from config")
 
-	// ErrInvalidOAuth2Refresh is returned when the OAuth2 refresh settings are
-	// incomplete, are set without OAuth2 authentication, or name a token URL
-	// that is not HTTPS or a loopback HTTP URL.
-	ErrInvalidOAuth2Refresh = errors.New("invalid OAuth2 refresh settings")
+	// ErrInvalidOAuth2Settings is returned when the OAuth2 token settings, for
+	// the refresh grant or the client credentials grant, are incomplete or mix
+	// the two grants. It is also returned when they are set without OAuth2
+	// authentication or name a token URL that is not HTTPS or a loopback HTTP
+	// URL.
+	ErrInvalidOAuth2Settings = errors.New("invalid OAuth2 token settings")
 
 	// errUnencryptedConnection is returned when authentication is attempted
 	// on a non-local server without TLS.
