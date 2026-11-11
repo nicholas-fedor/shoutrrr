@@ -1,8 +1,11 @@
-// Package opsgenie provides a notification service for sending alerts to OpsGenie.
+// Package opsgenie provides a notification service for sending alerts to
+// OpsGenie or to Jira Service Management's alert API.
 //
 // OpsGenie is an alert management platform that helps teams respond to incidents
 // quickly and efficiently. This package integrates with OpsGenie's REST API to
-// create alerts from various notification sources.
+// create alerts from various notification sources. Atlassian ends support for
+// OpsGenie on April 5, 2027. The same alerts can go to Jira Service Management,
+// which takes the same request.
 //
 // # Overview
 //
@@ -15,21 +18,25 @@
 //
 // The service uses the "opsgenie" URL scheme for configuration:
 //
-//	opsgenie://<api-key>?host=<host>&port=<port>&<additional-parameters>
+//	opsgenie://[host[:port]]/<api-key>[?<additional-parameters>]
 //
 // # Configuration Examples
 //
-// Basic usage with default US API endpoint:
+// Basic usage with the default US API host:
 //
-//	opsgenie://your-api-key-here
+//	opsgenie:///API_KEY
 //
 // EU instance configuration:
 //
-//	opsgenie://your-api-key-here?host=api.eu.opsgenie.com
+//	opsgenie://api.eu.opsgenie.com/API_KEY
 //
-// Full configuration with all options:
+// Jira Service Management's alert API:
 //
-//	opsgenie://your-api-key-here?host=api.opsgenie.com&port=443&priority=P1&tags=production,critical&actions=acknowledge,resolve
+//	opsgenie://api.atlassian.com/API_KEY
+//
+// Full configuration with alert options:
+//
+//	opsgenie://api.opsgenie.com:443/API_KEY?priority=P1&tags=production,critical&actions=acknowledge,resolve
 //
 // # Key Types
 //
@@ -73,10 +80,13 @@
 //
 // # API Endpoints
 //
-// The service sends alerts to the OpsGenie Create Alert API:
+// The service sends alerts to the Create Alert API of the host. Host
+// api.atlassian.com gets Jira Service Management's path, and every other host
+// gets OpsGenie's:
 //
 //	US Instance: https://api.opsgenie.com/v2/alerts
 //	EU Instance: https://api.eu.opsgenie.com/v2/alerts
+//	Jira Service Management: https://api.atlassian.com/jsm/ops/integration/v2/alerts
 //
 // # Authentication
 //
@@ -95,4 +105,7 @@
 //
 // For more information about OpsGenie entity types:
 // https://docs.opsgenie.com/docs/responders
+//
+// For more information about Jira Service Management's alert API:
+// https://developer.atlassian.com/cloud/jira/service-desk-ops/rest/v1/api-group-integration-events/
 package opsgenie

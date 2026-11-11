@@ -1,12 +1,14 @@
 package opsgenie
 
-// AlertPayload represents the payload being sent to the OpsGenie API
+// AlertPayload is the body of a Create alert request, which OpsGenie and Jira
+// Service Management both take.
 //
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
 //
 // Some fields hold lists and maps. Params are strings, so these fields are
-// set from comma-separated values: responders and visibleTo as type:identifier
-// entries, actions and tags as lists, and details as key:value pairs:
+// set from comma-separated values. Responders and visibleTo take
+// type:identifier entries. Actions and tags are lists. Details takes key:value
+// pairs, as in this example.
 //
 //	service.Send("An example alert message", &types.Params{
 //		"alias":       "Life is too short for no alias",

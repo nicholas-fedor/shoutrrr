@@ -17,8 +17,9 @@ type Config struct {
 	Details map[string]string `desc:"Map of key-value pairs to use as custom properties of the alert" key:"details" optional:"true"`
 	// APIKey is the Opsgenie API key, written as the path of the service URL.
 	APIKey string `desc:"The OpsGenie API key" sensitive:"true" url:"path"`
-	// Host is the Opsgenie API host, api.eu.opsgenie.com for EU instances.
-	Host string `default:"api.opsgenie.com" desc:"The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances" url:"host"`
+	// Host is the API host, api.eu.opsgenie.com for Opsgenie's EU instance or
+	// api.atlassian.com for Jira Service Management's alert API.
+	Host string `default:"api.opsgenie.com" desc:"The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances, or 'api.atlassian.com' for Jira Service Management" url:"host"`
 	// Alias is the client-defined identifier of the alert, which Opsgenie uses
 	// to deduplicate alerts.
 	Alias string `desc:"Client-defined identifier of the alert" key:"alias" optional:"true"`
@@ -64,6 +65,14 @@ const (
 	Scheme = "opsgenie"
 	// DefaultHost is the OpsGenie API host a URL without a host uses.
 	DefaultHost = "api.opsgenie.com"
+	// jsmHost is the Atlassian API host that serves Jira Service Management's
+	// alert API.
+	jsmHost = "api.atlassian.com"
+	// jsmAlertPath is the path of Jira Service Management's Create alert
+	// endpoint.
+	jsmAlertPath = "/jsm/ops/integration/v2/alerts"
+	// opsgenieAlertPath is the path of Opsgenie's Create alert endpoint.
+	opsgenieAlertPath = "/v2/alerts"
 )
 
 // Errors for an invalid config.
@@ -109,6 +118,29 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
+}
+
+// alertURL returns the URL of the Create alert endpoint for the config's host
+// and port.
+//
+// Host api.atlassian.com gets Jira Service Management's alert API at
+// /jsm/ops/integration/v2/alerts. The match ignores letter case and a trailing
+// dot. Every other host gets Opsgenie's /v2/alerts, which api.opsgenie.com and
+// api.eu.opsgenie.com serve. The two APIs take the same request.
+//
+// Returns:
+//   - string: the HTTPS URL of the endpoint.
+func (c *Config) alertURL() string {
+	path := opsgenieAlertPath
+	if strings.EqualFold(strings.TrimSuffix(c.Host, "."), jsmHost) {
+		path = jsmAlertPath
+	}
+
+	return (&url.URL{
+		Scheme: "https",
+		Host:   util.JoinURLHostPort(c.Host, int(c.Port)),
+		Path:   path,
+	}).String()
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.

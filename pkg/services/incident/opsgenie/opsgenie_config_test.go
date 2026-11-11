@@ -240,8 +240,10 @@ func TestConfigGetURL(t *testing.T) {
 	})
 }
 
-// TestConfigQueryResolver verifies the config's query props: an unknown key
-// is rejected, and the keys cover every alert prop with no enums.
+// TestConfigQueryResolver verifies the config's query props.
+//
+// An unknown key is rejected, and the keys cover every alert prop with no
+// enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
 
