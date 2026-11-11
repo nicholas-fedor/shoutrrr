@@ -18,7 +18,7 @@ shoutrrr generate [FLAGS] [SERVICE] [GENERATOR] [GENERATOR ARGS...]
 | `-x, --show-sensitive`       | Displays sensitive data (e.g., tokens, passwords) in the generated URL. By default, sensitive fields are masked with `REDACTED` for security.                                            |
 
 !!! Note
-    Positional arguments fill the `SERVICE` and then the `GENERATOR`, skipping any of them already given with `-s` or `-g`, so `generate smtp oauth2` and `generate -s smtp oauth2` both select the `oauth2` generator. Any remaining arguments are passed to the generator, such as the credentials file for `oauth2`. If no generator is specified, a service-specific generator is used if available; otherwise, the `basic` generator is used. Flags can also be set with `SHOUTRRR_` environment variables, as listed in the [CLI overview](../index.md#environment-variables).
+    Positional arguments fill the `SERVICE` and then the `GENERATOR`, skipping any of them already given with `-s` or `-g`, so `generate smtp oauth2` and `generate -s smtp oauth2` both select the `oauth2` generator. Any remaining arguments are passed to the generator, such as the credentials file for `oauth2`. If no generator is specified, a service-specific generator is used if available; otherwise, the `basic` generator is used. Flags can also be set with `SHOUTRRR_` environment variables, as listed in the [CLI overview](../index.md#environment_variables).
 
 ### Generators
 
@@ -46,7 +46,7 @@ Specialized generator for OAuth2 authentication in SMTP services.
 - Accepts the redirect address or the code pasted on the terminal instead, for a browser on another machine or a redirect URL elsewhere.
 - Uses a loopback redirect on `127.0.0.1` with the `gmail` provider when the credentials file's first redirect is empty or the out-of-band one, which Google rejects.
 - Falls back to the paste prompt when it cannot listen on a loopback redirect's address, for example because another program holds its port.
-- Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service [gets a current access token](../../../services/email/smtp/index.md#oauth2-token-refresh) for each send.
+- Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service [gets a current access token](../../../services/email/smtp/index.md#oauth2_token_refresh) for each send.
 - Requests offline access with the consent prompt from Google with the `gmail` provider, so Google can return a refresh token.
 - Falls back to the access token as the password when the provider returns no refresh token, and warns that the URL stops working when that token expires.
 - Configures Gmail-specific defaults (port 587, STARTTLS, sender email as `FromAddress` and `ToAddresses`).

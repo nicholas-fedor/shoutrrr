@@ -29,9 +29,9 @@ type Service struct {
 	Config *Config
 	// dialContext, if non-nil, is used for the SMTP TCP dial.
 	dialContext types.DialContextFunc
-	// tokens caches the OAuth2 access token of each set of refresh settings.
+	// tokens caches the OAuth2 access token of each set of token settings.
 	tokens map[tokenKey]*oauth2.Token
-	// refreshes holds the token request in flight for each set of refresh
+	// refreshes holds the token request in flight for each set of token
 	// settings, which concurrent sends with those settings wait for.
 	refreshes map[tokenKey]*tokenRefresh
 	// client holds the injected HTTP client and the default client for OAuth2
@@ -78,15 +78,15 @@ func (s *Service) GetID() string {
 //
 // It starts from the SMTP defaults and reads the configuration URL. Reading the
 // URL infers an [AuthUnknown] method and checks the result, including the
-// OAuth2 refresh settings.
+// OAuth2 token settings.
 //
 // Parameters:
 //   - serviceURL: The SMTP configuration URL.
 //   - logger: Logger used for service output ([types.StdLogger]).
 //
 // Returns:
-//   - An error if the configuration URL is invalid, or [ErrInvalidOAuth2Refresh]
-//     for invalid refresh settings.
+//   - An error if the configuration URL is invalid, or [ErrInvalidOAuth2Settings]
+//     for invalid token settings.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.warnings.Reset()
@@ -133,9 +133,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 // bounds the connection and session, derived from ctx so caller cancellation
 // and deadlines propagate. Non-positive timeouts use [defaultTimeout].
 //
-// With a refresh token, a current OAuth2 access token is obtained before the
-// connection opens, within the same timeout, and used in place of the
-// password. A token the server rejects is dropped so the next send refreshes.
+// With a refresh token or the client credentials grant, a current OAuth2
+// access token is obtained before the connection opens, within the same
+// timeout, and used in place of the password. A token the server rejects is
+// dropped so the next send gets a new one.
 //
 // Parameters:
 //   - ctx: Parent context for cancellation and deadlines.
@@ -146,9 +147,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: [types.ErrServiceNotInitialized] before Initialize. A param that
 //     does not apply or a config that fails its checks returns a
 //     [FailApplySendParams] failure, such as one for [ErrFromAddressMissing]
-//     or [ErrInvalidOAuth2Refresh]. A failed connection or delivery returns
+//     or [ErrInvalidOAuth2Settings]. A failed connection or delivery returns
 //     its error. A send that obtains no access token returns a
-//     [FailTokenRefresh] failure. When ctx ends the session, the error also
+//     [FailGetAccessToken] failure. When ctx ends the session, the error also
 //     matches ctx's error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -169,7 +170,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, effectiveTimeout(config.Timeout))
 	defer cancel()
 
-	if config.usesTokenRefresh() {
+	if config.grant() != grantNone {
 		accessToken, err := s.accessToken(ctx, &config)
 		if err != nil {
 			return err
@@ -248,14 +249,14 @@ func (s *Service) sendConfig(params *types.Params) (Config, error) {
 
 // effectiveTimeout returns a positive SMTP timeout.
 //
-// Non-positive values fall back to [defaultTimeout] so [context.WithTimeout]
+// Non-positive values fall back to 10 seconds, so [context.WithTimeout]
 // always bounds the connection and session.
 //
 // Parameters:
 //   - timeout: The configured session timeout.
 //
 // Returns:
-//   - timeout when it is positive; otherwise [defaultTimeout].
+//   - time.Duration: timeout when it is positive, or 10 seconds otherwise.
 func effectiveTimeout(timeout time.Duration) time.Duration {
 	if timeout <= 0 {
 		return defaultTimeout
@@ -265,8 +266,10 @@ func effectiveTimeout(timeout time.Duration) time.Duration {
 }
 
 // withContextErr adds ctx's error to a session's error when ctx ended the
-// session. The connection then fails with a network timeout, which does not
-// match ctx's error by itself. Any other error keeps its own cause, even when
+// session.
+//
+// The connection then fails with a network timeout, which does not match
+// ctx's error by itself. Any other error keeps its own cause, even when
 // ctx ended at the same moment. The connection's deadline is ctx's deadline.
 // Once that deadline has passed, ctx counts as ended even before its own timer
 // has fired.

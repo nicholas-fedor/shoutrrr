@@ -552,6 +552,17 @@ var fixtures = []fixture{
 		body:    `{"access_token":"contract-access-token","token_type":"Bearer","expires_in":3600}`,
 	},
 	{
+		// OAuth2 with the client credentials grant makes a token request
+		// through the injected HTTP client before it dials the SMTP server.
+		scheme: "smtp",
+		url: "smtp://contract@mail.example.invalid:587/?fromAddress=from@example.invalid&toAddresses=to@example.invalid" +
+			"&auth=OAuth2&clientid=contract-client&clientsecret=SECRETsmtpCLIENTSECRET" +
+			"&scopes=https%3A%2F%2Foauth.example.invalid%2F.default&tokenurl=https%3A%2F%2Foauth.example.invalid%2Ftoken",
+		kind:    netTCP,
+		secrets: []string{"SECRETsmtpCLIENTSECRET"},
+		body:    `{"access_token":"contract-access-token","token_type":"Bearer","expires_in":3600}`,
+	},
+	{
 		scheme: "teams",
 		url: "teams://?host=https%3A%2F%2Fdefault0123.environment.api.powerplatform.com%3A443" +
 			"%2Fpowerautomate%2Fautomations%2Fdirect%2Fworkflows%2F00000000000000000000000000000000" +
@@ -2044,6 +2055,36 @@ func withList(t *testing.T, config types.ServiceConfig, index []int, list []stri
 	return changed
 }
 
+// schemeFixtureSets reports whether a fixture of a scheme sets a config field.
+//
+// A check that cannot give the field a sample on one fixture judges it on the
+// fixture that sets it.
+//
+// Parameters:
+//   - t: the test.
+//   - scheme: the scheme whose fixtures are read.
+//   - field: the name of a slice field of the scheme's config.
+//
+// Returns:
+//   - bool: true when a fixture of the scheme reads with the field holding
+//     elements.
+func schemeFixtureSets(t *testing.T, scheme, field string) bool {
+	t.Helper()
+
+	for _, fx := range fixtures {
+		if fx.scheme != scheme {
+			continue
+		}
+
+		config, result := fixtureConfig(t, fx.url)
+		if result.kind == failNone && config != nil && reflect.ValueOf(config).Elem().FieldByName(field).Len() > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // leftSegment reports how a request URL differs from every baseline request
 // in a way that shows a config value left its segment. A dot segment counts
 // whether it is written as is or percent-encoded, since a server may decode it
@@ -2108,10 +2149,13 @@ func sortedQueryKeys(requestURL *url.URL) []string {
 // For each exported string-list field of the fixture's config, the baseline
 // config holds the field's own elements. A field that the fixture leaves empty
 // holds the element [listSamples] gives it, or [sampleText], which must read
-// back. Each variant inserts an empty element at one position of the baseline
-// list, from before the first element to after the last. One more variant
-// holds only an empty element, and its baseline holds no elements. Each
-// variant is judged against its baseline by [compareEmptyElement].
+// back. A sample that does not read back alone, such as one that needs other
+// settings, is skipped when another fixture of the scheme sets the field,
+// since the check judges the field on that fixture. Each variant inserts an
+// empty element at one position of the baseline list, from before the first
+// element to after the last. One more variant holds only an empty element,
+// and its baseline holds no elements. Each variant is judged against its
+// baseline by [compareEmptyElement].
 func runEmptyListElements(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -2149,7 +2193,12 @@ func runEmptyListElements(t *testing.T, fx *fixture) failure {
 		// A sample that fails to read back would fail every send alike, so the
 		// check could not see what the empty element changes.
 		if sampled && baseline.readBackErr != nil {
-			t.Fatalf("the sample %s reads back with %v; give the field a valid element in listSamples", baseline.name, baseline.readBackErr)
+			if schemeFixtureSets(t, fx.scheme, structField.Name) {
+				continue
+			}
+
+			t.Fatalf("the sample %s reads back with %v; give the field a valid element in listSamples or a fixture that sets it",
+				baseline.name, baseline.readBackErr)
 		}
 
 		// pair is a variant list with the baseline it is judged against.

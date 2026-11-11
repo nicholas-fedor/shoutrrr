@@ -69,6 +69,10 @@
 //   - SkipTLSVerify: Whether to skip TLS certificate verification (default: false).
 //   - Timeout: Duration for SMTP operations timeout (default: 10 seconds). A
 //     caller's context deadline takes its place.
+//   - ClientID, ClientSecret, TokenURL, RefreshToken, and Scopes: The OAuth2
+//     token settings. A refresh token selects the refresh grant. Scopes
+//     without a refresh token select the client credentials grant, which
+//     sends as the mailbox named by Username.
 //
 // The configuration URL follows the format:
 //
@@ -86,25 +90,25 @@
 //
 // # Authentication
 //
-// The package supports multiple authentication methods, defined in [authType] and [AuthTypes]:
+// The package supports multiple authentication methods, listed in [AuthTypes]:
 //   - None: No authentication.
 //   - Plain: Username and password-based authentication.
-//   - Login: Username and password-based authentication via [newLoginAuth]. Useful if mail servers don't support AUTH PLAIN.
+//   - Login: Username and password-based authentication with AUTH LOGIN.
+//     Useful if mail servers don't support AUTH PLAIN.
 //   - CRAMMD5: Challenge-response authentication using CRAM-MD5.
-//   - OAuth2: Token-based authentication for services like Gmail (see [newOAuth2Auth]).
-//     Note that OAuth2 support is limited to static access tokens and does not
-//     handle token refresh. A 334 challenge is answered with an empty continuation.
-//   - Unknown: Fallback when the authentication method is not specified or invalid.
+//   - OAuth2: SASL XOAUTH2 with an access token, for services like Gmail and
+//     Microsoft 365. The token is the password, or one that each send gets
+//     from the token endpoint with a refresh token or the client credentials
+//     grant. A 334 challenge is answered with an empty continuation.
+//   - Unknown: The method is inferred from the other settings.
 //
 // # Encryption
 //
-// Encryption is configured via the [encMethod] type and [EncMethods] helper, supporting:
+// Encryption is configured with the methods listed in [EncMethods]:
 //   - None: No encryption.
 //   - ExplicitTLS: Uses STARTTLS to initiate a secure connection.
 //   - ImplicitTLS: Uses TLS for the entire session (typically on port 465).
 //   - Auto: Automatically selects ImplicitTLS for port [ImplicitTLSPort], otherwise attempts ExplicitTLS if supported.
-//
-// The [useImplicitTLS] function determines whether ImplicitTLS should be used based on the encryption method and port.
 //
 // # Testing
 //
@@ -116,6 +120,5 @@
 //   - The package uses [smtp.Client] from net/smtp for SMTP operations.
 //   - It supports multipart email messages (plain text and HTML) using a randomly generated boundary.
 //   - The [Service] struct implements the shoutrrr [standard.Standard] and [standard.Templater] interfaces for logging and message templating.
-//   - The package handles plus signs (`+`) in email addresses correctly, replacing spaces with plus signs as needed (see [Config.restorePlusAddresses]).
-//   - For OAuth2 authentication, [newOAuth2Auth] implements the SASL XOAUTH2 protocol, suitable for services like Gmail.
+//   - The package handles plus signs (`+`) in email addresses correctly. Reading a URL turns them into spaces, and the package restores them.
 package smtp

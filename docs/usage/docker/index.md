@@ -37,7 +37,7 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 
 - Use uppercase flag names prefixed with `SHOUTRRR_`, with dashes replaced by underscores (e.g., `SHOUTRRR_MESSAGE` for
   `--message`). A flag given on the command line takes precedence. See the
-  [CLI environment variables](../cli/index.md#environment-variables) for the full list.
+  [CLI environment variables](../cli/index.md#environment_variables) for the full list.
 
 ## Examples
 

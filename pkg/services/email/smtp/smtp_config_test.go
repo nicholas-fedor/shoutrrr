@@ -69,19 +69,24 @@ func newDefaultConfig(t *testing.T) *Config {
 	return config
 }
 
-// TestConfigClone verifies that Clone copies every field, with a recipient
-// list that later changes to the clone do not affect.
+// TestConfigClone verifies that Clone copies every field, with recipient and
+// scope lists that later changes to the clone do not affect.
 func TestConfigClone(t *testing.T) {
 	t.Parallel()
 
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseConfigURL(t, allPropsURL)))
 
+	config.Scopes = []string{"scope"}
+
 	clone := config.Clone()
 	assert.Equal(t, *config, clone)
 
 	clone.ToAddresses[0] = "changed@example.com"
+	clone.Scopes[0] = "changed"
+
 	assert.Equal(t, []string{"rec1@example.com", "rec2@example.com"}, config.ToAddresses)
+	assert.Equal(t, []string{"scope"}, config.Scopes)
 }
 
 // TestConfigEnums verifies that the authentication and encryption fields use
@@ -343,12 +348,13 @@ func TestConfigGetURLResolver(t *testing.T) {
 		t.Parallel()
 
 		resolver := typesmocks.NewMockConfigQueryResolver(t)
-		resolver.EXPECT().Get(mock.Anything).Return("v", nil).Times(10)
+		resolver.EXPECT().Get(mock.Anything).Return("v", nil).Times(15)
 
 		got := (&Config{Host: "mail.example.com", Port: 587, Username: "user", Password: "pass"}).getURL(resolver)
 
 		assert.Equal(t,
-			"smtp://user:pass@mail.example.com:587/?auth=v&clienthost=v&encryption=v&fromaddress=v&fromname=v&subject=v&toaddresses=v&usehtml=v&usestarttls=v&timeout=v",
+			"smtp://user:pass@mail.example.com:587/?auth=v&clienthost=v&encryption=v&fromaddress=v&fromname=v&subject=v&toaddresses=v&usehtml=v&usestarttls=v&timeout=v"+
+				"&clientid=v&clientsecret=v&refreshtoken=v&scopes=v&tokenurl=v",
 			got.String())
 	})
 
@@ -356,7 +362,7 @@ func TestConfigGetURLResolver(t *testing.T) {
 		t.Parallel()
 
 		resolver := typesmocks.NewMockConfigQueryResolver(t)
-		resolver.EXPECT().Get(mock.Anything).Return("", errors.New("missing")).Times(10)
+		resolver.EXPECT().Get(mock.Anything).Return("", errors.New("missing")).Times(15)
 
 		got := (&Config{Host: "example.com", Port: 25}).getURL(resolver)
 
