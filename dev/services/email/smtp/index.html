@@ -293,7 +293,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../guides/slack/" class="md-tabs__link">
+        <a href="../../../guides/microsoft-365/" class="md-tabs__link">
           
   
   
@@ -2234,6 +2234,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#oauth2_client_credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 Client Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#encryption" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2664,6 +2675,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../guides/microsoft-365/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuring Microsoft 365 Email
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../guides/slack/" class="md-nav__link">
         
   
@@ -3002,6 +3041,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#oauth2_client_credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 Client Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#encryption" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3130,7 +3180,7 @@
 It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and similar) using a single service URL.</p>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>smtp://[<strong><code>USERNAME</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?fromaddress=<strong><code>FROM_ADDRESS</code></strong>&amp;toaddresses=<strong><code>TO_ADDRESS_1</code></strong>[,<strong><code>TO_ADDRESS_2</code></strong>,...][&amp;subject=<strong><code>SUBJECT</code></strong>][&amp;auth=<strong><code>AUTH</code></strong>][&amp;encryption=<strong><code>ENCRYPTION</code></strong>][&amp;useStartTLS={yes|no}][&amp;useHTML={yes|no}][&amp;clientHost=<strong><code>CLIENT_HOST</code></strong>][&amp;requirestarttls={yes|no}][&amp;skiptlsverify={yes|no}][&amp;timeout=<strong><code>DURATION</code></strong>][&amp;clientid=<strong><code>CLIENT_ID</code></strong>][&amp;clientsecret=<strong><code>CLIENT_SECRET</code></strong>][&amp;refreshtoken=<strong><code>REFRESH_TOKEN</code></strong>][&amp;tokenurl=<strong><code>TOKEN_URL</code></strong>]</p>
+<p>smtp://[<strong><code>USERNAME</code></strong>[:<strong><code>PASSWORD</code></strong>]@]<strong><code>HOST</code></strong>[:<strong><code>PORT</code></strong>]/?fromaddress=<strong><code>FROM_ADDRESS</code></strong>&amp;toaddresses=<strong><code>TO_ADDRESS_1</code></strong>[,<strong><code>TO_ADDRESS_2</code></strong>,...][&amp;subject=<strong><code>SUBJECT</code></strong>][&amp;auth=<strong><code>AUTH</code></strong>][&amp;encryption=<strong><code>ENCRYPTION</code></strong>][&amp;useStartTLS={yes|no}][&amp;useHTML={yes|no}][&amp;clientHost=<strong><code>CLIENT_HOST</code></strong>][&amp;requirestarttls={yes|no}][&amp;skiptlsverify={yes|no}][&amp;timeout=<strong><code>DURATION</code></strong>][&amp;clientid=<strong><code>CLIENT_ID</code></strong>][&amp;clientsecret=<strong><code>CLIENT_SECRET</code></strong>][&amp;refreshtoken=<strong><code>REFRESH_TOKEN</code></strong>][&amp;scopes=<strong><code>SCOPES</code></strong>][&amp;tokenurl=<strong><code>TOKEN_URL</code></strong>]</p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3168,11 +3218,11 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
   Default: <code>localhost</code></p>
 </li>
 <li>
-<p><strong>clientid</strong> - OAuth2 client ID, for refreshing the access token
+<p><strong>clientid</strong> - OAuth2 client ID, for getting the access token
   Default: <em>empty</em></p>
 </li>
 <li>
-<p><strong>clientsecret</strong> - OAuth2 client secret, for refreshing the access token
+<p><strong>clientsecret</strong> - OAuth2 client secret, for getting the access token
   Default: <em>empty</em></p>
 </li>
 <li>
@@ -3193,6 +3243,10 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
   Default: ❌ <code>No</code></p>
 </li>
 <li>
+<p><strong>scopes</strong> - OAuth2 scopes, for the client credentials grant
+  Default: <em>empty</em></p>
+</li>
+<li>
 <p><strong>skiptlsverify</strong> - Whether to skip TLS certificate verification
   Default: ❌ <code>No</code></p>
 </li>
@@ -3206,7 +3260,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
   Default: <code>10s</code></p>
 </li>
 <li>
-<p><strong>tokenurl</strong> - OAuth2 token endpoint, for refreshing the access token
+<p><strong>tokenurl</strong> - OAuth2 token endpoint, for getting the access token
   Default: <em>empty</em></p>
 </li>
 <li>
@@ -3251,7 +3305,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 <li><code>Username</code> and <code>Password</code> are the SMTP credentials.</li>
 <li>Both default to empty.</li>
 <li>Leave them empty for servers that allow unauthenticated relay.</li>
-<li>For <code>auth=OAuth2</code>, put the access token in the password field, or leave it empty and set the <a href="#oauth2-token-refresh">refresh settings</a>.</li>
+<li>For <code>auth=OAuth2</code>, put the access token in the password field, or leave it empty and set the <a href="#oauth2_token_refresh">refresh settings</a> or the <a href="#oauth2_client_credentials">client credentials settings</a>.</li>
 </ul>
 <div class="admonition example">
 <p class="admonition-title">No credentials</p>
@@ -3323,15 +3377,17 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 </tr>
 <tr>
 <td><code>OAuth2</code></td>
-<td>SASL XOAUTH2 with the access token in the password field, or one from a refresh token</td>
+<td>SASL XOAUTH2 with the access token in the password field, or one from the token endpoint</td>
 </tr>
 <tr>
 <td><code>Unknown</code></td>
-<td><code>OAuth2</code> if a refresh token is set, <code>Plain</code> if a username is set, otherwise <code>None</code></td>
+<td><code>OAuth2</code> if a refresh token or scopes are set, <code>Plain</code> if a username is set, otherwise <code>None</code></td>
 </tr>
 </tbody>
 </table>
 <p><code>Plain</code>, <code>Login</code>, and <code>OAuth2</code> refuse to send credentials on an unencrypted connection unless the server name is <code>localhost</code>, <code>127.0.0.1</code>, or <code>::1</code>.</p>
+<p>Microsoft 365 is retiring <code>Plain</code> and <code>Login</code> for SMTP AUTH.
+The <a href="../../../guides/microsoft-365/">Microsoft 365 guide</a> covers the OAuth2 alternatives.</p>
 <div class="admonition example">
 <p class="admonition-title">AUTH LOGIN</p>
 <div class="highlight"><pre><span></span><code>smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=Login&amp;requirestarttls=yes
@@ -3342,7 +3398,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 <div class="highlight"><pre><span></span><code>smtp://USERNAME:ACCESS_TOKEN@smtp.gmail.com:587/?fromaddress=alerts@example.com&amp;toaddresses=ops@example.com&amp;auth=OAuth2&amp;requirestarttls=yes
 </code></pre></div>
 <p>The access token is used as is.
-It expires after about an hour, so set the <a href="#oauth2-token-refresh">refresh settings</a> for a URL that keeps working.</p>
+It expires after about an hour, so set the <a href="#oauth2_token_refresh">refresh settings</a> or the <a href="#oauth2_client_credentials">client credentials settings</a> for a URL that keeps working.</p>
 </div>
 <h3 id="oauth2_token_refresh">OAuth2 Token Refresh<a class="headerlink" href="#oauth2_token_refresh" title="Permanent link">&para;</a></h3>
 <p>With a refresh token, Shoutrrr gets a current access token from the provider's token endpoint before it connects to the SMTP server.</p>
@@ -3389,6 +3445,23 @@ It expires after about an hour, so set the <a href="#oauth2-token-refresh">refre
 <p>Shoutrrr refreshes the access token as needed.
 When writing the URL by hand, percent-encode the values, as the example does for the token URL.</p>
 </div>
+<h3 id="oauth2_client_credentials">OAuth2 Client Credentials<a class="headerlink" href="#oauth2_client_credentials" title="Permanent link">&para;</a></h3>
+<p>With the client credentials grant, an application gets its access token with its own client ID and secret, without a user's sign-in or a refresh token.
+Shoutrrr requests a current access token from the provider's token endpoint before it connects to the SMTP server.</p>
+<ul>
+<li><code>clientid</code> is the OAuth2 client ID.</li>
+<li><code>clientsecret</code> is the OAuth2 client secret, which this grant requires.</li>
+<li><code>scopes</code> lists the scopes to request, separated by commas.</li>
+<li><code>tokenurl</code> is the provider's token endpoint.</li>
+<li>The username is the mailbox the application sends as.</li>
+<li>The token URL must use HTTPS, except for HTTP to <code>localhost</code>, <code>127.0.0.1</code>, or <code>::1</code>.</li>
+<li>Setting scopes selects <code>auth=OAuth2</code> by default.</li>
+<li>Scopes with a refresh token are an error, since a refresh request sends no scopes.</li>
+<li>The password is ignored when scopes are set.</li>
+<li>An access token is reused until it expires.</li>
+<li>When the server rejects an access token, the next send gets a new one.</li>
+</ul>
+<p>The <a href="../../../guides/microsoft-365/">Microsoft 365 guide</a> shows how to set up client credentials for Exchange Online.</p>
 <h3 id="encryption">Encryption<a class="headerlink" href="#encryption" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>encryption</code> selects how TLS is applied. Default: <code>Auto</code>.</li>
@@ -3405,11 +3478,11 @@ When writing the URL by hand, percent-encode the values, as the example does for
 <tbody>
 <tr>
 <td><code>None</code></td>
-<td>No implicit TLS; STARTTLS is still attempted unless <code>usestarttls=no</code></td>
+<td>No implicit TLS. STARTTLS is still attempted unless <code>usestarttls=no</code></td>
 </tr>
 <tr>
 <td><code>ExplicitTLS</code></td>
-<td>STARTTLS after connect when <code>usestarttls</code> is enabled; with <code>usestarttls=no</code> the session is plaintext</td>
+<td>STARTTLS after connect when <code>usestarttls</code> is enabled. With <code>usestarttls=no</code> the session is plaintext</td>
 </tr>
 <tr>
 <td><code>ImplicitTLS</code></td>
@@ -3417,7 +3490,7 @@ When writing the URL by hand, percent-encode the values, as the example does for
 </tr>
 <tr>
 <td><code>Auto</code></td>
-<td>Implicit TLS on port 465; otherwise STARTTLS when <code>usestarttls</code> is enabled</td>
+<td>Implicit TLS on port 465, otherwise STARTTLS when <code>usestarttls</code> is enabled</td>
 </tr>
 </tbody>
 </table>
@@ -3571,7 +3644,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 11, 2026 16:41:49 UTC"><span class="timeago" datetime="2026-11-11T16:41:49+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 16:41:49 UTC">2026-11-11</span>
   </span>
 
     
