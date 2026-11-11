@@ -17,7 +17,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service provides OpsGenie as a notification service.
@@ -36,8 +35,6 @@ type Service struct {
 
 // Settings and limits of the Alert API.
 const (
-	// alertEndpointPath is the OpsGenie API endpoint path for sending alerts.
-	alertEndpointPath = "/v2/alerts"
 	// MaxMessageLength is the maximum length of the alert message field in OpsGenie.
 	MaxMessageLength = 130
 	// httpSuccessMax is the maximum HTTP status code for a successful response.
@@ -163,17 +160,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrMessageMissing
 	}
 
-	serviceURL := (&url.URL{
-		Scheme: "https",
-		Host:   util.JoinURLHostPort(config.Host, int(config.Port)),
-		Path:   alertEndpointPath,
-	}).String()
-
-	return s.sendAlert(ctx, serviceURL, config.APIKey, &payload)
+	return s.sendAlert(ctx, config.alertURL(), config.APIKey, &payload)
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// SetHTTPClient sets a custom HTTP client for the service.
+//
+// A nil client, including a nil *http.Client, selects the default client.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
@@ -181,9 +173,10 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
 }
 
-// applyLevel sets the priority of an alert from its level param, debug to P5,
-// info to P4, warning to P3, and error to P2. A priority set in the service URL
-// or the send params takes precedence.
+// applyLevel sets the priority of an alert from its level param.
+//
+// Debug maps to P5, info to P4, warning to P3, and error to P2. A priority set
+// in the service URL or the send params takes precedence.
 //
 // Parameters:
 //   - config: the config for this send, with params already applied.

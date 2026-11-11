@@ -1,5 +1,21 @@
 # OpsGenie
 
+!!! warning "OpsGenie end of support"
+    Atlassian ends support for OpsGenie on April 5, 2027.
+    OpsGenie accounts move to Jira Service Management or Compass before then, as Atlassian's [migration guide](https://support.atlassian.com/opsgenie/docs/migrate-opsgenie-to-jira-service-management/) describes.
+
+    After the move, set the host to `api.atlassian.com` to send to Jira Service Management's alert API.
+
+    ```url
+    opsgenie://api.atlassian.com/API_KEY
+    ```
+
+    Replace `API_KEY` with the key of an API integration in Jira Service Management.
+    Atlassian's guide to [setting up an API integration](https://support.atlassian.com/jira-service-management-cloud/docs/set-up-an-api-integration/) shows where to find it.
+    Shoutrrr then sends each alert to `https://api.atlassian.com/jsm/ops/integration/v2/alerts`.
+    The alert fields, parameters, and priorities work as they do with OpsGenie.
+    An account that has not moved keeps its OpsGenie host.
+
 ## URL Format
 
 --8<-- "docs/services/incident/opsgenie/config.md"
@@ -18,9 +34,10 @@
 
 5. Format the service URL
 
-The host can be either api.opsgenie.com or api.eu.opsgenie.com depending on the location of your instance. See
-the [OpsGenie documentation](https://docs.opsgenie.com/docs/alert-api) for details.
+The OpsGenie host is api.opsgenie.com or api.eu.opsgenie.com, depending on the location of your instance.
+See the [OpsGenie documentation](https://docs.opsgenie.com/docs/alert-api) for details.
 The host can be left out, as in `opsgenie:///API_KEY`, in which case `api.opsgenie.com` is used.
+An account that has moved to Jira Service Management uses the host `api.atlassian.com`, as the note at the top of this page describes.
 
 ```url
 opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889

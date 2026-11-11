@@ -10,7 +10,7 @@ import (
 // Entity represents an OpsGenie entity (e.g., user, team) with type and identifier.
 // Example JSON: { "username":"trinity@opsgenie.com", "type":"user" }.
 type Entity struct {
-	// Type is the entity type: team, user, escalation, or schedule.
+	// Type is the entity type, which is team, user, escalation, or schedule.
 	Type string `json:"type"`
 	// ID is the entity's Opsgenie ID, left out when empty.
 	ID string `json:"id,omitempty"`

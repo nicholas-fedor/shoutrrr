@@ -146,9 +146,11 @@ func TestInitialize(t *testing.T) {
 	})
 }
 
-// TestSend verifies the request a send makes: an authenticated JSON POST to
-// the alerts endpoint, with the title as the alert message and the message
-// as its description, or the message alone when it fits and no title is set.
+// TestSend verifies the request a send makes.
+//
+// It is an authenticated JSON POST to the host's alerts endpoint. The title
+// is the alert message and the message its description, or the message alone
+// is the alert message when it fits and no title is set.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +199,34 @@ func TestSend(t *testing.T) {
 			rawURL:   "opsgenie://api.eu.opsgenie.com:8443/" + testAPIKey,
 			message:  "hello world",
 			wantURL:  "https://api.eu.opsgenie.com:8443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "Jira Service Management host",
+			rawURL:   "opsgenie://api.atlassian.com/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://api.atlassian.com:443/jsm/ops/integration/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "Jira Service Management host in upper case",
+			rawURL:   "opsgenie://API.Atlassian.COM/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://API.Atlassian.COM:443/jsm/ops/integration/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "Jira Service Management host with a trailing dot",
+			rawURL:   "opsgenie://api.atlassian.com./" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://api.atlassian.com.:443/jsm/ops/integration/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "subdomain of the Jira Service Management host",
+			rawURL:   "opsgenie://proxy.api.atlassian.com/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://proxy.api.atlassian.com:443/v2/alerts",
 			wantBody: `{"message":"hello world"}`,
 		},
 		{
