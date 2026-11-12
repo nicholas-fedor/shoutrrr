@@ -308,7 +308,9 @@ func TestSendChecksConfig(t *testing.T) {
 //
 // A 200 reply cut off before its end fails with the read error, since the
 // unread part could hold a refusal. A cut-off error status still fails with
-// ErrSendFailed and its status.
+// ErrSendFailed and its status. A 200 reply that is JSON but does not decode
+// as Join's reply fails with the decoding error, since it cannot show that
+// Join accepted the push.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -332,6 +334,33 @@ func TestSendContextErrors(t *testing.T) {
 		require.ErrorIs(t, err, ErrSendFailed)
 		assert.Contains(t, err.Error(), "503 Service Unavailable")
 	})
+
+	// replies lists 200 replies that are JSON but do not have the shape of
+	// Join's reply, so they cannot show that Join accepted the push.
+	replies := []struct {
+		name string
+		body string
+	}{
+		{name: "success of another type", body: `{"success":"true"}`},
+		{name: "success of another type with invalid UTF-8", body: "{\"success\":\"\xff\"}"},
+		{name: "array", body: `[]`},
+		{name: "repeated member name", body: `{"success":true,"success":true}`},
+	}
+
+	for _, tt := range replies {
+		t.Run("200 reply with JSON of another shape/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+			client, _ := newRespondingClient(t, "200 OK", http.StatusOK, tt.body)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "message", nil)
+
+			require.ErrorContains(t, err, "decoding response body")
+			assert.NotErrorIs(t, err, ErrSendFailed)
+		})
+	}
 
 	t.Run("transport error", func(t *testing.T) {
 		t.Parallel()
@@ -372,7 +401,7 @@ func TestSendContextErrors(t *testing.T) {
 // Join answers a push with HTTP 200 even when it refuses it, and reports in the
 // JSON body whether it accepted it. A refused push fails with ErrSendFailed and
 // Join's error message. A 200 reply whose body is not JSON leaves the status to
-// decide.
+// decide. An error status fails with ErrSendFailed whatever its body holds.
 func TestSendResponses(t *testing.T) {
 	t.Parallel()
 
@@ -407,6 +436,13 @@ func TestSendResponses(t *testing.T) {
 			statusCode:   http.StatusInternalServerError,
 			body:         `{"success":false,"errorMessage":"backend unavailable"}`,
 			wantContains: []string{"500 Internal Server Error", "backend unavailable"},
+		},
+		{
+			name:         "error status with JSON of another shape",
+			status:       "500 Internal Server Error",
+			statusCode:   http.StatusInternalServerError,
+			body:         `{"success":"false"}`,
+			wantContains: []string{"500 Internal Server Error", "dev1"},
 		},
 		{
 			name:         "error status reporting success",

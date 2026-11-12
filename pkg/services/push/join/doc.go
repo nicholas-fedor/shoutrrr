@@ -128,6 +128,7 @@
 // - A push Join refuses returns [ErrSendFailed] with Join's reason, such as "No device to send message to" for a wrong API key
 // - A status other than 200 returns [ErrSendFailed]
 // - A 200 reply that ends before its whole body is read fails the send with the read error
+// - A 200 reply that is JSON but does not decode as Join's reply fails the send with the decoding error
 // - Title parameter creates a notification with a title (without it, just the message is sent)
 // - Icon parameter expects a valid URL to an image file
 //

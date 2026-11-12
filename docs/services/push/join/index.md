@@ -29,6 +29,7 @@ Its reply says whether it accepted the push, so Shoutrrr reads the reply to deci
 | --- | --- |
 | HTTP 200 that reports success | The send succeeds. |
 | HTTP 200 whose body is not JSON | The send succeeds. |
+| HTTP 200 whose JSON does not decode as Join's reply | The send fails with the decoding error. |
 | HTTP 200 that reports a refusal | The send fails with Join's reason. |
 | HTTP 200 that ends before its whole body is read | The send fails, since the rest could hold a refusal. |
 | Any other status | The send fails with the status, and with Join's reason when the reply gives one. |
