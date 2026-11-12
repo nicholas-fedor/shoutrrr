@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support display names in sender and recipient addresses by @nicholas-fedor in [#2170](https://github.com/nicholas-fedor/shoutrrr/pull/2170)
 
+### Fixed
+
+- Fail pushes that the Join API refuses by @nicholas-fedor in [#2172](https://github.com/nicholas-fedor/shoutrrr/pull/2172)
+
 ## [0.24.0] - 2026-11-11
 
 ### Added
