@@ -38,6 +38,7 @@ They skip when a Mailpit instance is not reachable.
 - Rejection of a wrong password (reply code 535) and of a send without credentials (reply code 530)
 - The subject from the `title` param
 - The sender name
+- Display names in the sender and recipient addresses
 - An HTML body with a plain text part
 - A plus-tagged recipient and a second recipient, each of which receives its own message
 

@@ -82,10 +82,12 @@ func newTestSession(t *testing.T, server *fakeSMTP, config *Config) *session {
 	return &session{client: client, config: config, svc: svc}
 }
 
-// TestSessionRun verifies the SMTP conversation of a send: the greeting,
-// STARTTLS when the server offers it and the URL asks for it, AUTH with the
-// configured mechanism, and one MAIL, RCPT, and DATA transaction per
-// recipient, separated by RSET and followed by QUIT.
+// TestSessionRun verifies the SMTP conversation of a send.
+//
+// The client greets the server. It sends STARTTLS when the server offers it
+// and the URL asks for it, and authenticates with the configured mechanism.
+// Each recipient gets one MAIL, RCPT, and DATA transaction. RSET separates
+// the transactions, and QUIT ends the session.
 func TestSessionRun(t *testing.T) {
 	t.Parallel()
 
@@ -266,9 +268,10 @@ func TestSessionRun(t *testing.T) {
 	}
 }
 
-// TestSessionRunMessage verifies the message each recipient receives: the
-// headers addressed to that recipient alone, the subject and sender name, and
-// the body, through the plain template when one is set.
+// TestSessionRunMessage verifies the message each recipient receives.
+//
+// Its headers address that recipient alone and carry the subject and sender
+// name. The body goes through the plain template when one is set.
 func TestSessionRunMessage(t *testing.T) {
 	t.Parallel()
 
@@ -371,8 +374,10 @@ func TestSessionRunEmptyMessage(t *testing.T) {
 }
 
 // TestSessionRunLogsStartTLS verifies that a send warns when the server does
-// not offer STARTTLS and continues without it, along with the shared warning
-// about sending without TLS. Each warning is logged once over two sends.
+// not offer STARTTLS and continues without it.
+//
+// The shared warning about sending without TLS is logged too. Each warning is
+// logged once over two sends.
 func TestSessionRunLogsStartTLS(t *testing.T) {
 	t.Parallel()
 
@@ -391,10 +396,11 @@ func TestSessionRunLogsStartTLS(t *testing.T) {
 		logs.String())
 }
 
-// TestSessionRunErrors verifies the failure of each rejected step, that a
-// send stops at a missing sender or a rejected greeting, STARTTLS, or AUTH
-// without sending mail, and that it closes the connection. After a failed AUTH, net/smtp itself
-// cancels the exchange with "*" and sends QUIT.
+// TestSessionRunErrors verifies the failure that each rejected step returns.
+//
+// A send stops without sending mail at a missing sender or at a rejected
+// greeting, STARTTLS, or AUTH, and it closes the connection. After a failed
+// AUTH, net/smtp itself cancels the exchange with "*" and sends QUIT.
 func TestSessionRunErrors(t *testing.T) {
 	t.Parallel()
 
@@ -553,12 +559,14 @@ func TestSessionRunUntrustedCertificate(t *testing.T) {
 }
 
 // TestSessionRunRecipientFailures verifies that a send delivers to the other
-// recipients after one is rejected and reports the rejected one, and stops
+// recipients after one is rejected.
+//
+// The error names the rejected recipient by its bare address. The send stops
 // when the server rejects RSET between recipients.
 func TestSessionRunRecipientFailures(t *testing.T) {
 	t.Parallel()
 
-	const rawURL = "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=a@example.com,b@example.com,c@example.com&usestarttls=no"
+	const rawURL = "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=a@example.com,Bee+%3Cb@example.com%3E,c@example.com&usestarttls=no"
 
 	t.Run("rejected recipient", func(t *testing.T) {
 		t.Parallel()
@@ -570,6 +578,7 @@ func TestSessionRunRecipientFailures(t *testing.T) {
 
 		require.ErrorIs(t, err, fail(FailSetRecipient, nil))
 		assert.Contains(t, err.Error(), `error sending message to recipient "b@example.com"`)
+		assert.NotContains(t, err.Error(), "Bee")
 		assert.NotContains(t, err.Error(), "a@example.com")
 		assert.NotContains(t, err.Error(), "c@example.com")
 
@@ -605,6 +614,11 @@ func TestSessionContextEnded(t *testing.T) {
 	config.ToAddresses = []string{"first@example.com", "second@example.com"}
 
 	session := newTestSession(t, server, config)
+
+	parsed, err := config.parseMailboxes()
+	require.NoError(t, err)
+
+	session.mailboxes = parsed
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -695,8 +709,9 @@ func TestSessionCloseIfOpen(t *testing.T) {
 	assert.Equal(t, int32(1), server.closes.Load())
 }
 
-// TestSessionEhloName verifies the EHLO name: the client host, or the local
-// host name for auto.
+// TestSessionEhloName verifies the EHLO name.
+//
+// It is the client host, or the local host name for auto.
 func TestSessionEhloName(t *testing.T) {
 	t.Parallel()
 
