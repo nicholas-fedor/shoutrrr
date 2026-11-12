@@ -7,7 +7,7 @@
 //
 // For more information about Join, visit https://joaoapps.com/join/
 //
-// For more information about the Join API, visit https://joinjoaomgcd.appspot.com/
+// The Join web app at https://joinjoaomgcd.appspot.com/ shows the API key and device IDs.
 //
 // # URL Format
 //
@@ -104,9 +104,8 @@
 //   - Missing API key (required)
 //   - Missing device IDs (required)
 //   - Network connectivity issues
-//   - Invalid API key
-//   - Device IDs that don't exist or are offline
-//   - HTTP error status codes from Join API (non-2xx responses)
+//   - A push Join refuses, such as one with an invalid API key or unknown devices
+//   - HTTP status codes other than 200 from the Join API
 //
 // # Security Considerations
 //
@@ -123,10 +122,12 @@
 //
 // - At least one device ID must be specified
 // - API key is required and must be a valid Join API key
-// - Multiple devices can be specified as comma-separated values; notification will be sent to all
-// - The HTTP client timeout is the default Go HTTP client timeout
-// - Join API returns HTTP 200 on successful notification sends
-// - Failed requests (non-2xx responses) will return an error
+// - Multiple devices can be specified as comma-separated values. One request sends the notification to all of them
+// - A send whose context has no deadline is bounded by a 10 second budget
+// - Join answers a push with HTTP 200 even when it refuses it, and reports in its JSON reply whether it accepted the push
+// - A push Join refuses returns [ErrSendFailed] with Join's reason, such as "No device to send message to" for a wrong API key
+// - A status other than 200 returns [ErrSendFailed]
+// - A 200 reply that ends before its whole body is read fails the send with the read error
 // - Title parameter creates a notification with a title (without it, just the message is sent)
 // - Icon parameter expects a valid URL to an image file
 //
@@ -145,5 +146,5 @@
 //   - icon: Optional icon URL
 //
 // For more information about the Join API and available parameters, visit
-// the Join API documentation at https://joinjoaomgcd.appspot.com/
+// the Join API documentation at https://joaoapps.com/join/api/
 package join

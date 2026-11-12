@@ -19,3 +19,23 @@
 
 !!! note ""
     Multiple `deviceId`s can be combined with a `,` (repeat steps 2-4).
+
+## Errors
+
+Join answers a push with HTTP 200 even when it refuses it.
+Its reply says whether it accepted the push, so Shoutrrr reads the reply to decide whether the send failed.
+
+| Join's reply | Result |
+| --- | --- |
+| HTTP 200 that reports success | The send succeeds. |
+| HTTP 200 whose body is not JSON | The send succeeds. |
+| HTTP 200 that reports a refusal | The send fails with Join's reason. |
+| HTTP 200 that ends before its whole body is read | The send fails, since the rest could hold a refusal. |
+| Any other status | The send fails with the status, and with Join's reason when the reply gives one. |
+
+These are the reasons Join gives most often.
+
+| Reason | Cause |
+| --- | --- |
+| `No device to send message to` | The API key is wrong. |
+| `No devices to send to` | The device IDs are unknown. |
