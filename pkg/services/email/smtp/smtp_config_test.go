@@ -198,8 +198,8 @@ func TestConfigSetURL(t *testing.T) {
 		},
 		{
 			name:     "encoded semicolon",
-			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=a@b.com%3Bc@d.com",
-			override: func(c *Config) { c.ToAddresses = []string{"a@b.com;c@d.com"} },
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=%22a%3Bb%22@example.com",
+			override: func(c *Config) { c.ToAddresses = []string{`"a;b"@example.com`} },
 		},
 		{
 			name:     "timeout",
@@ -259,6 +259,10 @@ func TestConfigSetURLResetsPort(t *testing.T) {
 // TestConfigSetURLErrors verifies that SetURL requires the sender and the
 // recipient addresses, including ones that are blank after trimming, and
 // rejects invalid query values.
+//
+// Each address must be one RFC 5322 address. A local name without a domain is
+// rejected, and so are two addresses in one sender. A display name that holds
+// a comma splits the recipient list, so it is rejected too.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -274,6 +278,15 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
 		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "blank recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=%20,", wantErr: ErrToAddressMissing},
+		{name: "recipient without a domain", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=root", wantErr: ErrInvalidAddress},
+		{name: "sender without a domain", rawURL: "smtp://mail.example.com/?fromaddress=root&toaddresses=rec@example.com", wantErr: ErrInvalidAddress},
+		{name: "two senders", rawURL: "smtp://mail.example.com/?fromaddress=a@example.com,b@example.com&toaddresses=rec@example.com", wantErr: ErrInvalidAddress},
+		{
+			name:    "recipient name with a comma",
+			rawURL:  "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=%22Doe,%20Jane%22%20%3Cjane@example.com%3E",
+			wantErr: ErrInvalidAddress,
+		},
+		{name: "unclosed angle bracket", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=Jane%20%3Cjane@example.com", wantErr: ErrInvalidAddress},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "port out of range", rawURL: "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: util.ErrInvalidPort},
 		{name: "port zero", rawURL: "smtp://mail.example.com:0/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: util.ErrInvalidPort},
@@ -442,25 +455,142 @@ func TestConfigBuiltInCodeMatchesURL(t *testing.T) {
 		Host: "mail.example.com", Port: 587, Username: "user", Password: "pass",
 		FromAddress: "sender@example.com", ToAddresses: []string{"rec@example.com"}, UseStartTLS: true,
 	}
-	require.NoError(t, built.prepare())
+	_, err := built.prepare(nil)
+	require.NoError(t, err)
 
 	service := &Service{}
 	require.NoError(t, service.Initialize(parseConfigURL(t,
 		"smtp://user:pass@mail.example.com:587/?fromaddress=sender@example.com&toaddresses=rec@example.com"), nil))
 
 	read := service.Config
-	require.NoError(t, read.prepare())
+	_, err = read.prepare(nil)
+	require.NoError(t, err)
 
 	assert.Equal(t, read.Auth, built.Auth)
 	assert.Equal(t, read.Encryption, built.Encryption)
 	assert.Equal(t, read.UseStartTLS, built.UseStartTLS)
 }
 
+// TestConfigParseMailboxes verifies that a config's addresses read as RFC 5322
+// mailboxes, each with its SMTP path and its header form.
+//
+// FromName replaces the sender's name only when it is set. The recipients
+// keep their order. A local part that needs quoting keeps its quotes in the
+// path. An address that does not parse fails with [ErrInvalidAddress]. So does
+// a recipient that holds a comma, which the URL's list could not carry.
+// The error names the sender or the recipient's position without quoting the
+// address.
+func TestConfigParseMailboxes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("names and paths", func(t *testing.T) {
+		t.Parallel()
+
+		config := Config{
+			FromAddress: "Ops <ops@example.com>",
+			ToAddresses: []string{"Jane Doe <jane@example.com>", "joe@example.com", `"a;b"@example.com`},
+		}
+
+		got, err := config.parseMailboxes()
+		require.NoError(t, err)
+
+		assert.Equal(t, mailbox{path: "ops@example.com", header: `"Ops" <ops@example.com>`}, got.from)
+		assert.Equal(t, []mailbox{
+			{path: "jane@example.com", header: `"Jane Doe" <jane@example.com>`},
+			{path: "joe@example.com", header: "<joe@example.com>"},
+			{path: `"a;b"@example.com`, header: `<"a;b"@example.com>`},
+		}, got.to)
+
+		config.FromName = "Alerts"
+
+		got, err = config.parseMailboxes()
+		require.NoError(t, err)
+		assert.Equal(t, mailbox{path: "ops@example.com", header: `"Alerts" <ops@example.com>`}, got.from)
+	})
+
+	// errorTests lists configs with an address that is rejected, and the error
+	// text each should produce.
+	errorTests := []struct {
+		name   string
+		want   string
+		config Config
+	}{
+		{name: "sender", config: Config{FromAddress: "private-sender", ToAddresses: []string{"rec@example.com"}}, want: "sender: invalid e-mail address"},
+		{
+			name:   "second recipient",
+			config: Config{FromAddress: "sender@example.com", ToAddresses: []string{"rec@example.com", "private-recipient"}},
+			want:   "recipient 2: invalid e-mail address",
+		},
+		{
+			name:   "recipient name with a comma",
+			config: Config{FromAddress: "sender@example.com", ToAddresses: []string{`"Doe, Jim" <jim@example.com>`}},
+			want:   "recipient 1: invalid e-mail address",
+		},
+	}
+
+	for _, tt := range errorTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tt.config.parseMailboxes()
+			require.ErrorIs(t, err, ErrInvalidAddress)
+			assert.EqualError(t, err, tt.want)
+		})
+	}
+}
+
+// TestConfigPrepareReusesMailboxes verifies that prepare uses an earlier
+// send's mailboxes while the address settings match them.
+//
+// A changed sender, sender name, or recipient list is parsed again.
+func TestConfigPrepareReusesMailboxes(t *testing.T) {
+	t.Parallel()
+
+	newConfig := func() Config {
+		return Config{
+			Host:        "mail.example.com",
+			FromAddress: "sender@example.com",
+			ToAddresses: []string{" rec@example.com", ""},
+		}
+	}
+
+	first := newConfig()
+	previous, err := first.prepare(nil)
+	require.NoError(t, err)
+
+	same := newConfig()
+	got, err := same.prepare(previous)
+	require.NoError(t, err)
+	assert.Same(t, previous, got)
+
+	// changes lists edits to the address settings that must be parsed again.
+	changes := map[string]func(config *Config){
+		"sender":     func(config *Config) { config.FromAddress = "other@example.com" },
+		"name":       func(config *Config) { config.FromName = "Alerts" },
+		"recipients": func(config *Config) { config.ToAddresses = []string{"other@example.com"} },
+	}
+
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newConfig()
+			change(&config)
+
+			got, err := config.prepare(previous)
+			require.NoError(t, err)
+			assert.NotSame(t, previous, got)
+		})
+	}
+}
+
 // TestRestorePlusAddress verifies that spaces in the local part of an
 // address, which query decoding makes from plus signs, become plus signs
-// again, leaving the domain and any display name unchanged. Whitespace around
-// the address and inside the angle brackets is separator space, not a plus
-// sign, and is trimmed.
+// again.
+//
+// The domain and any display name stay unchanged. Whitespace around the
+// address and inside the angle brackets is separator space and is trimmed. It
+// is not a plus sign.
 func TestRestorePlusAddress(t *testing.T) {
 	t.Parallel()
 
@@ -475,7 +605,6 @@ func TestRestorePlusAddress(t *testing.T) {
 		{address: "user tag@mail host", want: "user+tag@mail host"},
 		{address: "Jane Doe <jane x@example.com>", want: "Jane Doe <jane+x@example.com>"},
 		{address: "Jane Doe <jane@example.com>", want: "Jane Doe <jane@example.com>"},
-		{address: "no at sign", want: "no+at+sign"},
 		{address: " c x@example.com", want: "c+x@example.com"},
 		{address: "b@example.com ", want: "b@example.com"},
 		{address: "\tuser tag@example.com\n", want: "user+tag@example.com"},

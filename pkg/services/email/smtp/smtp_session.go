@@ -20,6 +20,8 @@ type session struct {
 	config *Config
 	// svc provides logging and message templates.
 	svc *Service
+	// mailboxes holds the sender and recipients parsed from config.
+	mailboxes *mailboxes
 	// closed is true after the connection has been closed by Quit or Close.
 	closed bool
 }
@@ -95,7 +97,7 @@ func (s *session) closeIfOpen(ctx context.Context) {
 func (s *session) deliver(ctx context.Context, message, boundary string) []error {
 	var errs []error
 
-	for i, toAddress := range s.config.ToAddresses {
+	for i, recipient := range s.mailboxes.to {
 		if err := ctx.Err(); err != nil {
 			errs = append(errs, err)
 
@@ -118,8 +120,8 @@ func (s *session) deliver(ctx context.Context, message, boundary string) []error
 			}
 		}
 
-		if err := s.sendMessage(toAddress, message, boundary); err != nil {
-			errs = append(errs, fail(FailSendRecipient, err, toAddress))
+		if err := s.sendMessage(recipient, message, boundary); err != nil {
+			errs = append(errs, fail(FailSendRecipient, err, recipient.path))
 		} else {
 			// The address is personal data, so the record leaves it out.
 			s.svc.Debug(ctx, "mail sent")
@@ -251,22 +253,23 @@ func (s *session) run(ctx context.Context, message string) error {
 
 // sendMessage sends an email to a single recipient using MAIL, RCPT, and DATA.
 //
-// The config's checks have rejected sender and recipient addresses with a CR
-// or LF before the connection opened.
+// MAIL and RCPT carry the SMTP paths, as the RFC 5321 reverse-path and
+// forward-path hold no display name. The parsed addresses hold no CR or LF,
+// so they cannot break the SMTP commands.
 //
 // Parameters:
-//   - toAddress: The recipient address.
+//   - recipient: The recipient.
 //   - message: The notification body.
 //   - boundary: Multipart boundary used when HTML mail is enabled.
 //
 // Returns:
 //   - An error if any SMTP command or message write fails.
-func (s *session) sendMessage(toAddress, message, boundary string) error {
-	if err := s.client.Mail(s.config.FromAddress); err != nil {
+func (s *session) sendMessage(recipient mailbox, message, boundary string) error {
+	if err := s.client.Mail(s.mailboxes.from.path); err != nil {
 		return fail(FailSetSender, err)
 	}
 
-	if err := s.client.Rcpt(toAddress); err != nil {
+	if err := s.client.Rcpt(recipient.path); err != nil {
 		return fail(FailSetRecipient, err)
 	}
 
@@ -275,7 +278,7 @@ func (s *session) sendMessage(toAddress, message, boundary string) error {
 		return fail(FailOpenDataStream, err)
 	}
 
-	if err := writeHeaders(writeCloser, headers(s.config, toAddress, boundary)); err != nil {
+	if err := writeHeaders(writeCloser, headers(s.config, s.mailboxes.from, recipient, boundary)); err != nil {
 		return err
 	}
 

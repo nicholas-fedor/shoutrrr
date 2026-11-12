@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"mime"
-	"net/mail"
 	"slices"
 	"strings"
 	"time"
@@ -57,13 +56,14 @@ var headerUnfolder = strings.NewReplacer(
 // is multipart/alternative with the given boundary.
 //
 // Parameters:
-//   - config: SMTP configuration providing sender, subject, and HTML options.
-//   - toAddress: The recipient address for the To header.
+//   - config: SMTP configuration providing the subject and HTML option.
+//   - sender: The sender for the From header and the Message-ID.
+//   - recipient: The recipient for the To header.
 //   - boundary: Multipart boundary used when HTML mail is enabled.
 //
 // Returns:
 //   - A map of header names to encoded values.
-func headers(config *Config, toAddress, boundary string) map[string]string {
+func headers(config *Config, sender, recipient mailbox, boundary string) map[string]string {
 	var contentType string
 	if config.UseHTML {
 		contentType = fmt.Sprintf(contentMultipart, boundary)
@@ -75,16 +75,13 @@ func headers(config *Config, toAddress, boundary string) map[string]string {
 	// (https://datatracker.ietf.org/doc/html/rfc5322#section-2.2), so any
 	// non-ASCII content is wrapped in RFC 2047 encoded-words
 	// (https://datatracker.ietf.org/doc/html/rfc2047). Pure ASCII values are
-	// passed through as-is.
-	from := &mail.Address{Name: config.FromName, Address: config.FromAddress}
-	recipient := &mail.Address{Name: "", Address: toAddress}
-
+	// passed through as-is. The mailboxes' header forms are already encoded.
 	headerMap := map[string]string{
 		"Subject":      mime.QEncoding.Encode("UTF-8", config.Subject),
 		"Date":         time.Now().Format(time.RFC1123Z),
-		"To":           recipient.String(),
-		"From":         from.String(),
-		"Message-ID":   generateMessageID(config.FromAddress),
+		"To":           recipient.header,
+		"From":         sender.header,
+		"Message-ID":   generateMessageID(sender.path),
 		"MIME-version": "1.0",
 		"Content-Type": contentType,
 	}
@@ -99,17 +96,16 @@ func headers(config *Config, toAddress, boundary string) map[string]string {
 //
 // See https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.4.
 //
+// The domain follows the last @, since a quoted local part can hold one.
+//
 // Parameters:
-//   - fromAddress: The sender address whose domain is used in the Message-ID.
+//   - fromPath: The sender's SMTP path, whose domain is used in the
+//     Message-ID.
 //
 // Returns:
-//   - A Message-ID of the form <id@domain>. The domain falls back to localhost
-//     when fromAddress has no host part.
-func generateMessageID(fromAddress string) string {
-	domain := "localhost"
-	if _, host, found := strings.Cut(fromAddress, "@"); found && host != "" {
-		domain = host
-	}
+//   - A Message-ID of the form <id@domain>.
+func generateMessageID(fromPath string) string {
+	domain := fromPath[strings.LastIndexByte(fromPath, '@')+1:]
 
 	b := make([]byte, boundaryByteLen)
 	if _, err := rand.Read(b); err != nil {

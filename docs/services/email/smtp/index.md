@@ -59,8 +59,13 @@ Common ports:
 
 ### From Address and From Name
 
-- `fromaddress` (alias `from`) is the envelope and header From address and is required.
+- `fromaddress` (alias `from`) is the sender and is required.
+  It is a bare address, such as `alerts@example.com`.
+  It can also carry a display name, as in `Alerts <alerts@example.com>`.
 - `fromname` is an optional display name shown by mail clients.
+  When it is set, it replaces a display name given in `fromaddress`.
+
+The SMTP envelope (`MAIL FROM`) carries the bare address, and the From header shows the display name.
 
 !!! Example "Named sender"
 
@@ -71,7 +76,11 @@ Common ports:
 ### Recipients
 
 - `toaddresses` (alias `to`) is a comma-separated list of recipient addresses and is required.
+- Each recipient is a bare address or an address with a display name, such as `Ops Team <ops@example.com>`.
+  The SMTP envelope (`RCPT TO`) carries the bare address, and the To header shows the display name.
+- The list is split at commas, so a display name in `toaddresses` cannot contain one.
 - Plus-tags in addresses (`user+tag@example.com`) are preserved and spaces that come from URL-decoding `+` are turned back into `+`.
+  Spaces in a display name stay spaces.
 - Spaces around each address, such as after a comma, are ignored.
   To start an address with a literal `+`, write it as `%2B`.
 
@@ -81,11 +90,25 @@ Common ports:
     smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com,oncall@example.com&requirestarttls=yes
     ```
 
+!!! Example "Recipient with a display name"
+
+    ```uri
+    smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=Alerts+%3Calerts@example.com%3E&toaddresses=Ops+Team+%3Cops@example.com%3E&requirestarttls=yes
+    ```
+
 !!! Example "Plus-address recipient"
 
     ```uri
     smtp://USERNAME:PASSWORD@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
     ```
+
+### Address Format
+
+Each address in `fromaddress` and `toaddresses` must be one complete e-mail address, as RFC 5322 defines it.
+The service rejects an address it cannot read when the URL is read.
+A local name without a domain, such as `root`, is one example.
+In a URL, write `<` as `%3C` and `>` as `%3E`.
+Write a space in a display name as `+` or `%20`.
 
 ### Subject
 

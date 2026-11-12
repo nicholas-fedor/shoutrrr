@@ -95,9 +95,12 @@ func TestSMTPAuthentication(t *testing.T) {
 	})
 }
 
-// TestSMTPMessage verifies that a delivered message carries the subject from
-// the title param, the sender name, and an HTML part, and that a plus-tagged
-// and a second recipient each receive their own message.
+// TestSMTPMessage verifies what a delivered message carries.
+//
+// It has the subject from the title param, the sender name, and an HTML part.
+// Display names in the sender and recipient addresses reach the From and To
+// headers. A plus-tagged and a second recipient each receive their own
+// message.
 //
 //nolint:paralleltest // Sends to a live server one message at a time.
 func TestSMTPMessage(t *testing.T) {
@@ -132,6 +135,23 @@ func TestSMTPMessage(t *testing.T) {
 
 		message := fetchMessage(t, starttlsAPI, subject)
 		assert.Equal(t, address{Name: "Shoutrrr E2E", Address: fromAddress}, message.From)
+	})
+
+	t.Run("display names in addresses", func(t *testing.T) {
+		requireMailpit(t, starttlsAPI)
+
+		subject := uniqueSubject("Shoutrrr E2E display names")
+		service := newService(t, serviceURL(starttlsHost, username, password, base(map[string]string{
+			"subject":     subject,
+			"fromaddress": "Shoutrrr E2E <" + fromAddress + ">",
+			"toaddresses": "Jane Doe <" + toAddress + ">",
+		})))
+
+		require.NoError(t, service.Send("E2E Test: display names", nil))
+
+		message := fetchMessage(t, starttlsAPI, subject)
+		assert.Equal(t, address{Name: "Shoutrrr E2E", Address: fromAddress}, message.From)
+		assert.Equal(t, []address{{Name: "Jane Doe", Address: toAddress}}, message.To)
 	})
 
 	t.Run("HTML body", func(t *testing.T) {

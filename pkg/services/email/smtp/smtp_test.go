@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/textproto"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -42,7 +43,8 @@ type fakeSMTP struct {
 	// replies overrides the reply to a command verb, in order, before the
 	// default replies apply. An empty entry uses the default reply, "close"
 	// closes the connection, and "hang" stops answering. The AUTH entry is
-	// the whole exchange: a 334 line reads one client line before the next.
+	// the whole exchange, in which a 334 line reads one client line before
+	// the next.
 	replies map[string][]string
 	// greeting is the first line the server sends.
 	greeting string
@@ -243,8 +245,10 @@ func TestInitialize(t *testing.T) {
 }
 
 // TestServiceTimeout verifies that the router budget is the session timeout
-// for the send: the URL timeout, a timeout param, or the default for a
-// non-positive or invalid value.
+// for the send.
+//
+// It is the URL timeout or a timeout param. A non-positive or invalid value
+// gets the default.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -324,6 +328,147 @@ func TestSendDropsEmptyRecipients(t *testing.T) {
 	assert.Equal(t, want, service.Config.ToAddresses)
 }
 
+// TestSendDisplayNames verifies that an address with a display name sends its
+// bare address in the SMTP envelope and keeps the name in the message
+// headers.
+//
+// MAIL FROM and RCPT TO carry the address alone, as RFC 5321 section 4.1.2
+// requires. The To header keeps the recipient's name. The From header uses
+// fromname when it is set, and the name in fromaddress otherwise. The
+// Message-ID takes its domain from the sender's address. Plus signs in an
+// address between angle brackets survive URL query decoding. A local part
+// that needs quoting keeps its quotes in the envelope. Only reading a URL
+// turns spaces into plus signs, so an address set in code is sent as written.
+func TestSendDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	// tests lists senders and recipients with the envelope and headers each
+	// send should produce.
+	tests := []struct {
+		name     string
+		rawURL   string
+		mailFrom string
+		rcptTo   string
+		from     string
+		to       string
+		domain   string
+	}{
+		{
+			name:     "recipient name",
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=Jane+Doe+%3Cjane@example.com%3E&usestarttls=no",
+			mailFrom: testMailFrom,
+			rcptTo:   "RCPT TO:<jane@example.com>",
+			from:     "<sender@example.com>",
+			to:       `"Jane Doe" <jane@example.com>`,
+			domain:   "example.com",
+		},
+		{
+			name:     "sender name",
+			rawURL:   "smtp://localhost:2525/?fromaddress=Ops+%3Cops@mail.example.org%3E&toaddresses=rec@example.com&usestarttls=no",
+			mailFrom: "MAIL FROM:<ops@mail.example.org> BODY=8BITMIME",
+			rcptTo:   testRcptTo,
+			from:     `"Ops" <ops@mail.example.org>`,
+			to:       "<rec@example.com>",
+			domain:   "mail.example.org",
+		},
+		{
+			name:     "fromname over the sender name",
+			rawURL:   "smtp://localhost:2525/?fromaddress=Ops+%3Cops@mail.example.org%3E&fromname=Alerts&toaddresses=rec@example.com&usestarttls=no",
+			mailFrom: "MAIL FROM:<ops@mail.example.org> BODY=8BITMIME",
+			rcptTo:   testRcptTo,
+			from:     `"Alerts" <ops@mail.example.org>`,
+			to:       "<rec@example.com>",
+			domain:   "mail.example.org",
+		},
+		{
+			name:     "plus tag between angle brackets",
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=Jane+%3Cjane+alerts@example.com%3E&usestarttls=no",
+			mailFrom: testMailFrom,
+			rcptTo:   "RCPT TO:<jane+alerts@example.com>",
+			from:     "<sender@example.com>",
+			to:       `"Jane" <jane+alerts@example.com>`,
+			domain:   "example.com",
+		},
+		{
+			name:     "address in angle brackets",
+			rawURL:   "smtp://localhost:2525/?fromaddress=%3Csender@example.com%3E&toaddresses=%3Crec@example.com%3E&usestarttls=no",
+			mailFrom: testMailFrom,
+			rcptTo:   testRcptTo,
+			from:     "<sender@example.com>",
+			to:       "<rec@example.com>",
+			domain:   "example.com",
+		},
+		{
+			name:     "non-ASCII recipient name",
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=J%C3%B6rg+%3Cjoerg@example.com%3E&usestarttls=no",
+			mailFrom: testMailFrom,
+			rcptTo:   "RCPT TO:<joerg@example.com>",
+			from:     "<sender@example.com>",
+			to:       "=?utf-8?q?J=C3=B6rg?= <joerg@example.com>",
+			domain:   "example.com",
+		},
+		{
+			name:     "quoted local part",
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=%22a%3Bb%22@example.com&usestarttls=no",
+			mailFrom: testMailFrom,
+			rcptTo:   `RCPT TO:<"a;b"@example.com>`,
+			from:     "<sender@example.com>",
+			to:       `<"a;b"@example.com>`,
+			domain:   "example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newFakeSMTP()
+			service := newTestService(t, tt.rawURL, server)
+
+			require.NoError(t, service.Send("Hello", nil))
+
+			assert.Equal(t, []string{"EHLO localhost", tt.mailFrom, tt.rcptTo, "DATA", "QUIT"}, server.received())
+
+			message, _ := parseMessage(t, server.message(t, 0))
+			assert.Equal(t, tt.from, message.Header.Get("From"))
+			assert.Equal(t, tt.to, message.Header.Get("To"))
+
+			assert.Regexp(t, `^<[0-9a-f]{16}@`+regexp.QuoteMeta(tt.domain)+`>$`, message.Header.Get("Message-ID"))
+		})
+	}
+
+	t.Run("config built in code", func(t *testing.T) {
+		t.Parallel()
+
+		server := newFakeSMTP()
+		service := newTestService(t, testServiceURL, server)
+		service.Config.FromAddress = "Ops <ops@example.com>"
+		service.Config.ToAddresses = []string{"Jane Doe <jane@example.com>", "<joe@example.com>"}
+
+		require.NoError(t, service.Send("Hello", nil))
+
+		assert.Equal(t, []string{
+			"EHLO localhost", "MAIL FROM:<ops@example.com> BODY=8BITMIME", "RCPT TO:<jane@example.com>", "DATA", "RSET",
+			"MAIL FROM:<ops@example.com> BODY=8BITMIME", "RCPT TO:<joe@example.com>", "DATA", "QUIT",
+		}, server.received())
+
+		first, _ := parseMessage(t, server.message(t, 0))
+		assert.Equal(t, `"Jane Doe" <jane@example.com>`, first.Header.Get("To"))
+		assert.Equal(t, `"Ops" <ops@example.com>`, first.Header.Get("From"))
+	})
+	t.Run("quoted local part with a space in code", func(t *testing.T) {
+		t.Parallel()
+
+		server := newFakeSMTP()
+		service := newTestService(t, testServiceURL, server)
+		service.Config.ToAddresses = []string{`"odd name"@example.com`}
+
+		require.NoError(t, service.Send("Hello", nil))
+
+		assert.Contains(t, server.received(), `RCPT TO:<"odd name"@example.com>`)
+	})
+}
+
 // TestSendContextErrors verifies that a send fails with [FailApplySendParams]
 // for an invalid param, and with [FailGetSMTPClient] when the dialer fails or
 // the caller's context has already ended, before any SMTP command.
@@ -376,11 +521,12 @@ func TestSendContextErrors(t *testing.T) {
 // its params, as reading a URL does.
 //
 // A config without a host, a sender, or a recipient fails before the dial. So
-// does a host that holds a port, and an address with a line break. An
+// does a host that holds a port. So does an address that is not one RFC 5322
+// address, such as one with a line break or without a domain. An
 // authentication or encryption method that is not one of its values fails
-// too. Incomplete OAuth2 refresh settings fail before
-// any token request. An empty client host uses localhost. An unknown auth
-// method from a param is inferred, as one in a URL is.
+// too. Incomplete OAuth2 refresh settings fail before any token request. An
+// empty client host uses localhost. An unknown auth method from a param is
+// inferred, as one in a URL is.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -398,8 +544,10 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "blank sender param", params: &types.Params{"fromaddress": " "}, wantErr: ErrFromAddressMissing},
 		{name: "empty sender param", params: &types.Params{"fromaddress": ""}, wantErr: ErrFromAddressMissing},
 		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Settings},
-		{name: "sender with a line break", params: &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
-		{name: "recipient with a line break", params: &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
+		{name: "sender with a line break", params: &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"}, wantErr: ErrInvalidAddress},
+		{name: "recipient with a line break", params: &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"}, wantErr: ErrInvalidAddress},
+		{name: "recipient without a domain", change: func(config *Config) { config.ToAddresses = []string{"root"} }, wantErr: ErrInvalidAddress},
+		{name: "sender name with a line break", change: func(config *Config) { config.FromAddress = "Ops\r\nBcc: x@example.com <sender@example.com>" }, wantErr: ErrInvalidAddress},
 		{name: "undefined auth method", change: func(config *Config) { config.Auth = -1 }, wantErr: format.ErrInvalidEnumValue},
 		{name: "undefined encryption method", change: func(config *Config) { config.Encryption = 99 }, wantErr: format.ErrInvalidEnumValue},
 	}
@@ -446,9 +594,10 @@ func TestSendChecksConfig(t *testing.T) {
 }
 
 // TestSendContextCanceled verifies that canceling a send ends a session that
-// waits on the server at once, instead of at its deadline, and that the error
-// matches the cancellation. A send canceled during its first recipient tries
-// no reset and no later recipient.
+// waits on the server at once, instead of at its deadline.
+//
+// The error matches the cancellation. A send canceled during its first
+// recipient tries no reset and no later recipient.
 func TestSendContextCanceled(t *testing.T) {
 	t.Parallel()
 
@@ -500,8 +649,10 @@ func TestSendContextCanceled(t *testing.T) {
 }
 
 // TestSendContextCanceledAfterReset verifies that a context that ends while
-// the server answers RSET stops the send before the next recipient. The
-// second recipient gets no MAIL, and its address is not reported as failed.
+// the server answers RSET stops the send before the next recipient.
+//
+// The second recipient gets no MAIL, and its address is not reported as
+// failed.
 func TestSendContextCanceledAfterReset(t *testing.T) {
 	t.Parallel()
 
@@ -576,7 +727,9 @@ func TestWithContextErr(t *testing.T) {
 }
 
 // TestSendContextTimeout verifies what ends a session with a server that
-// stops answering. A send without a deadline is bounded by the session
+// stops answering.
+//
+// A send without a deadline is bounded by the session
 // timeout from the URL or a param. A caller's deadline applies as it is,
 // whether it is earlier or later than that timeout.
 func TestSendContextTimeout(t *testing.T) {
@@ -627,8 +780,10 @@ func TestSendContextTimeout(t *testing.T) {
 }
 
 // TestSendLogsConnectionWarnings verifies the warnings about the connection a
-// send actually uses, each logged once over two sends and again after the
-// service is initialized again. A session without TLS logs the plaintext
+// send actually uses.
+//
+// Each is logged once over two sends and again after the service is
+// initialized again. A session without TLS logs the plaintext
 // warning, even when skiptlsverify is set, because it skips nothing. An
 // implicit TLS session that skips verification, from the URL or a param, logs
 // the insecure warning.
@@ -721,8 +876,9 @@ func TestEffectiveTimeout(t *testing.T) {
 	assert.Equal(t, defaultTimeout, effectiveTimeout(-time.Second))
 }
 
-// authScript returns the AUTH exchange for a mechanism: the scripted one, or
-// the default that accepts the client.
+// authScript returns the AUTH exchange for a mechanism.
+//
+// It is the scripted exchange, or the default one that accepts the client.
 //
 // Parameters:
 //   - mechanism: the SASL mechanism name.
@@ -1017,9 +1173,6 @@ func (s *fakeSMTP) serve(ctx context.Context, conn net.Conn) {
 	}
 }
 
-// Close counts the close and closes the connection.
-//
-// Returns:
 // Read reads from the wrapped connection, and ends the send's context once
 // RSET has been written, so the read that returns its reply cancels the send.
 //
@@ -1055,7 +1208,10 @@ func (c *cancelAfterReset) Write(p []byte) (int, error) {
 	return c.Conn.Write(p)
 }
 
-// - error: the close error.
+// Close counts the close and closes the connection.
+//
+// Returns:
+//   - error: the close error.
 func (c *countingConn) Close() error {
 	c.closes.Add(1)
 

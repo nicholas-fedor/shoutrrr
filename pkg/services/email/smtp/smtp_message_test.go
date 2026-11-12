@@ -52,25 +52,30 @@ func newTemplates(t *testing.T, plain, html string) *standard.Templater {
 	return templates
 }
 
-// TestHeaders verifies the message headers: the subject, sender, and
-// recipient encoded for US-ASCII header values, the MIME type of plain or HTML
-// mail, a Date, and a Message-ID on the sender's domain.
+// TestHeaders verifies the message headers.
+//
+// The subject, sender, and recipient are encoded for US-ASCII header values.
+// The Content-Type gives the MIME type of plain or HTML mail. Each message
+// has a Date and a Message-ID on the sender's domain. The From and To headers
+// show each mailbox with its display name, quoted when it needs quoting.
 func TestHeaders(t *testing.T) {
 	t.Parallel()
 
-	// tests lists configs and recipients with the headers each should
-	// produce, apart from Date and Message-ID.
+	// tests lists configs, senders, and recipients with the headers each
+	// should produce, apart from Date and Message-ID.
 	tests := []struct {
 		want     map[string]string
+		from     *mail.Address
+		to       *mail.Address
 		name     string
-		to       string
 		boundary string
 		config   Config
 	}{
 		{
 			name:   "plain text",
-			config: Config{FromAddress: "sender@example.com", Subject: "Backup done"},
-			to:     "rec@example.com",
+			config: Config{Subject: "Backup done"},
+			from:   &mail.Address{Address: "sender@example.com"},
+			to:     &mail.Address{Address: "rec@example.com"},
 			want: map[string]string{
 				"Subject": "Backup done", "To": "<rec@example.com>", "From": "<sender@example.com>", "MIME-version": "1.0",
 				"Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
@@ -78,8 +83,9 @@ func TestHeaders(t *testing.T) {
 		},
 		{
 			name:     "HTML",
-			config:   Config{FromAddress: "sender@example.com", FromName: "Alerts", Subject: "Backup done", UseHTML: true},
-			to:       "rec@example.com",
+			config:   Config{Subject: "Backup done", UseHTML: true},
+			from:     &mail.Address{Name: "Alerts", Address: "sender@example.com"},
+			to:       &mail.Address{Address: "rec@example.com"},
 			boundary: "0123456789abcdef",
 			want: map[string]string{
 				"Subject": "Backup done", "To": "<rec@example.com>", "From": `"Alerts" <sender@example.com>`, "MIME-version": "1.0",
@@ -88,8 +94,9 @@ func TestHeaders(t *testing.T) {
 		},
 		{
 			name:   "non-ASCII subject and sender name",
-			config: Config{FromAddress: "sender@example.com", FromName: "Grüßer", Subject: "Prüfung"},
-			to:     "rec@example.com",
+			config: Config{Subject: "Prüfung"},
+			from:   &mail.Address{Name: "Grüßer", Address: "sender@example.com"},
+			to:     &mail.Address{Address: "rec@example.com"},
 			want: map[string]string{
 				"Subject": "=?UTF-8?q?Pr=C3=BCfung?=", "To": "<rec@example.com>", "From": "=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>",
 				"MIME-version": "1.0", "Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
@@ -97,11 +104,22 @@ func TestHeaders(t *testing.T) {
 		},
 		{
 			name:   "name and address that need quoting",
-			config: Config{FromAddress: "odd name@example.com", FromName: "Doe, John", Subject: "=?UTF-8?q?Hello?="},
-			to:     "rec@example.com",
+			config: Config{Subject: "=?UTF-8?q?Hello?="},
+			from:   &mail.Address{Name: "Doe, John", Address: "odd name@example.com"},
+			to:     &mail.Address{Address: "rec@example.com"},
 			want: map[string]string{
 				"Subject": "=?UTF-8?q?Hello?=", "To": "<rec@example.com>", "From": `"Doe, John" <"odd name"@example.com>`,
 				"MIME-version": "1.0", "Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
+			},
+		},
+		{
+			name:   "recipient name",
+			config: Config{Subject: "Backup done"},
+			from:   &mail.Address{Address: "sender@example.com"},
+			to:     &mail.Address{Name: "Jane Doe", Address: "jane@example.com"},
+			want: map[string]string{
+				"Subject": "Backup done", "To": `"Jane Doe" <jane@example.com>`, "From": "<sender@example.com>", "MIME-version": "1.0",
+				"Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
 			},
 		},
 	}
@@ -110,7 +128,7 @@ func TestHeaders(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := headers(&tt.config, tt.to, tt.boundary)
+			got := headers(&tt.config, newMailbox(tt.from), newMailbox(tt.to), tt.boundary)
 
 			date, err := mail.ParseDate(got["Date"])
 			require.NoError(t, err)
@@ -130,11 +148,12 @@ func TestHeaders(t *testing.T) {
 func TestHeadersEncoding(t *testing.T) {
 	t.Parallel()
 
-	got := headers(&Config{
-		FromAddress: "sender@example.com",
-		FromName:    "Ops\r\nBcc: victim@example.com",
-		Subject:     "Hi\r\nBcc: victim@example.com",
-	}, "grüß@example.com", "")
+	got := headers(
+		&Config{Subject: "Hi\r\nBcc: victim@example.com"},
+		newMailbox(&mail.Address{Name: "Ops\r\nBcc: victim@example.com", Address: "sender@example.com"}),
+		newMailbox(&mail.Address{Name: "", Address: "grüß@example.com"}),
+		"",
+	)
 
 	for _, name := range []string{"Subject", "From", "To"} {
 		assert.NotContains(t, got[name], "\r", name)
@@ -154,8 +173,11 @@ func TestHeadersEncoding(t *testing.T) {
 	assert.Equal(t, "grüß@example.com", to.Address)
 }
 
-// TestGenerateMessageID verifies that a Message-ID uses the sender's domain,
-// or localhost when the address has none, around a random token.
+// TestGenerateMessageID verifies that a Message-ID puts a random token before
+// the sender's domain.
+//
+// The domain follows the address's last @, since a quoted local part can hold
+// one.
 func TestGenerateMessageID(t *testing.T) {
 	t.Parallel()
 
@@ -166,8 +188,7 @@ func TestGenerateMessageID(t *testing.T) {
 		want    string
 	}{
 		{address: "sender@example.com", want: `^<[0-9a-f]{16}@example\.com>$`},
-		{address: "sender", want: `^<[0-9a-f]{16}@localhost>$`},
-		{address: "sender@", want: `^<[0-9a-f]{16}@localhost>$`},
+		{address: `"ops@team"@example.com`, want: `^<[0-9a-f]{16}@example\.com>$`},
 	}
 
 	for _, tt := range tests {
@@ -197,11 +218,12 @@ func TestGenerateBoundary(t *testing.T) {
 	assert.NotEqual(t, first, second)
 }
 
-// TestFoldHeader verifies the fold points and limits of a header field: a
-// tab is whitespace to fold before, a field with an encoded-word folds past
-// 76 octets where plain text folds past 78, a token longer than 998 octets is
-// split at the limit on every line, even when whitespace follows past the
-// limit, no line is whitespace alone, and a lone CR before whitespace unfolds
+// TestFoldHeader verifies the fold points and limits of a header field.
+//
+// A tab is whitespace to fold before. A field with an encoded-word folds past
+// 76 octets, where plain text folds past 78. A token longer than 998 octets
+// is split at the limit on every line, even when whitespace follows past the
+// limit. No line is whitespace alone, and a lone CR before whitespace unfolds
 // like CRLF.
 func TestFoldHeader(t *testing.T) {
 	t.Parallel()
@@ -330,7 +352,12 @@ func TestWriteHeadersEncodedWords(t *testing.T) {
 
 	var out bytes.Buffer
 
-	require.NoError(t, writeHeaders(&out, headers(&Config{FromAddress: "sender@example.com", FromName: name, Subject: subject}, "rec@example.com", "")))
+	require.NoError(t, writeHeaders(&out, headers(
+		&Config{Subject: subject},
+		newMailbox(&mail.Address{Name: name, Address: "sender@example.com"}),
+		newMailbox(&mail.Address{Name: "", Address: "rec@example.com"}),
+		"",
+	)))
 
 	for line := range strings.SplitSeq(strings.TrimSuffix(out.String(), "\n\n"), "\n") {
 		assert.LessOrEqual(t, len(line), 76, line)
@@ -364,9 +391,10 @@ func TestWriteHeadersErrors(t *testing.T) {
 	}
 }
 
-// TestWriteAlternative verifies the multipart body of an HTML message: a plain
-// and an HTML part, each through its template or as the raw message, and the
-// closing boundary.
+// TestWriteAlternative verifies the multipart body of an HTML message.
+//
+// It holds a plain and an HTML part, each through its template or as the raw
+// message, and then the closing boundary.
 func TestWriteAlternative(t *testing.T) {
 	t.Parallel()
 

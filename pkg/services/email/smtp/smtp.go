@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -34,6 +35,9 @@ type Service struct {
 	// refreshes holds the token request in flight for each set of token
 	// settings, which concurrent sends with those settings wait for.
 	refreshes map[tokenKey]*tokenRefresh
+	// mailboxes holds the addresses the last send parsed, which a send with
+	// the same address settings uses again.
+	mailboxes atomic.Pointer[mailboxes]
 	// client holds the injected HTTP client and the default client for OAuth2
 	// token requests.
 	client httpclient.Holder
@@ -163,8 +167,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	// The checks run before the token request and the dial, so an invalid
 	// config makes no connection.
-	if err := config.prepare(); err != nil {
+	previous := s.mailboxes.Load()
+
+	parsed, err := config.prepare(previous)
+	if err != nil {
 		return fail(FailApplySendParams, err)
+	}
+
+	// A send with unchanged addresses gets previous back, which needs no store.
+	if parsed != previous {
+		s.mailboxes.Store(parsed)
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, effectiveTimeout(config.Timeout))
@@ -187,10 +199,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	defer stopWatch()
 
 	return withContextErr(ctx, (&session{
-		client: client,
-		config: &config,
-		svc:    s,
-		closed: false,
+		client:    client,
+		config:    &config,
+		mailboxes: parsed,
+		svc:       s,
+		closed:    false,
 	}).run(ctx, message))
 }
 

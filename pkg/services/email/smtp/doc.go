@@ -53,7 +53,11 @@
 //   - Port: The SMTP server port (e.g., 25, 465, 587, or 2525).
 //   - Username and Password: Credentials for authentication (if required).
 //   - FromAddress and FromName: The sender's email address and display name.
-//   - ToAddresses: A list of recipient email addresses.
+//     FromAddress may carry a display name too, as in Alerts
+//     <alerts@example.com>. FromName replaces it when set.
+//   - ToAddresses: A list of recipient email addresses. Each may carry a
+//     display name, as in Jane Doe <jane@example.com>. An entry cannot hold a
+//     comma, because the URL splits the list at commas.
 //   - Subject: The email subject (empty when omitted).
 //   - Auth: The authentication method (None, Plain, Login, CRAMMD5, OAuth2, or
 //     Unknown). Unknown, the zero value, infers the method from the other
@@ -121,4 +125,8 @@
 //   - It supports multipart email messages (plain text and HTML) using a randomly generated boundary.
 //   - The [Service] struct implements the shoutrrr [standard.Standard] and [standard.Templater] interfaces for logging and message templating.
 //   - The package handles plus signs (`+`) in email addresses correctly. Reading a URL turns them into spaces, and the package restores them.
+//   - Each address must be one RFC 5322 address. Reading a URL and each send
+//     return [ErrInvalidAddress] for one that is not. A local name without a
+//     domain is one example. The SMTP envelope carries the bare address, and the
+//     From and To headers keep the display names.
 package smtp

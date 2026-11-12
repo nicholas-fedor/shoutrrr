@@ -3,6 +3,7 @@ package smtp
 import (
 	"crypto/tls"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"slices"
 	"strings"
@@ -22,9 +23,14 @@ type Config struct {
 	Username string `default:"" desc:"SMTP server username" url:"User"`
 	// Password is the SMTP server password, or an OAuth2 access token when Auth is [AuthOAuth2].
 	Password string `default:"" desc:"SMTP server password, or the OAuth2 access token" sensitive:"true" url:"Pass"`
-	// FromAddress is the sender e-mail address.
-	FromAddress string `desc:"E-mail address that the mail are sent from" key:"fromaddress,from"`
-	// FromName is the sender display name.
+	// FromAddress is the sender e-mail address, such as ops@example.com or
+	// Ops <ops@example.com>.
+	//
+	// It must be one RFC 5322 address. The SMTP envelope gets the bare address,
+	// and the From header keeps a display name given here.
+	FromAddress string `desc:"E-mail address that the mail are sent from, optionally as Name <address>" key:"fromaddress,from"`
+	// FromName is the sender display name in the From header. When it is set,
+	// it replaces a display name given in FromAddress.
 	FromName string `desc:"Name of the sender" key:"fromname" optional:"yes"`
 	// Subject is the e-mail subject. It is empty when omitted.
 	Subject string `default:"" desc:"The subject of the sent mail" key:"subject,title"`
@@ -42,8 +48,13 @@ type Config struct {
 	// TokenURL is the provider's OAuth2 token endpoint, such as
 	// https://oauth2.googleapis.com/token.
 	TokenURL string `desc:"OAuth2 token endpoint, for getting the access token" key:"tokenurl" optional:""`
-	// ToAddresses is the list of recipient e-mail addresses.
-	ToAddresses []string `desc:"List of recipient e-mails" key:"toaddresses,to"`
+	// ToAddresses is the list of recipient e-mail addresses, such as
+	// jane@example.com or Jane Doe <jane@example.com>.
+	//
+	// Each entry must be one RFC 5322 address without a comma, because the URL
+	// key splits its value at commas. The SMTP envelope gets the bare address,
+	// and the To header keeps a display name given here.
+	ToAddresses []string `desc:"List of recipient e-mails, each optionally as Name <address>" key:"toaddresses,to"`
 	// Scopes are the OAuth2 scopes of the client credentials grant, such as
 	// https://outlook.office365.com/.default for Microsoft 365. When they are
 	// set without a refresh token, each send gets a current access token from
@@ -68,6 +79,32 @@ type Config struct {
 	RequireStartTLS bool `default:"No" desc:"Fail if StartTLS is enabled but unsupported" key:"requirestarttls"`
 	// SkipTLSVerify skips TLS certificate verification when true.
 	SkipTLSVerify bool `default:"No" desc:"Whether to skip TLS certificate verification" key:"skiptlsverify"`
+}
+
+// mailbox is one parsed sender or recipient, in the two forms a message
+// needs.
+type mailbox struct {
+	// path is the address for MAIL FROM or RCPT TO, without angle brackets. A
+	// local part that needs quoting keeps its quotes, as in "a;b"@example.com.
+	path string
+	// header is the whole mailbox for the From or To header, with its display
+	// name quoted or RFC 2047 encoded where needed.
+	header string
+}
+
+// mailboxes holds the parsed sender and recipients of a send, with the
+// address settings they were parsed from.
+type mailboxes struct {
+	// fromAddress is the [Config.FromAddress] that from was parsed from.
+	fromAddress string
+	// fromName is the [Config.FromName] that from was parsed with.
+	fromName string
+	// toAddresses are the [Config.ToAddresses] that to was parsed from.
+	toAddresses []string
+	// from is the sender.
+	from mailbox
+	// to holds the recipients in the order of toAddresses.
+	to []mailbox
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -216,37 +253,89 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return serviceURL
 }
 
-// prepare readies a config for a send.
+// parseMailboxes reads the sender and each recipient as one RFC 5322 address.
 //
-// It normalizes the addresses and scopes, then fills in the defaults and checks
-// the result. Reading a service URL and each send run it, so a config built in
-// code fails before the token request or the dial.
+// [Config.FromName] replaces the display name of the sender when it is set. A
+// recipient that holds a comma fails. The URL splits the recipient list at
+// commas, so the config's own URL could not carry it.
 //
 // Returns:
-//   - error: the error from the config's checks, such as [ErrHostMissing].
-func (c *Config) prepare() error {
-	c.restorePlusAddresses()
+//   - *mailboxes: the parsed sender and recipients.
+//   - error: an error wrapping [ErrInvalidAddress]. It names the sender or the
+//     recipient's position. It leaves out the address, which is personal data.
+func (c *Config) parseMailboxes() (*mailboxes, error) {
+	from, err := mail.ParseAddress(c.FromAddress)
+	if err != nil {
+		return nil, fmt.Errorf("sender: %w", ErrInvalidAddress)
+	}
+
+	if c.FromName != "" {
+		from.Name = c.FromName
+	}
+
+	recipients := make([]mailbox, len(c.ToAddresses))
+	for i, address := range c.ToAddresses {
+		recipient, err := mail.ParseAddress(address)
+		if err != nil || strings.Contains(address, ",") {
+			return nil, fmt.Errorf("recipient %d: %w", i+1, ErrInvalidAddress)
+		}
+
+		recipients[i] = newMailbox(recipient)
+	}
+
+	return &mailboxes{
+		fromAddress: c.FromAddress,
+		fromName:    c.FromName,
+		toAddresses: c.ToAddresses,
+		from:        newMailbox(from),
+		to:          recipients,
+	}, nil
+}
+
+// prepare readies a config for a send.
+//
+// It trims the addresses and scopes and fills in the defaults. It then checks
+// the result and parses the addresses. Reading a service URL and each send run
+// it, so a config built in code fails before the token request or the dial.
+//
+// Parameters:
+//   - previous: the mailboxes an earlier send parsed, or nil. They are used
+//     again when the config's address settings still match them, so a send
+//     does not parse unchanged addresses again.
+//
+// Returns:
+//   - *mailboxes: the parsed sender and recipients, for the send.
+//   - error: the error from the config's checks, such as [ErrHostMissing], or
+//     an error wrapping [ErrInvalidAddress].
+func (c *Config) prepare(previous *mailboxes) (*mailboxes, error) {
+	c.trimAddresses()
 	c.trimScopes()
 	c.applyDefaults()
 
-	return c.validate()
+	if err := c.validate(); err != nil {
+		return nil, err
+	}
+
+	if previous != nil && previous.parsedFrom(c) {
+		return previous, nil
+	}
+
+	return c.parseMailboxes()
 }
 
-// restorePlusAddresses trims each address and replaces parsed spaces in e-mail
-// addr-spec local parts with '+'.
+// restorePlusAddresses replaces the spaces that URL query decoding makes from
+// plus signs in each address's addr-spec with '+'.
 //
-// URL query parsing turns plus signs into spaces, so this restores plus-tagged
-// addresses such as user+tag@example.com. Spaces around each address are list
-// separators and are removed, and recipient entries left blank are dropped, so
-// a list without addresses is empty. Display-name spaces, including those in
-// mailbox syntax like `Name <user@example.com>`, are left unchanged.
+// Reading a URL turns plus signs into spaces, so this restores plus-tagged
+// addresses such as user+tag@example.com. Display-name spaces, including
+// those in mailbox syntax like `Name <user@example.com>`, are left unchanged.
+// Only reading a URL runs it, because addresses set in code or by send params
+// were never decoded.
 func (c *Config) restorePlusAddresses() {
 	c.FromAddress = restorePlusAddress(c.FromAddress)
 	for i, adr := range c.ToAddresses {
 		c.ToAddresses[i] = restorePlusAddress(adr)
 	}
-
-	c.ToAddresses = util.NonEmpty(c.ToAddresses)
 }
 
 // restorePlusAddress restores plus tags in a mailbox string.
@@ -279,7 +368,8 @@ func restorePlusAddress(addr string) string {
 // restorePlusInAddrSpec restores plus tags in an RFC 5322 addr-spec.
 //
 // Spaces in the local-part are replaced with '+' to undo URL query decoding of
-// plus-tagged addresses such as user+tag@example.com. The domain is left unchanged.
+// plus-tagged addresses such as user+tag@example.com. The domain is left
+// unchanged, and text without an @ is returned as it is.
 //
 // Parameters:
 //   - spec: An addr-spec whose plus tags may have been decoded as spaces.
@@ -288,13 +378,7 @@ func restorePlusAddress(addr string) string {
 //   - The addr-spec with spaces in the local-part replaced by '+'.
 func restorePlusInAddrSpec(spec string) string {
 	local, domain, found := strings.Cut(spec, "@")
-	if !found {
-		return strings.ReplaceAll(spec, " ", "+")
-	}
-
-	// An addr-spec without a space in its local part is returned as it is, so
-	// a send does not build a copy of each address.
-	if !strings.Contains(local, " ") {
+	if !found || !strings.Contains(local, " ") {
 		return spec
 	}
 
@@ -341,7 +425,26 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.prepare()
+	c.restorePlusAddresses()
+
+	_, err = c.prepare(nil)
+
+	return err
+}
+
+// trimAddresses trims the sender and each recipient and drops the recipients
+// left empty.
+//
+// Spaces around each address are list separators, as in "a@example.com,
+// b@example.com". A sender of only spaces then counts as missing, and a list
+// of blank recipients is empty.
+func (c *Config) trimAddresses() {
+	c.FromAddress = strings.TrimSpace(c.FromAddress)
+	for i, address := range c.ToAddresses {
+		c.ToAddresses[i] = strings.TrimSpace(address)
+	}
+
+	c.ToAddresses = util.NonEmpty(c.ToAddresses)
 }
 
 // trimScopes trims each scope and drops the ones left empty.
@@ -360,16 +463,15 @@ func (c *Config) trimScopes() {
 // validate checks that the config has a server host, a sender, and a
 // recipient.
 //
-// No address may hold a CR or LF, which would break the SMTP commands and
-// headers. The authentication and encryption methods must be defined ones. It
-// also checks that the OAuth2 token settings are complete.
+// The authentication and encryption methods must be defined ones. It also
+// checks that the OAuth2 token settings are complete.
 //
 // Returns:
 //   - error: [ErrHostMissing], [ErrFromAddressMissing], [ErrToAddressMissing],
 //     an error wrapping [util.ErrInvalidHost] for a host that holds a port or
-//     brackets, an error for an address with a line break, an error wrapping
-//     [format.ErrInvalidEnumValue] for an undefined method,
-//     [ErrInvalidOAuth2Settings] for invalid token settings, or nil.
+//     brackets, an error wrapping [format.ErrInvalidEnumValue] for an
+//     undefined method, [ErrInvalidOAuth2Settings] for invalid token
+//     settings, or nil.
 func (c *Config) validate() error {
 	// An SMTP server has no default host.
 	if c.Host == "" {
@@ -388,16 +490,6 @@ func (c *Config) validate() error {
 		return ErrToAddressMissing
 	}
 
-	if strings.ContainsAny(c.FromAddress, "\r\n") {
-		return fmt.Errorf("sender: %w", errHeaderBreak)
-	}
-
-	for _, address := range c.ToAddresses {
-		if strings.ContainsAny(address, "\r\n") {
-			return fmt.Errorf("recipient: %w", errHeaderBreak)
-		}
-	}
-
 	if err := format.CheckEnumValue(AuthTypes.Enum, int(c.Auth)); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
@@ -407,6 +499,41 @@ func (c *Config) validate() error {
 	}
 
 	return validateTokenSettings(c)
+}
+
+// parsedFrom reports whether m was parsed from the address settings of c.
+//
+// Parameters:
+//   - c: the config whose sender, sender name, and recipients to compare.
+//
+// Returns:
+//   - bool: true when the settings match the ones m was parsed from.
+func (m *mailboxes) parsedFrom(c *Config) bool {
+	return m.fromAddress == c.FromAddress &&
+		m.fromName == c.FromName &&
+		slices.Equal(m.toAddresses, c.ToAddresses)
+}
+
+// newMailbox returns the SMTP path and the header form of a parsed address.
+//
+// The path is the address as [mail.Address.String] writes it without a name.
+// A local part that needs quoting then keeps its quotes, as RFC 5321 section
+// 4.1.2 requires.
+//
+// Parameters:
+//   - address: the parsed address.
+//
+// Returns:
+//   - mailbox: the path and the header form.
+func newMailbox(address *mail.Address) mailbox {
+	bare := (&mail.Address{Name: "", Address: address.Address}).String()
+
+	header := bare
+	if address.Name != "" {
+		header = address.String()
+	}
+
+	return mailbox{path: bare[1 : len(bare)-1], header: header}
 }
 
 // newTLSConfig builds the [tls.Config] used for implicit TLS and STARTTLS from

@@ -16,6 +16,11 @@ var (
 	// ErrHostMissing is returned when the config has no SMTP server host.
 	ErrHostMissing = errors.New("host missing from config")
 
+	// ErrInvalidAddress is returned when [Config.FromAddress] or an entry of
+	// [Config.ToAddresses] is not one RFC 5322 address, such as
+	// jane@example.com or Jane Doe <jane@example.com>.
+	ErrInvalidAddress = errors.New("invalid e-mail address")
+
 	// ErrInvalidOAuth2Settings is returned when the OAuth2 token settings, for
 	// the refresh grant or the client credentials grant, are incomplete or mix
 	// the two grants. It is also returned when they are set without OAuth2
@@ -33,7 +38,4 @@ var (
 	// errUnexpectedServerChallenge is returned when the server issues an additional
 	// challenge after the client has finished sending credentials.
 	errUnexpectedServerChallenge = errors.New("unexpected server challenge")
-
-	// errHeaderBreak is returned when a sender or recipient address contains CR or LF.
-	errHeaderBreak = errors.New("address contains CR or LF")
 )
