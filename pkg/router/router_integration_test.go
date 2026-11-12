@@ -444,6 +444,7 @@ var fixtures = []fixture{
 		scheme:  "join",
 		url:     "join://:SECRETjoinAPIKEY@join/?devices=device",
 		secrets: []string{"SECRETjoinAPIKEY"},
+		body:    `{"success":true}`,
 	},
 	{
 		scheme:  "lark",

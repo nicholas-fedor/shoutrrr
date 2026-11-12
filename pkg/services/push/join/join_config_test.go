@@ -119,9 +119,10 @@ func TestConfigGetURL(t *testing.T) {
 	})
 }
 
-// TestConfigQueryResolver verifies the config's query props: devices join with
-// commas, unknown keys are rejected, and the keys are devices, icon, and title
-// with no enums.
+// TestConfigQueryResolver verifies the config's query props.
+//
+// Devices join with commas, and unknown keys are rejected. The keys are
+// devices, icon, and title, with no enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
 

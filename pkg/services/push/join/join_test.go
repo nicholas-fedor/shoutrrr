@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -31,21 +32,30 @@ type capturedRequest struct {
 	contentType string
 }
 
+// acceptedBody is the reply body of a push that Join accepted.
+const acceptedBody = `{"success":true,"userAuthError":false}`
+
 // errTransport is the transport failure returned by the failing HTTP client.
 var errTransport = errors.New("transport failure")
 
 // newRespondingClient returns a mock HTTP client that expects one request,
-// records it, and answers with the given status.
+// records it, and answers with the given status and body.
 //
 // Parameters:
 //   - t: the test that owns the mock.
 //   - status: the response status line, such as "200 OK".
 //   - statusCode: the response status code.
+//   - body: the response body.
 //
 // Returns:
 //   - *mocks.MockHTTPClient: the client.
 //   - *capturedRequest: the request, filled in once the client receives it.
-func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.MockHTTPClient, *capturedRequest) {
+func newRespondingClient(
+	t *testing.T,
+	status string,
+	statusCode int,
+	body string,
+) (*mocks.MockHTTPClient, *capturedRequest) {
 	t.Helper()
 
 	captured := &capturedRequest{}
@@ -64,11 +74,39 @@ func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.Mo
 		return &http.Response{
 			Status:     status,
 			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader("")),
+			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
 	}).Once()
 
 	return client, captured
+}
+
+// newCutOffClient returns a mock HTTP client that expects one request and
+// answers with the given status and a body whose read fails with
+// [context.DeadlineExceeded] partway through.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+func newCutOffClient(t *testing.T, status string, statusCode int) *mocks.MockHTTPClient {
+	t.Helper()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+		body := io.MultiReader(strings.NewReader(`{"success":fa`), iotest.ErrReader(context.DeadlineExceeded))
+
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Body:       io.NopCloser(body),
+		}, nil
+	}).Once()
+
+	return client
 }
 
 // newTestService returns a service initialized from rawURL that logs to the
@@ -118,10 +156,11 @@ func TestInitialize(t *testing.T) {
 	})
 }
 
-// TestSend verifies the request a send makes: a POST to the Join push endpoint
-// with the API key, devices, and text in the query, and the title and icon
-// only when set, independently of each other. Params override any config key,
-// in any case.
+// TestSend verifies the request a send makes.
+//
+// The request is a POST to the Join push endpoint with the API key, devices,
+// and text in the query. The title and icon are added only when set, each
+// independently of the other. Params override any config key, in any case.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +241,7 @@ func TestSend(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tt.rawURL)
-			client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, acceptedBody)
 			service.SetHTTPClient(client)
 
 			require.NoError(t, service.Send("Message", tt.params))
@@ -229,7 +268,7 @@ func TestSendParams(t *testing.T) {
 	require.ErrorIs(t, service.Send("Message", &types.Params{"titel": "Alert"}), format.ErrInvalidConfigKey)
 	require.ErrorIs(t, service.Send("Message", &types.Params{"devices": ""}), ErrDevicesMissing)
 
-	client, _ := newRespondingClient(t, "200 OK", http.StatusOK)
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK, acceptedBody)
 	service.SetHTTPClient(client)
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert", "devices": "dev2"}))
 	assert.Equal(t, want, *service.Config)
@@ -264,25 +303,64 @@ func TestSendChecksConfig(t *testing.T) {
 	}
 }
 
-// TestSendContextErrors verifies that a send fails with ErrSendFailed for an
-// error status, wraps a transport error without the API key, and stops when
-// the caller's context is canceled.
+// TestSendContextErrors verifies that a send wraps a transport error without
+// the API key and stops when the caller's context is canceled.
+//
+// A 200 reply cut off before its end fails with the read error, since the
+// unread part could hold a refusal. A cut-off error status still fails with
+// ErrSendFailed and its status. A 200 reply that is JSON but does not decode
+// as Join's reply fails with the decoding error, since it cannot show that
+// Join accepted the push.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("error status", func(t *testing.T) {
+	t.Run("200 reply cut off", func(t *testing.T) {
 		t.Parallel()
 
 		service := newTestService(t, "join://Token:apikey@join?devices=dev1")
-		client, _ := newRespondingClient(t, "401 Unauthorized", http.StatusUnauthorized)
-		service.SetHTTPClient(client)
+		service.SetHTTPClient(newCutOffClient(t, "200 OK", http.StatusOK))
 
-		err := service.SendContext(t.Context(), "Message", nil)
+		require.ErrorIs(t, service.SendContext(t.Context(), "message", nil), context.DeadlineExceeded)
+	})
+
+	t.Run("error status cut off", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+		service.SetHTTPClient(newCutOffClient(t, "503 Service Unavailable", http.StatusServiceUnavailable))
+
+		err := service.SendContext(t.Context(), "message", nil)
 
 		require.ErrorIs(t, err, ErrSendFailed)
-		assert.Contains(t, err.Error(), "401 Unauthorized")
-		assert.Contains(t, err.Error(), "dev1")
+		assert.Contains(t, err.Error(), "503 Service Unavailable")
 	})
+
+	// replies lists 200 replies that are JSON but do not have the shape of
+	// Join's reply, so they cannot show that Join accepted the push.
+	replies := []struct {
+		name string
+		body string
+	}{
+		{name: "success of another type", body: `{"success":"true"}`},
+		{name: "success of another type with invalid UTF-8", body: "{\"success\":\"\xff\"}"},
+		{name: "array", body: `[]`},
+		{name: "repeated member name", body: `{"success":true,"success":true}`},
+	}
+
+	for _, tt := range replies {
+		t.Run("200 reply with JSON of another shape/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+			client, _ := newRespondingClient(t, "200 OK", http.StatusOK, tt.body)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "message", nil)
+
+			require.ErrorContains(t, err, "decoding response body")
+			assert.NotErrorIs(t, err, ErrSendFailed)
+		})
+	}
 
 	t.Run("transport error", func(t *testing.T) {
 		t.Parallel()
@@ -316,6 +394,95 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
+}
+
+// TestSendResponses verifies how a send reads Join's reply.
+//
+// Join answers a push with HTTP 200 even when it refuses it, and reports in the
+// JSON body whether it accepted it. A refused push fails with ErrSendFailed and
+// Join's error message. A 200 reply whose body is not JSON leaves the status to
+// decide. An error status fails with ErrSendFailed whatever its body holds.
+func TestSendResponses(t *testing.T) {
+	t.Parallel()
+
+	// tests lists Join replies with the text a failed send's error must hold.
+	// A reply without wantContains must give a successful send.
+	tests := []struct {
+		name         string
+		status       string
+		body         string
+		wantContains []string
+		statusCode   int
+	}{
+		{name: "accepted", status: "200 OK", statusCode: http.StatusOK, body: acceptedBody},
+		{
+			name:         "refused with a message",
+			status:       "200 OK",
+			statusCode:   http.StatusOK,
+			body:         `{"success":false,"userAuthError":false,"errorMessage":"No device to send message to"}`,
+			wantContains: []string{"No device to send message to", "dev1", "200 OK"},
+		},
+		{
+			name:         "refused without a message",
+			status:       "200 OK",
+			statusCode:   http.StatusOK,
+			body:         `{"success":false,"userAuthError":true}`,
+			wantContains: []string{"200 OK", "dev1"},
+		},
+		{name: "body that is not JSON", status: "200 OK", statusCode: http.StatusOK, body: "<html>ok</html>"},
+		{
+			name:         "error status with a message",
+			status:       "500 Internal Server Error",
+			statusCode:   http.StatusInternalServerError,
+			body:         `{"success":false,"errorMessage":"backend unavailable"}`,
+			wantContains: []string{"500 Internal Server Error", "backend unavailable"},
+		},
+		{
+			name:         "error status with JSON of another shape",
+			status:       "500 Internal Server Error",
+			statusCode:   http.StatusInternalServerError,
+			body:         `{"success":"false"}`,
+			wantContains: []string{"500 Internal Server Error", "dev1"},
+		},
+		{
+			name:         "error status reporting success",
+			status:       "502 Bad Gateway",
+			statusCode:   http.StatusBadGateway,
+			body:         acceptedBody,
+			wantContains: []string{"502 Bad Gateway"},
+		},
+		{
+			name:         "error status without JSON",
+			status:       "401 Unauthorized",
+			statusCode:   http.StatusUnauthorized,
+			body:         "",
+			wantContains: []string{"401 Unauthorized", "dev1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+			client, _ := newRespondingClient(t, tt.status, tt.statusCode, tt.body)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "Message", nil)
+
+			if len(tt.wantContains) == 0 {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, ErrSendFailed)
+
+			for _, want := range tt.wantContains {
+				assert.Contains(t, err.Error(), want)
+			}
+		})
+	}
 }
 
 // TestSendDefaultClient verifies that a send without a custom client, or with

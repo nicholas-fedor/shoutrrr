@@ -2,12 +2,16 @@ package join
 
 import (
 	"context"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -26,6 +30,18 @@ type Service struct {
 	Config *Config
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
+}
+
+// apiResponse holds the fields of a Join API reply that report the result of
+// a push.
+//
+// Join answers a push it refuses with HTTP 200 and Success false.
+type apiResponse struct {
+	// ErrorMessage is Join's reason for refusing the push, such as "No device
+	// to send message to" for a wrong API key.
+	ErrorMessage string `json:"errorMessage"`
+	// Success reports whether Join accepted the push.
+	Success bool `json:"success"`
 }
 
 // Settings for requests to the Join API.
@@ -103,8 +119,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: [types.ErrServiceNotInitialized] before Initialize. A params
 //     error or the error from the config's checks, such as [ErrDevicesMissing]
 //     when the params leave no devices, fails the send before any request.
-//     Otherwise the send error, which matches ctx's error when ctx ends the
-//     request.
+//     [ErrSendFailed] when Join refuses the push or answers with a status
+//     other than 200, with Join's reason when it gives one. Otherwise the
+//     error sending the request, reading a 200 reply, or decoding a 200 JSON
+//     reply. The error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -130,8 +148,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return s.sendToDevices(ctx, config, message)
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// SetHTTPClient sets a custom HTTP client for the service.
+//
+// A nil client, including a nil *http.Client, selects the default client.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
@@ -148,7 +167,10 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - message: the message to send.
 //
 // Returns:
-//   - error: the request error, or [ErrSendFailed] for a non-success status.
+//   - error: the request error, or the error reading a 200 reply or
+//     decoding a 200 JSON reply. [ErrSendFailed] for a status other than 200
+//     or a reply that does not report success. The error carries Join's reason
+//     when the reply gives one.
 func (s *Service) sendToDevices(ctx context.Context, config *Config, message string) error {
 	devices := strings.Join(config.Devices, ",")
 
@@ -191,14 +213,51 @@ func (s *Service) sendToDevices(ctx context.Context, config *Config, message str
 
 	defer func() { _ = res.Body.Close() }()
 
-	if res.StatusCode != http.StatusOK {
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+
+	// The unread part of a 200 reply could hold a refusal, so a read error
+	// fails the send. An error status fails it below either way.
+	if readErr != nil && res.StatusCode == http.StatusOK {
+		return fmt.Errorf("reading response body: %w", readErr)
+	}
+
+	var response apiResponse
+
+	// replyErr holds the error reading or decoding the reply. A read error
+	// reaches here only with an error status.
+	replyErr := readErr
+	if replyErr == nil {
+		replyErr = json.Unmarshal(body, &response, jsonopts.Default)
+	}
+
+	// Join accepts a push with a 200 status and success in the reply. A JSON
+	// reply that does not decode cannot show that Join accepted the push. A
+	// reply that is not JSON leaves the HTTP status to decide.
+	if res.StatusCode == http.StatusOK {
+		switch {
+		case replyErr == nil:
+			if response.Success {
+				return nil
+			}
+		case jsontext.Value(body).IsValid(
+			jsontext.AllowDuplicateNames(true),
+			jsontext.AllowInvalidUTF8(true),
+		):
+			return fmt.Errorf("decoding response body: %w", replyErr)
+		default:
+			return nil
+		}
+	}
+
+	if replyErr == nil && response.ErrorMessage != "" {
 		return fmt.Errorf(
-			"%w: %q, response status %q",
+			"%w: %q, response status %q: %s",
 			ErrSendFailed,
 			devices,
 			res.Status,
+			response.ErrorMessage,
 		)
 	}
 
-	return nil
+	return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, devices, res.Status)
 }
