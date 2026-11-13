@@ -20,6 +20,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -290,7 +291,13 @@ func runOAuth2Flow(
 		return nil, err
 	}
 
-	token, err := flowConf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	// The exchange sends the client secret, the code, and the verifier. Its
+	// client refuses a redirect to another host or from HTTPS to HTTP, which
+	// would send them again. Without a client in the context, oauth2 sends
+	// through http.DefaultClient, which follows any redirect.
+	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, httpclient.NewClient(nil, 0))
+
+	token, err := flowConf.Exchange(exchangeCtx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		// The verification code is a credential, so the error leaves it out.
 		return nil, fmt.Errorf("%w: %w", ErrTokenExchangeFailed, err)
