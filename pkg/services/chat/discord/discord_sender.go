@@ -3,6 +3,7 @@ package discord
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -99,6 +100,18 @@ type errorBody struct {
 	Code *int `json:"code"`
 	// Message describes the error, or is empty when the body has none.
 	Message string `json:"message"`
+	// Errors is the object that names each invalid field of a 50035 Invalid
+	// Form Body response, kept as raw JSON so a malformed one cannot fail the
+	// decoding of the other fields. It is nil when the body has none.
+	Errors jsontext.Value `json:"errors"`
+}
+
+// fieldError is one entry of an _errors list in a Discord error response,
+// such as {"code": "BASE_TYPE_MAX_LENGTH", "message": "Must be 4096 or fewer
+// in length."}. Its message is left out, since it can quote the request.
+type fieldError struct {
+	// Code names the error, such as BASE_TYPE_REQUIRED.
+	Code string `json:"code"`
 }
 
 // HTTP settings for requests to Discord.
@@ -108,9 +121,15 @@ const (
 
 	// serverErrorStatusCode is the HTTP status code for server errors (5xx).
 	serverErrorStatusCode = 500
-	// maxReasonLength is the most characters of Discord's error message that
-	// an error quotes. Discord's messages are short, such as "Unknown Webhook".
+	// maxReasonLength is the most characters of Discord's error message, and
+	// of its list of invalid fields, that an error quotes. Discord's messages
+	// are short, such as "Unknown Webhook".
 	maxReasonLength = 200
+	// maxFieldErrors is the most invalid fields an error names.
+	maxFieldErrors = 5
+	// fieldErrorsKey is the key of the list of errors at each level of a
+	// Discord errors object.
+	fieldErrorsKey = "_errors"
 )
 
 // Retry limits and backoff for sends.
@@ -280,25 +299,61 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	return req, nil
 }
 
-// reason returns the body's message as an error can quote it.
+// fieldErrors lists the invalid fields named by the body's errors object.
 //
-// The message is the provider's text, so it is kept to one line and to
-// 200 characters, which leaves it safe to log and to match on. Each run of
-// characters that are not printable, such as newlines and tabs, becomes one
-// space.
+// Discord nests the object by field path, such as embeds, then 0, then
+// description, with an _errors list at each level that has errors. Each entry
+// is the path joined with dots, a colon, and the entry's code, or the code
+// alone for an _errors list at the top. A part of the object that does not
+// have this shape is skipped.
 //
 // Returns:
-//   - string: the cleaned message, or empty when the body has none.
+//   - []string: up to five entries in the order the body lists them, or nil
+//     when the body has no errors object.
+func (b errorBody) fieldErrors() []string {
+	if len(b.Errors) == 0 {
+		return nil
+	}
+
+	var found []string
+
+	// A malformed errors object only ends the list early.
+	walkFieldErrors(jsontext.NewDecoder(bytes.NewReader(b.Errors)), "", &found)
+
+	return found
+}
+
+// reason returns the body's message, code, and invalid fields as an error
+// can quote them, such as "Invalid Form Body (code 50035):
+// embeds.0.description: BASE_TYPE_MAX_LENGTH".
+//
+// The code follows the message when the body has one. The invalid fields
+// follow for a body with an errors object: up to five, in the order Discord
+// lists them, each as its path and Discord's code for the error, or the code
+// alone for an error about the whole request. Discord's per-field messages
+// are left out, since they can quote the request.
+//
+// Text from the body is kept to one line, and the message and the list of
+// fields to 200 characters each, which leaves the reason safe to log and to
+// match on.
+//
+// Returns:
+//   - string: the reason, or empty when the body has no message.
 func (b errorBody) reason() string {
-	printable := strings.Map(func(r rune) rune {
-		if unicode.IsPrint(r) {
-			return r
-		}
+	message := quotable(b.Message)
+	if message == "" {
+		return ""
+	}
 
-		return ' '
-	}, b.Message)
+	if b.Code != nil {
+		message += fmt.Sprintf(" (code %d)", *b.Code)
+	}
 
-	return util.Ellipsis(strings.Join(strings.Fields(printable), " "), maxReasonLength)
+	if fields := b.fieldErrors(); len(fields) > 0 {
+		message += ": " + quotable(strings.Join(fields, ", "))
+	}
+
+	return message
 }
 
 // isTransientError checks if an error is transient and should be retried.
@@ -683,9 +738,10 @@ func rateLimitWait(res *http.Response, attempt int) time.Duration {
 //
 // Discord answers with a JSON body that gives the reason, such as
 // {"message": "Unknown Webhook", "code": 10015}. The error names the status,
-// then that message and code when the body has them. The message is kept to
-// one line of at most 200 characters. The error never quotes a body that is
-// not Discord's error JSON.
+// then that message and code when the body has them. For a request with
+// invalid fields, up to five of those fields follow, each with Discord's code
+// for its error. Text from the body is kept to one line. The error never
+// quotes a body that is not Discord's error JSON.
 //
 // Parameters:
 //   - res: the response, whose body is read up to [httpbody.MaxSize].
@@ -702,11 +758,102 @@ func statusError(res *http.Response) error {
 		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 	}
 
-	if body.Code == nil {
-		return fmt.Errorf("%w: %s: %s", ErrUnexpectedStatus, res.Status, reason)
+	return fmt.Errorf("%w: %s: %s", ErrUnexpectedStatus, res.Status, reason)
+}
+
+// walkFieldErrors reads one value of a Discord errors object and appends the
+// errors it names to found, up to five.
+//
+// An object's _errors member lists the errors at path, and each other member
+// is the next segment of the path. A value that is not an object adds
+// nothing, and neither does an _errors member that is not a list. In a list,
+// an entry that is not an object with a code is skipped.
+//
+// Parameters:
+//   - dec: the decoder, positioned before the value.
+//   - path: the field path of the value, empty at the top.
+//   - found: the entries so far, each "path: CODE" or "CODE" at the top.
+//
+// Returns:
+//   - bool: whether the value could be read as JSON.
+func walkFieldErrors(dec *jsontext.Decoder, path string, found *[]string) bool {
+	if dec.PeekKind() != jsontext.KindBeginObject {
+		return dec.SkipValue() == nil
 	}
 
-	return fmt.Errorf("%w: %s: %s (code %d)", ErrUnexpectedStatus, res.Status, reason, *body.Code)
+	if _, err := dec.ReadToken(); err != nil {
+		return false
+	}
+
+	for dec.PeekKind() != jsontext.KindEndObject {
+		name, err := dec.ReadToken()
+		if err != nil {
+			return false
+		}
+
+		if name.String() != fieldErrorsKey {
+			child := name.String()
+			if path != "" {
+				child = path + "." + child
+			}
+
+			if !walkFieldErrors(dec, child, found) {
+				return false
+			}
+
+			continue
+		}
+
+		list, err := dec.ReadValue()
+		if err != nil {
+			return false
+		}
+
+		var entries []jsontext.Value
+		if json.Unmarshal(list, &entries, jsonopts.Default) != nil {
+			continue
+		}
+
+		// Each entry decodes on its own, so a malformed one skips only itself.
+		for _, raw := range entries {
+			var entry fieldError
+			if json.Unmarshal(raw, &entry, jsonopts.Default) != nil || entry.Code == "" || len(*found) == maxFieldErrors {
+				continue
+			}
+
+			if path == "" {
+				*found = append(*found, entry.Code)
+			} else {
+				*found = append(*found, path+": "+entry.Code)
+			}
+		}
+	}
+
+	_, err := dec.ReadToken()
+
+	return err == nil
+}
+
+// quotable returns text from a provider's response as an error can quote it.
+//
+// The text is kept to one line and to 200 characters. Each run of characters
+// that are not printable, such as newlines and tabs, becomes one space.
+//
+// Parameters:
+//   - text: the provider's text.
+//
+// Returns:
+//   - string: the cleaned text, empty when nothing printable is left.
+func quotable(text string) string {
+	printable := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+
+		return ' '
+	}, text)
+
+	return util.Ellipsis(strings.Join(strings.Fields(printable), " "), maxReasonLength)
 }
 
 // drainAndClose reads what is left of a response's body, up to

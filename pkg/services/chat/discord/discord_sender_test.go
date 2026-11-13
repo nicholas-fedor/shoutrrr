@@ -418,7 +418,121 @@ func TestErrorBodyReason(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, errorBody{RetryAfter: nil, Code: nil, Message: tt.message}.reason())
+			assert.Equal(t, tt.want, errorBody{RetryAfter: nil, Errors: nil, Code: nil, Message: tt.message}.reason())
+		})
+	}
+}
+
+// TestErrorBodyReasonFields verifies that a reason names the invalid fields of
+// a Discord errors object after the message and code.
+//
+// The first three cases are the array, object, and request errors from
+// Discord's Error Messages reference. The others cover several errors, the
+// limit of five, and parts of the object that do not have Discord's shape,
+// which are skipped while the rest is kept. Invalid UTF-8, which the body
+// allows, ends the list after the fields before it. Discord's per-field
+// messages are never quoted.
+func TestErrorBodyReasonFields(t *testing.T) {
+	t.Parallel()
+
+	const invalid = "Invalid Form Body (code 50035)"
+
+	// tests lists error bodies with the reason each gives.
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "array error",
+			body: `{"code": 50035, "errors": {"activities": {"0": {"platform": {"_errors": [{"code": "BASE_TYPE_CHOICES", "message": "Value must be one of ('desktop', 'android', 'ios')."}]}, "type": {"_errors": [{"code": "BASE_TYPE_CHOICES", "message": "Value must be one of (0, 1, 2, 3, 4, 5)."}]}}}}, "message": "Invalid Form Body"}`,
+			want: invalid + ": activities.0.platform: BASE_TYPE_CHOICES, activities.0.type: BASE_TYPE_CHOICES",
+		},
+		{
+			name: "object error",
+			body: `{"code": 50035, "errors": {"access_token": {"_errors": [{"code": "BASE_TYPE_REQUIRED", "message": "This field is required"}]}}, "message": "Invalid Form Body"}`,
+			want: invalid + ": access_token: BASE_TYPE_REQUIRED",
+		},
+		{
+			name: "request error",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"_errors": [{"code": "APPLICATION_COMMAND_TOO_LARGE", "message": "Command exceeds maximum size (8000)"}]}}`,
+			want: invalid + ": APPLICATION_COMMAND_TOO_LARGE",
+		},
+		{
+			name: "several errors for one field",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": [{"code": "A"}, {"code": "B"}]}}}`,
+			want: invalid + ": content: A, content: B",
+		},
+		{
+			name: "more than five errors",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"a": {"_errors": [{"code": "A1"}, {"code": "A2"}, {"code": "A3"}]}, "b": {"_errors": [{"code": "B1"}, {"code": "B2"}, {"code": "B3"}]}}}`,
+			want: invalid + ": a: A1, a: A2, a: A3, b: B1, b: B2",
+		},
+		{
+			name: "errors that are null",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": null}`,
+			want: invalid,
+		},
+		{
+			name: "errors that are a list",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": [{"code": "A"}]}`,
+			want: invalid,
+		},
+		{
+			name: "member that is not an object",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": 5, "embeds": {"0": {"title": {"_errors": [{"code": "BASE_TYPE_REQUIRED"}]}}}}}`,
+			want: invalid + ": embeds.0.title: BASE_TYPE_REQUIRED",
+		},
+		{
+			name: "_errors that is not a list of objects",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": "x"}, "username": {"_errors": [{"code": 5}]}, "embeds": {"_errors": [{"code": "MAX_EMBEDS"}]}}}`,
+			want: invalid + ": embeds: MAX_EMBEDS",
+		},
+		{
+			name: "invalid UTF-8 ends the list",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"a": {"_errors": [{"code": "A"}]}, "b` + "\xff" + `": {"_errors": [{"code": "B"}]}}}`,
+			want: invalid + ": a: A",
+		},
+		{
+			name: "malformed entries among valid ones",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": [{"code": 5}, {"code": "BASE_TYPE_REQUIRED"}, "x", {"code": "BASE_TYPE_MAX_LENGTH"}]}}}`,
+			want: invalid + ": content: BASE_TYPE_REQUIRED, content: BASE_TYPE_MAX_LENGTH",
+		},
+		{
+			name: "entry without a code",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": [{"message": "Must be 2000 or fewer in length."}, {"code": "BASE_TYPE_MAX_LENGTH"}]}}}`,
+			want: invalid + ": content: BASE_TYPE_MAX_LENGTH",
+		},
+		{
+			name: "path and code with characters that are not printable",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"con\ntent": {"_errors": [{"code": "BASE\tTYPE"}]}}}`,
+			want: invalid + ": con tent: BASE TYPE",
+		},
+		{
+			name: "long list",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"` + strings.Repeat("p", 300) + `": {"_errors": [{"code": "X"}]}}}`,
+			want: invalid + ": " + strings.Repeat("p", 194) + " [...]",
+		},
+		{
+			name: "no code",
+			body: `{"message": "Invalid Form Body", "errors": {"content": {"_errors": [{"code": "BASE_TYPE_REQUIRED"}]}}}`,
+			want: "Invalid Form Body: content: BASE_TYPE_REQUIRED",
+		},
+		{
+			name: "errors without a message",
+			body: `{"code": 50035, "errors": {"content": {"_errors": [{"code": "BASE_TYPE_REQUIRED"}]}}}`,
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, ok := readErrorBody(strings.NewReader(tt.body))
+			require.True(t, ok, "the body decodes")
+
+			assert.Equal(t, tt.want, body.reason())
 		})
 	}
 }
