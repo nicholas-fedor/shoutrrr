@@ -1,6 +1,8 @@
 package discord
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -11,17 +13,42 @@ import (
 
 // WebhookPayload is the webhook endpoint payload.
 type WebhookPayload struct {
+	// AllowedMentions sets which mentions in the content ping. Without it,
+	// Discord pings every mention in a channel webhook's content.
+	AllowedMentions *allowedMentions `json:"allowed_mentions,omitzero"`
 	// Content is the plain message text, used when the message has no embeds.
 	Content string `json:"content,omitempty"`
-	// Embeds holds an embed for each message item, at most [MaxEmbeds].
-	Embeds []embedItem `json:"embeds,omitempty"`
 	// Username replaces the webhook's default username when set.
 	Username string `json:"username,omitempty"`
 	// AvatarURL replaces the webhook's default avatar when set.
 	AvatarURL string `json:"avatar_url,omitempty"`
+	// Embeds holds an embed for each message item, at most [MaxEmbeds].
+	Embeds []embedItem `json:"embeds,omitempty"`
 	// Attachments describes the files sent with the payload, in the order of
 	// the multipart file parts.
 	Attachments []attachment `json:"attachments,omitempty"`
+}
+
+// allowedMentions is Discord's allowed mentions object, which sets which
+// mentions in a message's content ping.
+type allowedMentions struct {
+	// Parse lists the mention types Discord pings from the content. The type
+	// everyone covers @everyone and @here. A nil list encodes as an empty
+	// one, which pings none of them.
+	Parse []string `json:"parse"`
+	// Users lists the IDs of users to ping, at most 100.
+	Users []string `json:"users,omitempty"`
+	// Roles lists the IDs of roles to ping, at most 100.
+	Roles []string `json:"roles,omitempty"`
+}
+
+// mentionSet holds the mentions that a send pings.
+type mentionSet struct {
+	// text holds the mentions as Discord writes them, such as
+	// "@here <@&123>", or is empty for none.
+	text string
+	// allowed lets exactly the mentions in text ping.
+	allowed allowedMentions
 }
 
 // embedItem is one embed in a webhook payload, built from a message item.
@@ -105,6 +132,19 @@ const (
 	MaxEmbeds = 10
 )
 
+// Mention settings from Discord's allowed mentions documentation.
+const (
+	// maxMentionIDs is the most user IDs, and the most role IDs, an allowed
+	// mentions object lists.
+	maxMentionIDs = 100
+	// everyoneMentions is the allowed mention type for @everyone and @here.
+	everyoneMentions = "everyone"
+	// userMentionPrefix starts a user mention in the mentions key.
+	userMentionPrefix = "user:"
+	// roleMentionPrefix starts a role mention in the mentions key.
+	roleMentionPrefix = "role:"
+)
+
 // Embed limits from Discord's message documentation, in characters.
 const (
 	// maxEmbedTitle is the longest embed title.
@@ -122,6 +162,86 @@ const (
 	// maxAuthorName is the longest embed author name.
 	maxAuthorName = 256
 )
+
+// add lets one mention from the mentions key ping.
+//
+// Parameters:
+//   - mention: everyone, here, user:ID, or role:ID, in any case, without
+//     surrounding whitespace.
+//
+// Returns:
+//   - string: the mention as Discord writes it, such as @here or <@&ID>.
+//   - error: an error wrapping [ErrInvalidMention] for any other mention.
+func (a *allowedMentions) add(mention string) (string, error) {
+	switch {
+	case strings.EqualFold(mention, "everyone"), strings.EqualFold(mention, "here"):
+		if !slices.Contains(a.Parse, everyoneMentions) {
+			a.Parse = append(a.Parse, everyoneMentions)
+		}
+
+		return "@" + strings.ToLower(mention), nil
+	case hasPrefixFold(mention, userMentionPrefix) && isSnowflake(mention[len(userMentionPrefix):]):
+		id := mention[len(userMentionPrefix):]
+		if !slices.Contains(a.Users, id) {
+			a.Users = append(a.Users, id)
+		}
+
+		return "<@" + id + ">", nil
+	case hasPrefixFold(mention, roleMentionPrefix) && isSnowflake(mention[len(roleMentionPrefix):]):
+		id := mention[len(roleMentionPrefix):]
+		if !slices.Contains(a.Roles, id) {
+			a.Roles = append(a.Roles, id)
+		}
+
+		return "<@&" + id + ">", nil
+	default:
+		return "", fmt.Errorf("%w: %q", ErrInvalidMention, mention)
+	}
+}
+
+// apply puts the mentions on one request's payload.
+//
+// Every request lets only the send's mentions ping, so a mention in the
+// message text, such as @everyone in a log line, never does. The first
+// request of a send carries the mentions in front of its content, or as its
+// whole content when its message goes as embeds. Later requests, and every
+// request of a send without mentions, let no mention ping.
+//
+// Parameters:
+//   - payload: the request's payload.
+//   - first: whether the request is the first of its send.
+func (m *mentionSet) apply(payload *WebhookPayload, first bool) {
+	if !first || m.text == "" {
+		payload.AllowedMentions = &allowedMentions{Parse: nil, Users: nil, Roles: nil}
+
+		return
+	}
+
+	allowed := m.allowed
+	payload.AllowedMentions = &allowed
+
+	if payload.Content == "" {
+		payload.Content = m.text
+	} else {
+		payload.Content = m.text + " " + payload.Content
+	}
+}
+
+// fits reports whether content still fits Discord's 2000-character limit
+// for message content with the mentions in front of it.
+//
+// Parameters:
+//   - content: the message content.
+//
+// Returns:
+//   - bool: whether the mentions and content fit together.
+func (m *mentionSet) fits(content string) bool {
+	if m.text == "" {
+		return true
+	}
+
+	return utf8.RuneCountInString(m.text)+1+utf8.RuneCountInString(content) <= ChunkSize
+}
 
 // hasEmbedFields checks if the fields contain any fields that should trigger embed processing.
 //
@@ -423,4 +543,17 @@ func fitEmbed(embed *embedItem, budget int) {
 			embed.Footer = nil
 		}
 	}
+}
+
+// hasPrefixFold reports whether text starts with prefix, ignoring ASCII and
+// Unicode letter case.
+//
+// Parameters:
+//   - text: the text.
+//   - prefix: the prefix.
+//
+// Returns:
+//   - bool: whether text starts with prefix.
+func hasPrefixFold(text, prefix string) bool {
+	return len(text) >= len(prefix) && strings.EqualFold(text[:len(prefix)], prefix)
 }

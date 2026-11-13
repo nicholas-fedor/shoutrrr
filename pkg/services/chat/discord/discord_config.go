@@ -3,6 +3,7 @@ package discord
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,8 +15,8 @@ import (
 
 // Config holds the settings required for sending Discord notifications.
 //
-// Reading a service URL checks the webhook ID, token, and thread ID. Each
-// send checks them again after applying its params. A Config built in code or
+// Reading a service URL checks the webhook ID, token, thread ID, and
+// mentions. Each send checks them again after applying its params. A Config built in code or
 // a param with an invalid value fails before any request with an error such as
 // [ErrInvalidWebhookID].
 type Config struct {
@@ -38,6 +39,14 @@ type Config struct {
 	// ThreadID is the thread to post the message in. It is sent as the
 	// thread_id query parameter of the webhook URL.
 	ThreadID string `default:"" desc:"The thread ID to send the message to" key:"thread_id"`
+	// Mentions lists who each send pings: everyone, here, user:ID, or
+	// role:ID. Shoutrrr adds them to the message content of the send's first
+	// request, the only place Discord notifies them from, and allows only
+	// them. A mention already in the message pings only when the list allows
+	// it, and Discord counts @everyone and @here as one kind, so listing
+	// either allows both. JSON mode sends its payload as it is and ignores
+	// them.
+	Mentions []string `desc:"Mentions to add to each message, the only ones that ping: everyone, here, user:ID, or role:ID" key:"mentions" optional:""`
 	// Color is the embed color for messages without a level.
 	Color uint `base:"16" default:"0x50D9ff" desc:"The color of the left border for plain messages" key:"color"`
 	// ColorError is the embed color for error messages.
@@ -120,6 +129,48 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return result
 }
 
+// mentions reads the config's mentions into the text that goes in front of
+// the message content and the allowed mentions that let exactly them ping.
+//
+// Each mention is everyone, here, user:ID, or role:ID, in any case, with a
+// snowflake as the ID. They become @everyone, @here, <@ID>, and <@&ID> in the
+// text, in the order given. Blank and repeated mentions are left out.
+//
+// Returns:
+//   - mentionSet: the mentions, empty when the config has none.
+//   - error: an error wrapping [ErrInvalidMention] for a mention that cannot
+//     be read, or for more than 100 user or role mentions.
+func (c *Config) mentions() (mentionSet, error) {
+	var (
+		set    mentionSet
+		tokens []string
+	)
+
+	for _, mention := range c.Mentions {
+		mention = strings.TrimSpace(mention)
+		if mention == "" {
+			continue
+		}
+
+		token, err := set.allowed.add(mention)
+		if err != nil {
+			return mentionSet{}, err
+		}
+
+		if !slices.Contains(tokens, token) {
+			tokens = append(tokens, token)
+		}
+	}
+
+	if len(set.allowed.Users) > maxMentionIDs || len(set.allowed.Roles) > maxMentionIDs {
+		return mentionSet{}, fmt.Errorf("%w: more than %d user or role mentions", ErrInvalidMention, maxMentionIDs)
+	}
+
+	set.text = strings.Join(tokens, " ")
+
+	return set, nil
+}
+
 // postURL builds the webhook URL of a config that passes the checks described
 // on [Config], as [CreatePostURLFromConfig] describes it.
 //
@@ -192,7 +243,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //     ID or token. [ErrInvalidWebhookID] or [ErrInvalidThreadID] for a webhook
 //     ID or thread ID that is not a snowflake. An error wrapping
 //     [util.ErrInvalidPathSegment] for a token that is not one path segment.
-//     Otherwise nil.
+//     An error wrapping [ErrInvalidMention] for a mention that cannot be
+//     read. Otherwise nil.
 func (c *Config) validate() error {
 	webhookID := strings.TrimSpace(c.WebhookID)
 	if webhookID == "" {
@@ -214,6 +266,10 @@ func (c *Config) validate() error {
 
 	if threadID := strings.TrimSpace(c.ThreadID); threadID != "" && !isSnowflake(threadID) {
 		return ErrInvalidThreadID
+	}
+
+	if _, err := c.mentions(); err != nil {
+		return err
 	}
 
 	return nil

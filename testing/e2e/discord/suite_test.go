@@ -23,6 +23,8 @@ const testDelay = 100 * time.Millisecond
 // Environment variables:
 //   - SHOUTRRR_DISCORD_URL: the Discord webhook service URL, such as discord://TOKEN@WEBHOOK_ID
 //   - SHOUTRRR_DISCORD_THREAD_ID: an existing thread in the webhook's channel (optional)
+//   - SHOUTRRR_DISCORD_USER_ID: a user the mention test pings (optional)
+//   - SHOUTRRR_DISCORD_ROLE_ID: a mentionable role the mention test pings (optional)
 func TestMain(m *testing.M) {
 	loadEnvFile(".env")
 

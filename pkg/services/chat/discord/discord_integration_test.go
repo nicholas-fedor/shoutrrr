@@ -89,6 +89,19 @@ type wirePayload struct {
 	Embeds []wireEmbed `json:"embeds"`
 	// Attachments holds the attachment metadata for the uploaded files.
 	Attachments []wireAttachment `json:"attachments"`
+	// AllowedMentions is the allowed mentions object, or nil when the
+	// payload has none.
+	AllowedMentions *wireAllowedMentions `json:"allowed_mentions"`
+}
+
+// wireAllowedMentions is the allowed mentions object the tests decode.
+type wireAllowedMentions struct {
+	// Parse lists the mention types to ping.
+	Parse []string `json:"parse"`
+	// Users lists the user IDs to ping.
+	Users []string `json:"users"`
+	// Roles lists the role IDs to ping.
+	Roles []string `json:"roles"`
 }
 
 // wireEmbed is the part of an embed the tests decode.
@@ -278,7 +291,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			rawURL:   testServiceURL,
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "empty params",
@@ -286,35 +299,35 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "numeric webhook ID and token",
 			rawURL:   "discord://123@456",
 			message:  testMessage,
 			wantURL:  testHooksBaseURL + "/456/123?wait=true",
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "token with reserved characters",
 			rawURL:   "discord://a%3Fc%23d%25zz@456",
 			message:  testMessage,
 			wantURL:  testHooksBaseURL + "/456/a%3Fc%23d%25zz?wait=true",
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "thread from the URL",
 			rawURL:   testServiceURL + "?thread_id=123456789",
 			message:  testMessage,
 			wantURL:  testPostPath + "?thread_id=123456789&wait=true",
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "thread ID with surrounding spaces",
 			rawURL:   testServiceURL + "?thread_id=%20%20123456789%20%20",
 			message:  testMessage,
 			wantURL:  testPostPath + "?thread_id=123456789&wait=true",
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "thread from params replaces the URL's",
@@ -322,14 +335,14 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"thread_id": "444555666"},
 			message:  testMessage,
 			wantURL:  testPostPath + "?thread_id=444555666&wait=true",
-			wantBody: `{"content":"Test message"}`,
+			wantBody: `{"content":"Test message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "username and avatar from the URL",
 			rawURL:   testServiceURL + "?username=URLBot&avatar=https://example.com/url-avatar.png",
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message","username":"URLBot","avatar_url":"https://example.com/url-avatar.png"}`,
+			wantBody: `{"content":"Test message","username":"URLBot","avatar_url":"https://example.com/url-avatar.png","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "username and avatar from params",
@@ -337,7 +350,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"username": "テストボット", "avatar": "https://example.com/avatar.png?size=128"},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message","username":"テストボット","avatar_url":"https://example.com/avatar.png?size=128"}`,
+			wantBody: `{"content":"Test message","username":"テストボット","avatar_url":"https://example.com/avatar.png?size=128","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "params replace the URL's username",
@@ -345,7 +358,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"username": "ParamBot"},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message","username":"ParamBot"}`,
+			wantBody: `{"content":"Test message","username":"ParamBot","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "avatarurl alias with a data URL",
@@ -353,7 +366,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"avatarurl": "data:image/png;base64,iVBORw0KGgo="},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test message","avatar_url":"data:image/png;base64,iVBORw0KGgo="}`,
+			wantBody: `{"content":"Test message","avatar_url":"data:image/png;base64,iVBORw0KGgo=","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "thread with username and avatar",
@@ -361,7 +374,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"username": "ThreadBot", "avatar": "https://example.com/thread-avatar.png"},
 			message:  "Thread message with custom appearance",
 			wantURL:  testPostPath + "?thread_id=555666777&wait=true",
-			wantBody: `{"content":"Thread message with custom appearance","username":"ThreadBot","avatar_url":"https://example.com/thread-avatar.png"}`,
+			wantBody: `{"content":"Thread message with custom appearance","username":"ThreadBot","avatar_url":"https://example.com/thread-avatar.png","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "title from params makes an embed with the default color",
@@ -369,14 +382,14 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"title": "Custom Title"},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"embeds":[{"title":"Custom Title","description":"Test message","color":5298687}]}`,
+			wantBody: `{"embeds":[{"title":"Custom Title","description":"Test message","color":5298687}],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "title and hex color from the URL",
 			rawURL:   testServiceURL + "?title=Alert&color=ff0000",
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"embeds":[{"title":"Alert","description":"Test message","color":16711680}]}`,
+			wantBody: `{"embeds":[{"title":"Alert","description":"Test message","color":16711680}],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "color with a hash prefix from params",
@@ -384,7 +397,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"title": "Alert", "color": "#00ff00"},
 			message:  testMessage,
 			wantURL:  testPostURL,
-			wantBody: `{"embeds":[{"title":"Alert","description":"Test message","color":65280}]}`,
+			wantBody: `{"embeds":[{"title":"Alert","description":"Test message","color":65280}],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:   "every param together, with color digits read as hex",
@@ -398,14 +411,14 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			},
 			message:  "Complex parameter combination test",
 			wantURL:  testPostURL,
-			wantBody: `{"embeds":[{"title":"Complex Test","description":"Complex parameter combination test","color":376924512}],"username":"ComplexBot","avatar_url":"https://example.com/complex-avatar.png"}`,
+			wantBody: `{"embeds":[{"title":"Complex Test","description":"Complex parameter combination test","color":376924512}],"username":"ComplexBot","avatar_url":"https://example.com/complex-avatar.png","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "each line becomes an embed and empty lines are skipped",
 			rawURL:   testServiceURL,
 			message:  "Line 1\nLine 2\n\nLine 3",
 			wantURL:  testPostURL,
-			wantBody: `{"embeds":[{"description":"Line 1","color":5298687},{"description":"Line 2","color":5298687},{"description":"Line 3","color":5298687}]}`,
+			wantBody: `{"embeds":[{"description":"Line 1","color":5298687},{"description":"Line 2","color":5298687},{"description":"Line 3","color":5298687}],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "lines stay together when splitLines is off",
@@ -413,35 +426,35 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			params:   &types.Params{"splitLines": "false"},
 			message:  "Line 1\nLine 2",
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Line 1\nLine 2"}`,
+			wantBody: `{"content":"Line 1\nLine 2","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "unicode text",
 			rawURL:   testServiceURL,
 			message:  "Hello 🌍 世界 こんにちは مرحبا café naïve",
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Hello 🌍 世界 こんにちは مرحبا café naïve"}`,
+			wantBody: `{"content":"Hello 🌍 世界 こんにちは مرحبا café naïve","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "zero-width spaces",
 			rawURL:   testServiceURL,
 			message:  "test\u200bhidden\u200btext",
 			wantURL:  testPostURL,
-			wantBody: `{"content":"test\u200bhidden\u200btext"}`,
+			wantBody: `{"content":"test\u200bhidden\u200btext","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "control characters",
 			rawURL:   testServiceURL,
 			message:  "Col1\tCol2\x00More\x1b[31mRed\x1b[0m\fPage\vTab\bEnd",
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Col1\tCol2\u0000More\u001b[31mRed\u001b[0m\fPage\u000bTab\bEnd"}`,
+			wantBody: `{"content":"Col1\tCol2\u0000More\u001b[31mRed\u001b[0m\fPage\u000bTab\bEnd","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "invalid UTF-8 becomes replacement characters",
 			rawURL:   testServiceURL,
 			message:  string([]byte{0x80, 0x81, 0x82}),
 			wantURL:  testPostURL,
-			wantBody: `{"content":"\ufffd\ufffd\ufffd"}`,
+			wantBody: `{"content":"\ufffd\ufffd\ufffd","allowed_mentions":{"parse":[]}}`,
 		},
 	}
 
@@ -478,9 +491,9 @@ func TestIntegrationSendParamsApplyToOneSend(t *testing.T) {
 	sent := hook.sent()
 	require.Len(t, sent, 2)
 	assert.Equal(t, testPostPath+"?thread_id=456&wait=true", sent[0].url)
-	assert.JSONEq(t, `{"embeds":[{"title":"Once","description":"First","color":5298687}],"username":"OnceBot"}`, string(sent[0].body))
+	assert.JSONEq(t, `{"embeds":[{"title":"Once","description":"First","color":5298687}],"username":"OnceBot","allowed_mentions":{"parse":[]}}`, string(sent[0].body))
 	assert.Equal(t, testPostPath+"?thread_id=123&wait=true", sent[1].url)
-	assert.JSONEq(t, `{"content":"Second"}`, string(sent[1].body))
+	assert.JSONEq(t, `{"content":"Second","allowed_mentions":{"parse":[]}}`, string(sent[1].body))
 }
 
 // TestIntegrationSendJSONMode verifies that JSON mode posts the message
@@ -703,6 +716,175 @@ func TestIntegrationSendLongMessage(t *testing.T) {
 	}
 }
 
+// TestIntegrationSendMentions verifies that the mentions key pings from the
+// first request of each send, and that nothing else pings.
+//
+// A short message stays content with the mentions in front of it. A message
+// sent as embeds gets the mentions as its content. A message that fits as
+// content only without the mentions goes as an embed. Later requests of a
+// long send ping no one. The allowed mentions let exactly the configured
+// mentions ping. A mentions param sets them per send. A send without
+// mentions lets no mention in its text ping. JSON mode sends its payload as
+// it is.
+func TestIntegrationSendMentions(t *testing.T) {
+	t.Parallel()
+
+	const role = "123456789012345678"
+
+	pingHereAndRole := &wireAllowedMentions{Parse: []string{"everyone"}, Users: nil, Roles: []string{role}}
+	pingNone := &wireAllowedMentions{Parse: []string{}, Users: nil, Roles: nil}
+	nearlyFull := strings.Repeat("a", discord.ChunkSize-5)
+
+	// tests lists sends with the payload each request should carry.
+	tests := []struct {
+		name     string
+		rawURL   string
+		params   *types.Params
+		message  string
+		requests int
+		want     []wirePayload
+	}{
+		{
+			name:     "short message stays content",
+			rawURL:   testServiceURL + "?mentions=here,role:" + role,
+			message:  "Backup failed",
+			requests: 1,
+			want:     []wirePayload{{Content: "@here <@&" + role + "> Backup failed", AllowedMentions: pingHereAndRole}},
+		},
+		{
+			name:     "embed message gets the mentions as content",
+			rawURL:   testServiceURL + "?mentions=here,role:" + role + "&title=Watchtower",
+			message:  "Updated 3 containers",
+			requests: 1,
+			want: []wirePayload{{
+				Content:         "@here <@&" + role + ">",
+				Embeds:          []wireEmbed{{Title: "Watchtower", Description: "Updated 3 containers"}},
+				AllowedMentions: pingHereAndRole,
+			}},
+		},
+		{
+			name:     "message that fills content with the mentions stays content",
+			rawURL:   testServiceURL + "?mentions=user:42",
+			message:  strings.Repeat("a", discord.ChunkSize-6),
+			requests: 1,
+			want: []wirePayload{{
+				Content:         "<@42> " + strings.Repeat("a", discord.ChunkSize-6),
+				AllowedMentions: &wireAllowedMentions{Parse: []string{}, Users: []string{"42"}, Roles: nil},
+			}},
+		},
+		{
+			name:     "message too long for content with the mentions goes as an embed",
+			rawURL:   testServiceURL + "?mentions=user:42",
+			message:  nearlyFull,
+			requests: 1,
+			want: []wirePayload{{
+				Content:         "<@42>",
+				Embeds:          []wireEmbed{{Description: nearlyFull}},
+				AllowedMentions: &wireAllowedMentions{Parse: []string{}, Users: []string{"42"}, Roles: nil},
+			}},
+		},
+		{
+			name:     "message moved into an embed keeps its level",
+			rawURL:   testServiceURL + "?mentions=user:42",
+			params:   &types.Params{"level": "Info"},
+			message:  nearlyFull,
+			requests: 1,
+			want: []wirePayload{{
+				Content:         "<@42>",
+				Embeds:          []wireEmbed{{Description: nearlyFull, Footer: &wireFooter{Text: "Info"}}},
+				AllowedMentions: &wireAllowedMentions{Parse: []string{}, Users: []string{"42"}, Roles: nil},
+			}},
+		},
+		{
+			name:     "later requests ping no one",
+			rawURL:   testServiceURL + "?mentions=everyone&splitLines=no",
+			message:  strings.Repeat("a", discord.TotalChunkSize+100),
+			requests: 2,
+			want: []wirePayload{
+				{
+					Content: "@everyone",
+					Embeds: []wireEmbed{
+						{Description: strings.Repeat("a", 2000)},
+						{Description: strings.Repeat("a", 2000)},
+						{Description: strings.Repeat("a", 2000)},
+					},
+					AllowedMentions: &wireAllowedMentions{Parse: []string{"everyone"}, Users: nil, Roles: nil},
+				},
+				{Embeds: []wireEmbed{{Description: strings.Repeat("a", 100)}}, AllowedMentions: pingNone},
+			},
+		},
+		{
+			name:     "mentions param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"mentions": "here"},
+			message:  "Disk full",
+			requests: 1,
+			want:     []wirePayload{{Content: "@here Disk full", AllowedMentions: &wireAllowedMentions{Parse: []string{"everyone"}, Users: nil, Roles: nil}}},
+		},
+		{
+			name:     "mentions in the text alone ping no one",
+			rawURL:   testServiceURL,
+			message:  "@everyone deployed <@42>",
+			requests: 1,
+			want:     []wirePayload{{Content: "@everyone deployed <@42>", AllowedMentions: pingNone}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, hook := newWebhook(t, repeatReply(noContent, tt.requests)...)
+
+			require.NoError(t, newService(t, tt.rawURL, client).Send(tt.message, tt.params))
+
+			sent := hook.sent()
+			require.Len(t, sent, len(tt.want))
+
+			for i, req := range sent {
+				assert.Equal(t, tt.want[i], decodePayload(t, req.body), "request %d", i)
+			}
+		})
+	}
+
+	t.Run("rich send with a file", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, noContent)
+		service := newService(t, testServiceURL+"?mentions=here", client)
+		items := []types.MessageItem{{Text: "Report", File: &types.File{Name: "report.txt", Data: []byte("body")}}}
+
+		require.NoError(t, service.SendItemsContext(t.Context(), items, nil))
+
+		payloadJSON, _ := readMultipart(t, hook.sent()[0])
+		payload := decodePayload(t, []byte(payloadJSON))
+		assert.Equal(t, "@here", payload.Content)
+		assert.Equal(t, &wireAllowedMentions{Parse: []string{"everyone"}, Users: nil, Roles: nil}, payload.AllowedMentions)
+	})
+
+	t.Run("JSON mode sends its payload as it is", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, noContent)
+		message := `{"content":"raw"}`
+
+		require.NoError(t, newService(t, testServiceURL+"?json=true&mentions=here", client).Send(message, nil))
+		assert.JSONEq(t, message, string(hook.sent()[0].body))
+	})
+
+	t.Run("invalid mention", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL, err := url.Parse(testServiceURL + "?mentions=channel")
+		require.NoError(t, err)
+		require.ErrorIs(t, (&discord.Service{}).Initialize(serviceURL, nil), discord.ErrInvalidMention)
+
+		// The mock has no expected calls, so a request fails the test.
+		service := newService(t, testServiceURL, mocks.NewMockHTTPClient(t))
+		require.ErrorIs(t, service.Send(testMessage, &types.Params{"mentions": "role:admins"}), discord.ErrInvalidMention)
+	})
+}
+
 // TestIntegrationSendBatchFailure verifies that when one batch of a long
 // message fails, the remaining batches are still sent and the send reports the
 // failure.
@@ -744,7 +926,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 			rawURL:   testServiceURL,
 			items:    []types.MessageItem{{Text: "Test plain text message"}},
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Test plain text message"}`,
+			wantBody: `{"content":"Test plain text message","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:   "embed with every part",
@@ -774,7 +956,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 				"image":{"url":"https://example.com/image.png"},
 				"thumbnail":{"url":"https://example.com/thumb.png"},
 				"fields":[{"name":"Status","value":"Active"},{"name":"Priority","value":"High"},{"name":"Assignee","value":"John Doe"}]
-			}]}`,
+			}],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:   "several items with default level colors and a title",
@@ -792,7 +974,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 				{"description":"Disk almost full","color":16761921,"footer":{"text":"Warning"}},
 				{"description":"Disk check ran","color":8061099,"footer":{"text":"Debug"}},
 				{"description":"Disk report","color":5298687}
-			]}`,
+			],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:   "level colors from the URL",
@@ -805,7 +987,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 			wantBody: `{"embeds":[
 				{"description":"Failed","color":16711680,"footer":{"text":"Error"}},
 				{"description":"Recovered","color":65280,"footer":{"text":"Info"}}
-			]}`,
+			],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:    "several plain items become embeds",
@@ -816,7 +998,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 				{"description":"First message","color":5298687},
 				{"description":"Second message","color":5298687},
 				{"description":"Third message","color":5298687}
-			]}`,
+			],"allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:     "username and avatar from params",
@@ -824,7 +1006,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 			params:   types.Params{"username": "TestBot", "avatar": "https://example.com/avatar.png"},
 			items:    []types.MessageItem{{Text: "Message with params"}},
 			wantURL:  testPostURL,
-			wantBody: `{"content":"Message with params","username":"TestBot","avatar_url":"https://example.com/avatar.png"}`,
+			wantBody: `{"content":"Message with params","username":"TestBot","avatar_url":"https://example.com/avatar.png","allowed_mentions":{"parse":[]}}`,
 		},
 		{
 			name:   "embed sent to the thread from the URL",
@@ -840,7 +1022,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 				"color":2394367,
 				"footer":{"text":"Info"},
 				"fields":[{"name":"Thread","value":"Yes"},{"name":"Type","value":"Test"}]
-			}]}`,
+			}],"allowed_mentions":{"parse":[]}}`,
 		},
 	}
 
@@ -914,7 +1096,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 			rawURL:      testServiceURL,
 			items:       []types.MessageItem{{Text: "Test message with file", File: &types.File{Name: "test.txt", Data: []byte("test file content")}}},
 			wantURL:     testPostURL,
-			wantPayload: `{"embeds":[{"description":"Test message with file","color":5298687}],"attachments":[{"id":0,"filename":"test.txt"}]}`,
+			wantPayload: `{"embeds":[{"description":"Test message with file","color":5298687}],"attachments":[{"id":0,"filename":"test.txt"}],"allowed_mentions":{"parse":[]}}`,
 			wantFiles:   []sentFile{{field: "files[0]", name: "test.txt", data: []byte("test file content")}},
 		},
 		{
@@ -939,7 +1121,8 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 					{"id":1,"filename":"data.bin"},
 					{"id":2,"filename":"image.png"},
 					{"id":3,"filename":"unicode.txt"}
-				]
+				],
+				"allowed_mentions":{"parse":[]}
 			}`,
 			wantFiles: []sentFile{
 				{field: "files[0]", name: "data.json", data: []byte(`{"key": "value"}`)},
@@ -953,7 +1136,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 			rawURL:      testServiceURL,
 			items:       []types.MessageItem{{Text: "Large file test", File: &types.File{Name: "large.bin", Data: largeData}}},
 			wantURL:     testPostURL,
-			wantPayload: `{"embeds":[{"description":"Large file test","color":5298687}],"attachments":[{"id":0,"filename":"large.bin"}]}`,
+			wantPayload: `{"embeds":[{"description":"Large file test","color":5298687}],"attachments":[{"id":0,"filename":"large.bin"}],"allowed_mentions":{"parse":[]}}`,
 			wantFiles:   []sentFile{{field: "files[0]", name: "large.bin", data: largeData}},
 		},
 		{
@@ -961,7 +1144,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 			rawURL:      testServiceURL,
 			items:       []types.MessageItem{{Text: "Empty file", File: &types.File{Name: "empty.txt", Data: []byte{}}}},
 			wantURL:     testPostURL,
-			wantPayload: `{"embeds":[{"description":"Empty file","color":5298687}],"attachments":[{"id":0,"filename":"empty.txt"}]}`,
+			wantPayload: `{"embeds":[{"description":"Empty file","color":5298687}],"attachments":[{"id":0,"filename":"empty.txt"}],"allowed_mentions":{"parse":[]}}`,
 			wantFiles:   []sentFile{{field: "files[0]", name: "empty.txt", data: []byte{}}},
 		},
 		{
@@ -991,7 +1174,8 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 					{"description":"Second file in thread","color":5298687}
 				],
 				"attachments":[{"id":0,"filename":"file1.txt"},{"id":1,"filename":"file2.txt"}],
-				"username":"FileBot"
+				"username":"FileBot",
+				"allowed_mentions":{"parse":[]}
 			}`,
 			wantFiles: []sentFile{
 				{field: "files[0]", name: "file1.txt", data: []byte("content 1")},
@@ -1421,7 +1605,7 @@ func TestIntegrationSendRetries(t *testing.T) {
 					assert.Equal(t, testPostURL, req.url)
 					assert.Equal(t, "application/json", req.header.Get("Content-Type"))
 					assert.NotEmpty(t, req.header.Get("User-Agent"))
-					assert.JSONEq(t, `{"content":"Test message"}`, string(req.body))
+					assert.JSONEq(t, `{"content":"Test message","allowed_mentions":{"parse":[]}}`, string(req.body))
 				}
 			})
 		})

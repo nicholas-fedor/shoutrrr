@@ -35,4 +35,9 @@ var (
 
 	// ErrMissingToken indicates a config without a token.
 	ErrMissingToken = errors.New("token missing from config")
+
+	// ErrInvalidMention indicates a mention that is not everyone, here,
+	// user:ID, or role:ID with a Discord snowflake as the ID, or more than 100
+	// user or role mentions.
+	ErrInvalidMention = errors.New("invalid mention")
 )

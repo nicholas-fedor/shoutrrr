@@ -35,6 +35,13 @@ The end-to-end tests validate the complete Discord webhook functionality by maki
 - Posting to existing threads using `thread_id`
 - Thread permission and state handling
 
+### Mentions
+
+- `@everyone` in the text alone does not ping
+- `mentions=here` pings from plain content and beside embeds
+- `mentions=user:ID` and `mentions=role:ID` ping a user and a role
+- Each case reads which mentions Discord parsed from the message it returns
+
 ### Configuration Options
 
 - Custom username and avatar overrides
@@ -71,7 +78,15 @@ SHOUTRRR_DISCORD_URL=discord://YOUR_WEBHOOK_TOKEN@YOUR_WEBHOOK_ID
 
 # Optional: Thread ID for thread testing
 SHOUTRRR_DISCORD_THREAD_ID=YOUR_THREAD_ID
+
+# Optional: a user and a mentionable role for the mention tests
+SHOUTRRR_DISCORD_USER_ID=YOUR_USER_ID
+SHOUTRRR_DISCORD_ROLE_ID=YOUR_ROLE_ID
 ```
+
+The mention tests ping `@here` in the webhook's channel, and the user and role when those are set.
+Copy a user's or role's ID with *Copy User ID* or *Copy Role ID* in Discord's Developer Mode.
+A role pings only when it is mentionable.
 
 **Security Note**: Never commit real webhook URLs to version control. The `.env` file is already in `.gitignore`.
 
@@ -80,6 +95,8 @@ SHOUTRRR_DISCORD_THREAD_ID=YOUR_THREAD_ID
 ```bash
 SHOUTRRR_DISCORD_URL=discord://<TOKEN>@<WEBHOOK_ID>
 SHOUTRRR_DISCORD_THREAD_ID=<THREAD_ID>
+SHOUTRRR_DISCORD_USER_ID=<USER_ID>
+SHOUTRRR_DISCORD_ROLE_ID=<ROLE_ID>
 ```
 
 ## Running the Tests
@@ -130,6 +147,7 @@ testing/e2e/discord/
 ├── suite_test.go                 # Test setup, configuration, and .env file loading
 ├── send_test.go                  # Plain text messages
 ├── send_items_test.go            # Rich embeds and file attachments
+├── mentions_test.go              # Mentions that ping
 └── thread_test.go                # Thread functionality
 ```
 
@@ -139,4 +157,5 @@ Each test file covers one kind of send, with a subtest per feature:
 
 - **Send Tests** (`send_test.go`): Basic text, special characters, custom username and avatar, JSON mode, and long messages
 - **Send Items Tests** (`send_items_test.go`): Embed colors, timestamps, fields, images, author information, multiple embeds, file attachments, and all of these combined
+- **Mention Tests** (`mentions_test.go`): A mention in the text alone, `@here` from plain content and beside embeds, and a user and a role
 - **Thread Tests** (`thread_test.go`): Posting messages to existing threads

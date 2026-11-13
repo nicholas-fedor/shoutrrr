@@ -17,6 +17,8 @@
 //     retry_after, with exponential backoff when neither gives a wait
 //   - Delivery that Discord confirms with the webhook's wait parameter, and
 //     errors that name the reason and code Discord gives
+//   - A mentions list that adds pings for everyone, here, a user, or a role,
+//     and lets no other mention in the message ping
 //
 // # URL Format
 //
@@ -53,6 +55,8 @@
 //   - colorInfo: Border color for info messages (hex)
 //   - colorDebug: Border color for debug messages (hex)
 //   - json: Send raw JSON payload (true/false)
+//   - mentions: Mentions to add to each message, the only ones that ping
+//     (everyone, here, user:ID, role:ID)
 //   - splitLines: Send each line as separate embed (true/false)
 //   - title: Message title
 //
