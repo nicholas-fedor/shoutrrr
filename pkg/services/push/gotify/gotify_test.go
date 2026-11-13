@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -68,8 +69,9 @@ const (
 	sentBody = `{"id":25,"appid":5,"message":"Hello","title":"Shoutrrr notification","priority":0,"date":"2023-12-25T10:00:00Z"}`
 	// unauthorizedBody is Gotify's response to an invalid token.
 	unauthorizedBody = `{"error":"Unauthorized","errorCode":401,"errorDescription":"you need to provide a valid access token or user credentials to access this api"}`
-	// testEndpoint is the message endpoint for testServiceURL.
-	testEndpoint = "https://" + testHost + "/message?token=" + testToken
+	// testEndpoint is the message endpoint for testServiceURL, which sends
+	// the token in a header.
+	testEndpoint = "https://" + testHost + "/message"
 )
 
 // Values shared by the service tests.
@@ -174,7 +176,7 @@ func TestInitialize(t *testing.T) {
 
 	service := newTestService(t, testServiceURL+"?priority=3")
 
-	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, prioritySet: true}, service.Config)
+	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, UseHeader: true, prioritySet: true}, service.Config)
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)
@@ -186,10 +188,11 @@ func TestInitialize(t *testing.T) {
 }
 
 // TestSend verifies the request a send makes: a JSON POST to the message
-// endpoint with the token in the query or a header, carrying the message,
-// title, and extras from the URL and params, and the priority only when it is
-// set, so Gotify applies the application's default priority otherwise. The
-// date is never sent, because Gotify sets it.
+// endpoint with the token in the X-Gotify-Key header, or in the query when
+// useheader is off. It carries the message, title, and extras from the URL and
+// params, and the priority only when it is set, so Gotify applies the
+// application's default priority otherwise. The date is never sent, because
+// Gotify sets it.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +211,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL,
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
@@ -216,6 +220,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"title": "Backup", "priority": "5"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Backup","priority":5}`,
 		},
 		{
@@ -223,6 +228,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL + "?priority=-2",
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":-2}`,
 		},
 		{
@@ -231,6 +237,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"priority": "0"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
@@ -239,6 +246,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"PRIORITY": "0"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
@@ -246,6 +254,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL + "?Priority=0",
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
@@ -253,13 +262,15 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL + "?priority=0",
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
 			name:     "subpath",
 			rawURL:   "gotify://" + testHost + "/gotify/" + testToken,
 			message:  "Hello",
-			wantURL:  "https://" + testHost + "/gotify/message?token=" + testToken,
+			wantURL:  "https://" + testHost + "/gotify/message",
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
@@ -268,6 +279,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"extras": `{"client::display":{"contentType":"text/markdown"}}`},
 			message:  "**Backup** done",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"**Backup** done","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/markdown"}}}`,
 		},
 		{
@@ -275,6 +287,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/plain"}}`),
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/plain"}}}`,
 		},
 		{
@@ -283,6 +296,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"extras": `{"client::display":{"contentType":"text/markdown"}}`},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/markdown"}}}`,
 		},
 		{
@@ -291,6 +305,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"extras": "{invalid"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/plain"}}}`,
 		},
 		{
@@ -299,6 +314,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"date": "2023-12-25T10:00:00+02:00"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
@@ -307,6 +323,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"date": "tomorrow"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
@@ -314,28 +331,38 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL,
 			message:  "Disk <90%> & \"temp\" ✓\nline two",
 			wantURL:  testEndpoint,
+			wantKey:  testToken,
 			wantBody: `{"message":"Disk <90%> & \"temp\" ✓\nline two","title":"Shoutrrr notification"}`,
 		},
 		{
-			name:     "token in a header",
-			rawURL:   testServiceURL + "?useheader=yes",
+			name:     "token in the query",
+			rawURL:   testServiceURL + "?useheader=no",
 			message:  "Hello",
-			wantURL:  "https://" + testHost + "/message",
-			wantKey:  testToken,
+			wantURL:  testEndpoint + "?token=" + testToken,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
+		},
+		{
+			name:     "token in the query from a param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"useheader": "no"},
+			message:  "Hello",
+			wantURL:  testEndpoint + "?token=" + testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "TLS disabled",
 			rawURL:   testServiceURL + "?disabletls=yes",
 			message:  "Hello",
-			wantURL:  "http://" + testHost + "/message?token=" + testToken,
+			wantURL:  "http://" + testHost + "/message",
+			wantKey:  testToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "Gotify 3 token",
 			rawURL:   "gotify://" + testHost + "/" + enhancedToken,
 			message:  "Hello",
-			wantURL:  "https://" + testHost + "/message?token=" + enhancedToken,
+			wantURL:  testEndpoint,
+			wantKey:  enhancedToken,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 	}
@@ -495,8 +522,8 @@ func TestSendErrors(t *testing.T) {
 			wantInErr: "failed to send notification to Gotify: client error (401): server responded with Unauthorized (401)",
 		},
 		{
-			name:      "error response with the token in a header",
-			rawURL:    testServiceURL + "?useheader=yes",
+			name:      "error response with the token in the query",
+			rawURL:    testServiceURL + "?useheader=no",
 			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
 			wantInErr: "failed to send notification to Gotify: client error (401): server responded with Unauthorized (401)",
 		},
@@ -507,7 +534,7 @@ func TestSendErrors(t *testing.T) {
 			wantInErr: "failed to send notification to Gotify: got unexpected HTTP status: 502 Bad Gateway",
 		},
 		{name: "transport error", rawURL: testServiceURL, response: cannedResponse{err: errTransport}, wantErr: errTransport},
-		{name: "transport error with the token in a header", rawURL: testServiceURL + "?useheader=yes", response: cannedResponse{err: errTransport}, wantErr: errTransport},
+		{name: "transport error with the token in the query", rawURL: testServiceURL + "?useheader=no", response: cannedResponse{err: errTransport}, wantErr: errTransport},
 	}
 
 	for _, tt := range tests {
@@ -543,13 +570,13 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	service.SetHTTPClient(client)
 
 	want := *service.Config
-	params := types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "yes"}
+	params := types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "no"}
 
 	require.NoError(t, service.Send("Hello", &params))
 	require.NoError(t, service.Send("Hello", nil))
 
 	assert.Equal(t, want, *service.Config)
-	assert.Equal(t, types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "yes"}, params)
+	assert.Equal(t, types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "no"}, params)
 
 	requests := captured()
 	require.Len(t, requests, 2)
@@ -562,7 +589,7 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 func TestSendContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=yes"} {
+	for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=no"} {
 		t.Run(rawURL, func(t *testing.T) {
 			t.Parallel()
 
@@ -667,7 +694,7 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=yes"} {
+		for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=no"} {
 			t.Run(tt.name+" "+rawURL, func(t *testing.T) {
 				t.Parallel()
 
@@ -740,6 +767,8 @@ func newGotifyServer(t *testing.T, useTLS bool) (*httptest.Server, *atomic.Int32
 //     the deprecated key, the params, or the deprecated field skip it.
 //   - A plain HTTP server that redirects to that HTTPS server still fails
 //     verification, because disabling TLS does not skip it.
+//   - A redirect to another host, or from HTTPS to HTTP, is not followed, so
+//     the token in the X-Gotify-Key header goes nowhere else.
 func TestSendDefaultClientLoopback(t *testing.T) {
 	t.Parallel()
 
@@ -750,7 +779,7 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 		rawURL := "gotify://" + server.Listener.Addr().String() + "/" + testToken + "?disabletls=yes"
 
 		require.NoError(t, newTestService(t, rawURL).Send("Hello", nil))
-		require.NoError(t, newTestService(t, rawURL+"&useheader=yes").Send("Hello", nil))
+		require.NoError(t, newTestService(t, rawURL+"&useheader=no").Send("Hello", nil))
 		assert.Equal(t, int32(2), accepted.Load())
 	})
 
@@ -793,6 +822,42 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 
 		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
 		assert.True(t, isCertErr, "disabling TLS should not skip verification after a redirect")
+		assert.Zero(t, accepted.Load())
+	})
+
+	t.Run("redirect to another host", func(t *testing.T) {
+		t.Parallel()
+
+		// The target listens on 127.0.0.1 and the redirect names it as
+		// localhost, another host name for the same server.
+		target, accepted := newGotifyServer(t, false)
+		_, port, err := net.SplitHostPort(target.Listener.Addr().String())
+		require.NoError(t, err)
+
+		targetURL := "http://" + net.JoinHostPort("localhost", port)
+		redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, targetURL+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		}))
+		t.Cleanup(redirect.Close)
+
+		rawURL := "gotify://" + redirect.Listener.Addr().String() + "/" + testToken + "?disabletls=yes"
+
+		require.ErrorIs(t, newTestService(t, rawURL).Send("Hello", nil), httpclient.ErrRedirectRefused)
+		assert.Zero(t, accepted.Load())
+	})
+
+	t.Run("redirect from HTTPS to HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		target, accepted := newGotifyServer(t, false)
+		redirect := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		}))
+		t.Cleanup(redirect.Close)
+
+		rawURL := "gotify://" + redirect.Listener.Addr().String() + "/" + testToken + "?skiptlsverify=yes"
+
+		require.ErrorIs(t, newTestService(t, rawURL).Send("Hello", nil), httpclient.ErrRedirectRefused)
 		assert.Zero(t, accepted.Load())
 	})
 }

@@ -16,7 +16,8 @@ For more information about Gotify, visit the [official Gotify documentation](htt
 ## API Endpoint
 
 Shoutrrr sends notifications to Gotify using the REST API endpoint `POST /message`.
-The request includes the notification data as JSON in the request body and uses either URL query parameters or HTTP headers for authentication.
+The request includes the notification data as JSON in the request body.
+It sends the token in the `X-Gotify-Key` header, or in the `token` query parameter when `useheader` is `no`.
 
 ## Configuration Parameters
 
@@ -25,12 +26,18 @@ The request includes the notification data as JSON in the request body and uses 
 !!! Note
     Tokens are generated within the Gotify web interface when creating applications.
 
+Shoutrrr sends with an application token.
 Gotify 3.0 and later issue application tokens that start with `gtfya.` followed by at least 43 characters.
 Tokens from earlier Gotify versions are exactly 15 characters long and start with the letter 'A'.
 They can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.
+Gotify 3 still accepts these earlier tokens.
+
+Client tokens, which start with `gtfyc.` or with the letter 'C', cannot be used.
+Gotify accepts a message sent with a client token only when it names an application ID, which Shoutrrr does not send.
 
 !!! Warning "Token Validation"
-    Shoutrrr rejects a URL whose token is missing or in neither format, with the error `invalid gotify token`. Always verify your token format matches Gotify's requirements.
+    Shoutrrr rejects a URL whose token is missing or is not an application token, with the error `invalid gotify token`.
+    For a client token, the error adds `client tokens need an application ID, so use an application token`.
 
 ### Extras Field Support
 
@@ -123,19 +130,25 @@ The `title` parameter allows you to set a custom title for your notification. If
 
 ### Use Header Authentication
 
-By default, the Gotify token is sent as a query parameter in the URL (`?token=...`). The `useheader` parameter set to `yes` removes the token from the URL entirely and sends it in the `X-Gotify-Key` HTTP header instead, which provides better security since:
+By default, Shoutrrr sends the Gotify token in the `X-Gotify-Key` HTTP header, as Gotify's documentation shows.
+The request URL carries no token.
+A redirect to another host, or from HTTPS to HTTP, fails the send, so the header does not reach another server.
+A program that supplies its own HTTP client uses that client's redirect policy instead.
+Server and proxy access logs record request URLs, so a token in the URL can end up in them.
 
-- Headers are less likely to be logged in server access logs
-- Query parameters may appear in browser history or be exposed in URLs
-- Headers are encrypted in HTTPS requests
+Setting the `useheader` parameter to `no` sends the token as a query parameter in the request URL (`?token=...`) instead.
 
-!!! Example "Using header authentication"
+!!! Example "Sending the token in the query"
 
     ```uri
-    gotify://gotify.example.com/TOKEN?useheader=yes
+    gotify://gotify.example.com/TOKEN?useheader=no
     ```
 
-    This sends the token in the `X-Gotify-Key` header, with no token appearing in the URL.
+    This sends the token in the request URL, as `/message?token=TOKEN`.
+
+!!! Note
+    A program that builds a `gotify.Config` in Go sets `UseHeader` to `true` to send the token in the header.
+    A config that leaves it `false` sends the token in the query, and its URL says `useheader=No`.
 
 ## Input Validation
 
@@ -178,7 +191,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 !!! Example "With all parameters"
     ```uri
-    gotify://gotify.example.com/TOKEN?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+    gotify://gotify.example.com/TOKEN?title=System+Alert&priority=5&disabletls=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
     ```
 
 !!! Example "Minimal configuration"
@@ -205,7 +218,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 ### Authentication Security
 
-- **Use header authentication** (`useheader=yes`) whenever possible to avoid exposing tokens in URLs
+- **Keep header authentication on** (the default), so tokens stay out of request URLs
 - Store URLs containing tokens securely and avoid sharing them in logs or version control
 - Rotate tokens regularly through the Gotify web interface
 
@@ -248,6 +261,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 **Possible causes:**
 
 - Incorrect token format (a `gtfya.` token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
+- A client token instead of an application token
 - Token has been revoked or expired
 - Wrong token for the application
 

@@ -23,6 +23,11 @@ const (
 	// enhancedToken is a Gotify 3 application token: the gtfya. prefix and
 	// 43 base64url characters.
 	enhancedToken = "gtfya.Kq3x9ZP0m4tW7vL2sR8yB1cN5hJ6dF0gUeXoAiQrTzM"
+	// clientToken is a Gotify 3 client token: the gtfyc. prefix and 43
+	// base64url characters.
+	clientToken = "gtfyc.Kq3x9ZP0m4tW7vL2sR8yB1cN5hJ6dF0gUeXoAiQrTzM"
+	// legacyClientToken is a client token from Gotify before 3.0.
+	legacyClientToken = "CzyoeNS.D4iJLVa"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -45,7 +50,7 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 // TestConfigSetURL verifies that SetURL reads the host from the URL authority,
 // the token from the last path segment with any subpath before it, and the
 // other settings and the extras JSON from the query, noting a priority the
-// query sets.
+// query sets. A URL without useheader sends the token in the header.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -55,16 +60,16 @@ func TestConfigSetURL(t *testing.T) {
 		rawURL string
 		want   Config
 	}{
-		{name: "host and token", rawURL: testServiceURL, want: Config{Host: testHost, Token: testToken}},
-		{name: "host with a port", rawURL: "gotify://" + testHost + ":8443/" + testToken, want: Config{Host: testHost + ":8443", Token: testToken}},
-		{name: "trailing slash", rawURL: testServiceURL + "/", want: Config{Host: testHost, Token: testToken}},
-		{name: "subpath", rawURL: "gotify://" + testHost + "/gotify/" + testToken, want: Config{Host: testHost, Path: "/gotify/", Token: testToken}},
+		{name: "host and token", rawURL: testServiceURL, want: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true}},
+		{name: "host with a port", rawURL: "gotify://" + testHost + ":8443/" + testToken, want: Config{Host: testHost + ":8443", Token: testToken, Title: defaultTitle, UseHeader: true}},
+		{name: "trailing slash", rawURL: testServiceURL + "/", want: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true}},
+		{name: "subpath", rawURL: "gotify://" + testHost + "/gotify/" + testToken, want: Config{Host: testHost, Path: "/gotify/", Token: testToken, Title: defaultTitle, UseHeader: true}},
 		{
 			name:   "subpath with a trailing slash",
 			rawURL: "gotify://" + testHost + "/push/gotify/" + testToken + "/",
-			want:   Config{Host: testHost, Path: "/push/gotify/", Token: testToken},
+			want:   Config{Host: testHost, Path: "/push/gotify/", Token: testToken, Title: defaultTitle, UseHeader: true},
 		},
-		{name: "Gotify 3 token", rawURL: "gotify://" + testHost + "/" + enhancedToken, want: Config{Host: testHost, Token: enhancedToken}},
+		{name: "Gotify 3 token", rawURL: "gotify://" + testHost + "/" + enhancedToken, want: Config{Host: testHost, Token: enhancedToken, Title: defaultTitle, UseHeader: true}},
 		{
 			name:   "query settings",
 			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&skiptlsverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
@@ -73,31 +78,32 @@ func TestConfigSetURL(t *testing.T) {
 				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
 			},
 		},
-		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
-		{name: "zero priority in another case", rawURL: testServiceURL + "?PRIORITY=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
+		{name: "token in the query", rawURL: testServiceURL + "?useheader=no", want: Config{Host: testHost, Token: testToken, Title: defaultTitle}},
+		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, Title: defaultTitle, prioritySet: true, UseHeader: true}},
+		{name: "zero priority in another case", rawURL: testServiceURL + "?PRIORITY=0", want: Config{Host: testHost, Token: testToken, Title: defaultTitle, prioritySet: true, UseHeader: true}},
 		{
 			name:   "deprecated key",
 			rawURL: testServiceURL + "?insecureskipverify=yes",
-			want:   Config{Host: testHost, Token: testToken, SkipTLSVerify: true},
+			want:   Config{Host: testHost, Token: testToken, Title: defaultTitle, SkipTLSVerify: true, UseHeader: true},
 		},
 		{
 			name:   "replacement key wins over the deprecated key",
 			rawURL: testServiceURL + "?insecureskipverify=yes&skiptlsverify=no",
-			want:   Config{Host: testHost, Token: testToken},
+			want:   Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true},
 		},
 		{
 			name:   "extras",
 			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
 			want: Config{
-				Host: testHost, Token: testToken,
+				Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true,
 				Extras: map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
 			},
 		},
-		{name: "empty extras", rawURL: testServiceURL + "?extras=", want: Config{Host: testHost, Token: testToken}},
+		{name: "empty extras", rawURL: testServiceURL + "?extras=", want: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true}},
 		{
 			name:   "extras with a repeated key keep the last",
 			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"a":1,"a":"x"}`),
-			want:   Config{Host: testHost, Token: testToken, Extras: map[string]any{"a": "x"}},
+			want:   Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true, Extras: map[string]any{"a": "x"}},
 		},
 	}
 
@@ -105,8 +111,12 @@ func TestConfigSetURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// The priority flag from an earlier URL does not carry over.
-			config := &Config{prioritySet: true}
+			// The config holds values an earlier URL set, which a URL that
+			// leaves them out does not keep.
+			config := &Config{
+				Title: "Old", Priority: 9, DisableTLS: true, SkipTLSVerify: true, Date: "old",
+				Extras: map[string]any{"old": true}, prioritySet: true,
+			}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
 			assert.Equal(t, tt.want, *config)
@@ -140,6 +150,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "only slashes", rawURL: "gotify://" + testHost + "///", wantErr: ErrInvalidToken},
 		{name: "legacy token too short", rawURL: "gotify://" + testHost + "/Aaa", wantErr: ErrInvalidToken},
 		{name: "legacy token without the A prefix", rawURL: "gotify://" + testHost + "/Bzyoe.S.D4iJLVa", wantErr: ErrInvalidToken},
+		{name: "Gotify 3 client token", rawURL: "gotify://" + testHost + "/" + clientToken, wantErr: ErrInvalidToken, wantInErr: "client token"},
+		{name: "legacy client token", rawURL: "gotify://" + testHost + "/" + legacyClientToken, wantErr: ErrInvalidToken, wantInErr: "client token"},
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidConfigKey, wantInErr: `"foo"`},
 		{name: "priority not a number", rawURL: testServiceURL + "?priority=high", wantErr: ErrConfigPropertyFailed, wantInErr: `"priority"`},
 		{name: "invalid bool", rawURL: testServiceURL + "?useheader=maybe", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidBoolValue, wantInErr: `"useheader"`},
@@ -165,7 +177,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 // TestConfigGetURL verifies that GetURL writes the host, subpath, and token
 // into the URL, the settings that differ from their defaults and the extras
 // JSON into the query, and round-trips through SetURL. The configs start with
-// the default title, as Initialize creates them.
+// the default title and the token in the header, as reading a URL leaves
+// them. A config that keeps UseHeader false writes useheader=No.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -175,21 +188,21 @@ func TestConfigGetURL(t *testing.T) {
 		config Config
 		want   string
 	}{
-		{name: "host and token", config: Config{Host: testHost, Token: testToken, Title: defaultTitle}, want: testServiceURL},
+		{name: "host and token", config: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true}, want: testServiceURL},
 		{
 			name:   "subpath",
-			config: Config{Host: testHost + ":8443", Path: "/gotify/", Token: testToken, Title: defaultTitle},
+			config: Config{Host: testHost + ":8443", Path: "/gotify/", Token: testToken, Title: defaultTitle, UseHeader: true},
 			want:   "gotify://" + testHost + ":8443/gotify/" + testToken,
 		},
 		{
 			name: "every setting",
 			config: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
-				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
+				DisableTLS: true, SkipTLSVerify: true, Date: "2023-12-25T10:00:00Z",
 				Extras:      map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
 				prioritySet: true,
 			},
-			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=Yes" +
+			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=No" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
 		},
 	}
@@ -211,14 +224,15 @@ func TestConfigGetURL(t *testing.T) {
 // TestConfigGetURLDeprecatedField verifies that a config built with the old
 // InsecureSkipVerify field, as programs that build the config themselves do,
 // writes skiptlsverify to its URL. The config is not changed, and the URL
-// reads back with SkipTLSVerify set.
+// reads back with SkipTLSVerify set. The config leaves UseHeader false, so
+// its URL keeps the token in the query.
 func TestConfigGetURLDeprecatedField(t *testing.T) {
 	t.Parallel()
 
 	config := &Config{Host: testHost, Path: "/gotify", DisableTLS: true, InsecureSkipVerify: true, Token: testToken}
 
 	serviceURL := config.GetURL()
-	assert.Equal(t, "gotify://"+testHost+"/gotify/"+testToken+"?disabletls=Yes&skiptlsverify=Yes&title=", serviceURL.String())
+	assert.Equal(t, "gotify://"+testHost+"/gotify/"+testToken+"?disabletls=Yes&skiptlsverify=Yes&title=&useheader=No", serviceURL.String())
 	assert.Equal(t, &Config{Host: testHost, Path: "/gotify", DisableTLS: true, InsecureSkipVerify: true, Token: testToken}, config)
 
 	roundTrip := &Config{}
@@ -232,14 +246,14 @@ func TestConfigGetURLDeprecatedField(t *testing.T) {
 func TestConfigGetURLSubpath(t *testing.T) {
 	t.Parallel()
 
-	config := Config{Host: testHost, Path: "/gotify", Token: testToken, Title: defaultTitle}
+	config := Config{Host: testHost, Path: "/gotify", Token: testToken, Title: defaultTitle, UseHeader: true}
 	serviceURL := config.GetURL()
 
 	assert.Equal(t, "gotify://"+testHost+"/gotify/"+testToken, serviceURL.String())
 
 	roundTrip := &Config{Title: defaultTitle}
 	require.NoError(t, roundTrip.SetURL(serviceURL))
-	assert.Equal(t, Config{Host: testHost, Path: "/gotify/", Token: testToken, Title: defaultTitle}, *roundTrip)
+	assert.Equal(t, Config{Host: testHost, Path: "/gotify/", Token: testToken, Title: defaultTitle, UseHeader: true}, *roundTrip)
 }
 
 // TestConfigGetURLSkipsUnmarshalableExtras verifies that GetURL leaves out
@@ -247,7 +261,7 @@ func TestConfigGetURLSubpath(t *testing.T) {
 func TestConfigGetURLSkipsUnmarshalableExtras(t *testing.T) {
 	t.Parallel()
 
-	config := Config{Host: testHost, Token: testToken, Title: defaultTitle, Priority: 2, Extras: map[string]any{"channel": make(chan int)}}
+	config := Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true, Priority: 2, Extras: map[string]any{"channel": make(chan int)}}
 
 	assert.Equal(t, testServiceURL+"?priority=2", config.GetURL().String())
 }

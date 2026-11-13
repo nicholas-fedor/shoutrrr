@@ -10,10 +10,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestValidateToken verifies that legacy tokens of 15 allowed characters
-// starting with A and Gotify 3 tokens with the gtfy prefix, an identifier,
-// and at least 43 key characters are accepted, and that other values are
-// rejected.
+// TestValidateToken verifies that application tokens are accepted. Those are
+// legacy tokens of 15 allowed characters starting with A, and Gotify 3 tokens
+// with the gtfya. prefix and at least 43 key characters. Client tokens, which
+// Gotify does not take for a message without an application ID, are rejected
+// in both forms, as are other values.
 func TestValidateToken(t *testing.T) {
 	t.Parallel()
 
@@ -26,9 +27,11 @@ func TestValidateToken(t *testing.T) {
 		{name: "legacy token", token: testToken, want: true},
 		{name: "legacy token with dashes and underscores", token: "Aaa-bbb_ccc.ddd", want: true},
 		{name: "Gotify 3 application token", token: enhancedToken, want: true},
-		{name: "Gotify 3 client token", token: "gtfyc." + strings.Repeat("a", 43), want: true},
 		{name: "Gotify 3 signed token", token: enhancedToken + ".1760500000." + strings.Repeat("s", 86), want: true},
 		{name: "empty"},
+		{name: "Gotify 3 client token", token: clientToken},
+		{name: "legacy client token", token: legacyClientToken},
+		{name: "Gotify 3 token with another identifier", token: "gtfyx." + strings.Repeat("a", 43)},
 		{name: "legacy token too short", token: "Aaa.bbb.ccc.dd"},
 		{name: "legacy token too long", token: "Aaa.bbb.ccc.ddde"},
 		{name: "legacy token without the A prefix", token: "Baa.bbb.ccc.ddd"},
@@ -45,52 +48,6 @@ func TestValidateToken(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, (&DefaultValidator{}).ValidateToken(tt.token))
-		})
-	}
-}
-
-// TestValidateDate verifies that RFC 3339 dates with or without a zone, Unix
-// seconds, and basic date-times become RFC 3339 dates in UTC, that an empty
-// date stays empty, and that other values are rejected.
-func TestValidateDate(t *testing.T) {
-	t.Parallel()
-
-	// tests lists dates with the RFC 3339 date each should produce.
-	tests := []struct {
-		date string
-		want string
-	}{
-		{date: "", want: ""},
-		{date: "2023-12-25T10:00:00Z", want: "2023-12-25T10:00:00Z"},
-		{date: "2023-12-25T10:00:00+02:00", want: "2023-12-25T08:00:00Z"},
-		{date: "2023-12-25T10:00:00-08:00", want: "2023-12-25T18:00:00Z"},
-		{date: "2023-12-25T10:00:00.123456789Z", want: "2023-12-25T10:00:00Z"},
-		{date: "2023-12-25T10:00:00", want: "2023-12-25T10:00:00Z"},
-		{date: "1703498400", want: "2023-12-25T10:00:00Z"},
-		{date: "0001703498400", want: "2023-12-25T10:00:00Z"},
-		{date: "0", want: "1970-01-01T00:00:00Z"},
-		{date: "-86400", want: "1969-12-31T00:00:00Z"},
-		{date: "2023-12-25 10:00:00", want: "2023-12-25T10:00:00Z"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.date, func(t *testing.T) {
-			t.Parallel()
-
-			date, err := (&DefaultValidator{}).ValidateDate(tt.date)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, date)
-		})
-	}
-
-	for _, invalid := range []string{"tomorrow", "2023-12-25", "10:00:00", "2023/12/25 10:00:00", "2023-12-25T10:00:00Zextra", "1703498400.5", "2023-13-25T10:00:00Z"} {
-		t.Run(invalid, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := (&DefaultValidator{}).ValidateDate(invalid)
-
-			require.ErrorIs(t, err, ErrInvalidDate)
 		})
 	}
 }
