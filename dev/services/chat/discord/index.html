@@ -1233,6 +1233,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mentions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mentions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting_mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting Mentions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how_mentions_are_sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Mentions Are Sent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#message_chunking" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2875,6 +2914,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mentions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mentions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting_mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting Mentions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how_mentions_are_sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Mentions Are Sent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#message_chunking" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3043,6 +3121,78 @@ A <code>thread_id</code> send param sends that message to another thread, in JSO
 Embeds then use the color configured for that level with <code>colorDebug</code>, <code>colorInfo</code>, <code>colorWarn</code>, or <code>colorError</code>.
 A <code>color</code> in the URL or the send params takes precedence over the level, even when it is set to the default.
 A short message without a title is sent as plain content, which has no embed to color, so the level leaves it as it is.</p>
+<h2 id="mentions">Mentions<a class="headerlink" href="#mentions" title="Permanent link">&para;</a></h2>
+<p>The <code>mentions</code> key does two things:</p>
+<ul>
+<li><strong>Adds mentions</strong>: Shoutrrr writes each listed mention into the message, so the message pings them.</li>
+<li><strong>Allows only them</strong>: no other mention in the message pings, so <code>@everyone</code> in a log line shows as text unless the list includes it.</li>
+</ul>
+<p>Discord never pings a mention inside an embed, so Shoutrrr puts the listed mentions in the message content.</p>
+<h3 id="setting_mentions">Setting Mentions<a class="headerlink" href="#setting_mentions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mention</th>
+<th>Pings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>everyone</code></td>
+<td>everyone in the channel, as <code>@everyone</code></td>
+</tr>
+<tr>
+<td><code>here</code></td>
+<td>the members who are online, as <code>@here</code></td>
+</tr>
+<tr>
+<td><code>user:USER_ID</code></td>
+<td>the user with that ID</td>
+</tr>
+<tr>
+<td><code>role:ROLE_ID</code></td>
+<td>the members of the role with that ID</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">Ping a Role</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID?mentions=here,role:ROLE_ID"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Backup failed"</span>
+</code></pre></div>
+</div>
+<p>Replace <code>USER_ID</code> or <code>ROLE_ID</code> with the ID that Discord shows with <em>Copy User ID</em> or <em>Copy Role ID</em> in Developer Mode.</p>
+<h3 id="how_mentions_are_sent">How Mentions Are Sent<a class="headerlink" href="#how_mentions_are_sent" title="Permanent link">&para;</a></h3>
+<p>Shoutrrr puts the mentions in the message content of a send's first request, and every request lets only them ping.
+Where they appear depends on how the message is sent:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Content of the first request</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short message sent as plain content</td>
+<td>The mentions, then the message: <code>@here Backup failed</code></td>
+</tr>
+<tr>
+<td>Message sent as embeds</td>
+<td>The mentions alone, shown above the embeds</td>
+</tr>
+<tr>
+<td>Short message over 2000 characters with the mentions</td>
+<td>The mentions alone, with the message moved into an embed</td>
+</tr>
+</tbody>
+</table>
+<p>A long message that needs several requests pings once, from its first request.</p>
+<p>A mention already in the message text pings when the list allows it, such as <code>&lt;@USER_ID&gt;</code> for a listed <code>user:USER_ID</code>.
+Discord treats <code>@everyone</code> and <code>@here</code> as one kind of mention, so listing either one lets both ping from the text.</p>
+<div class="admonition note">
+<p>Discord still applies its own rules, such as a role having to be mentionable, as its <a href="https://discord.com/developers/docs/resources/message#allowed-mentions-object">allowed mentions</a> documentation describes.
+JSON mode sends its payload as it is, so <code>mentions</code> does not apply there.</p>
+</div>
 <h2 id="message_chunking">Message Chunking<a class="headerlink" href="#message_chunking" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr splits a long plain message so that each webhook request fits Discord's limits.
 These come from Discord's <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">Execute Webhook</a> parameters and <a href="https://discord.com/developers/docs/resources/message#embed-object-embed-limits">Embed Limits</a>:</p>
@@ -3172,6 +3322,10 @@ A send that succeeds means Discord saved the message.</p>
   Default: ❌ <code>No</code></p>
 </li>
 <li>
+<p><strong>mentions</strong> - Mentions to add to each message, the only ones that ping: everyone, here, user:ID, or role:ID
+  Default: <em>empty</em></p>
+</li>
+<li>
 <p><strong>splitlines</strong> - Whether to send each line as a separate embedded item
   Default: ✔ <code>Yes</code></p>
 </li>
@@ -3244,7 +3398,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 16:40:55 UTC"><span class="timeago" datetime="2026-11-13T16:40:55+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 16:40:55 UTC">2026-11-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 18:01:18 UTC"><span class="timeago" datetime="2026-11-13T18:01:18+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 18:01:18 UTC">2026-11-13</span>
   </span>
 
     
