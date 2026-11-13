@@ -594,6 +594,39 @@ func TestSendDefaultTokenClient(t *testing.T) {
 	assert.Contains(t, server.received(), xoauth2Line("default-token"))
 }
 
+// TestSendTokenClientLeavesRedirectsToInjectedClient verifies that a token
+// request follows no redirect that the injected client returned unfollowed.
+// This holds even for a redirect on the same host. The client's owner chose
+// not to follow it.
+func TestSendTokenClientLeavesRedirectsToInjectedClient(t *testing.T) {
+	t.Parallel()
+
+	var requested, redirected atomic.Int32
+
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/elsewhere" {
+			redirected.Add(1)
+		} else {
+			requested.Add(1)
+		}
+
+		http.Redirect(w, r, "/elsewhere", http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(tokenServer.Close)
+
+	rawURL := strings.Replace(testRefreshURL, "https%3A%2F%2Foauth.example.com", url.QueryEscape(tokenServer.URL), 1)
+	service := newRefreshingService(t, rawURL, newFakeSMTP("AUTH XOAUTH2"), &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	})
+
+	err := service.Send("Hello", nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "307")
+	assert.Positive(t, requested.Load(), "the token request must reach the token endpoint")
+	assert.Zero(t, redirected.Load(), "the redirect must not be followed")
+}
+
 // TestForgetTokenKeepsNewerToken verifies that a send rejected for an older
 // access token does not drop the newer one another send cached since.
 func TestForgetTokenKeepsNewerToken(t *testing.T) {

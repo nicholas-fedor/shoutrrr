@@ -313,12 +313,19 @@ func (s *Service) forgetToken(config *Config) {
 // tokenHTTPClient returns the *http.Client for token requests.
 //
 // It sends through the injected client, or the default client, by way of
-// [clientTransport]. The send's context bounds every request.
+// [clientTransport]. The send's context bounds every request. It follows no
+// redirect itself, so the client it sends through decides which redirects to
+// follow. A redirect that client returns unfollowed fails the token request.
 //
 // Returns:
 //   - *http.Client: the client for token requests.
 func (s *Service) tokenHTTPClient() *http.Client {
-	return &http.Client{Transport: clientTransport{client: s.client.Client()}}
+	return &http.Client{
+		Transport: clientTransport{client: s.client.Client()},
+		// A 307 or 308 redirect would send the token request's body again.
+		// That body can hold the client secret and the refresh token.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 // requestToken requests an access token from config's token URL.
