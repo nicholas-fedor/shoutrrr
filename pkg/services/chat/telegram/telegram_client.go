@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
@@ -15,7 +14,8 @@ import (
 
 // Client for Telegram API.
 type Client struct {
-	// httpClient sends the requests, or is nil to use [fallbackClient].
+	// httpClient sends the requests, or is nil for a default client without a
+	// timeout of its own.
 	httpClient types.HTTPClient
 	// token is the bot token, which is part of every request URL.
 	token string
@@ -24,11 +24,6 @@ type Client struct {
 	apiURL string
 }
 
-// fallbackClient sends the requests of every [Client] without an HTTP client
-// of its own, so they share connections. Its timeout bounds the requests that
-// take no context.
-var fallbackClient = &http.Client{Timeout: defaultHTTPTimeout}
-
 // GetBotInfo returns the bot User info.
 //
 // Returns:
@@ -36,7 +31,7 @@ var fallbackClient = &http.Client{Timeout: defaultHTTPTimeout}
 //   - error: the Telegram API error or the request error.
 func (c *Client) GetBotInfo() (*User, error) {
 	response := &userResponse{}
-	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	jc := jsonclient.NewWithHTTPClient(c.httpClient)
 
 	if err := jc.Get(c.endpointURL("getMe"), response); err != nil || !response.OK {
 		return nil, fmt.Errorf("getting bot info: %w", responseErr(err, response.ErrorCode, response.Description))
@@ -71,7 +66,7 @@ func (c *Client) GetUpdates(
 		AllowedUpdates: allowedUpdates,
 	}
 	response := &updatesResponse{}
-	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	jc := jsonclient.NewWithHTTPClient(c.httpClient)
 
 	if err := jc.Post(c.endpointURL("getUpdates"), request, response); err != nil || !response.OK {
 		return nil, fmt.Errorf("getting updates: %w", responseErr(err, response.ErrorCode, response.Description))
@@ -106,7 +101,7 @@ func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
 //     error when ctx ends the request.
 func (c *Client) SendMessageContext(ctx context.Context, message *SendMessagePayload) (*Message, error) {
 	response := &messageResponse{}
-	jc := jsonclient.NewContextClient(c.httpClientOrDefault())
+	jc := jsonclient.NewContextClient(c.httpClient)
 
 	if err := jc.PostContext(ctx, c.endpointURL("sendMessage"), message, response); err != nil || !response.OK {
 		return nil, fmt.Errorf("sending message: %w", responseErr(err, response.ErrorCode, response.Description))
@@ -127,19 +122,6 @@ func (c *Client) endpointURL(endpoint string) string {
 	base := strings.TrimSuffix(cmp.Or(c.apiURL, defaultAPIURL), "/")
 
 	return base + "/bot" + c.token + "/" + endpoint
-}
-
-// httpClientOrDefault returns the injected client or the shared fallback
-// client.
-//
-// Returns:
-//   - types.HTTPClient: the injected client, or [fallbackClient].
-func (c *Client) httpClientOrDefault() types.HTTPClient {
-	if c.httpClient != nil {
-		return c.httpClient
-	}
-
-	return fallbackClient
 }
 
 // GetErrorResponse retrieves the error message from a failed request.

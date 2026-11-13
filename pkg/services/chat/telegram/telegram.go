@@ -39,7 +39,7 @@ const (
 	// maxlength is the most UTF-16 code units a message can hold.
 	maxlength = 4096
 	// defaultHTTPTimeout is the part of the send budget for each chat, and the
-	// timeout of a [Client] without an HTTP client of its own.
+	// timeout of the generator's requests for the bot info.
 	defaultHTTPTimeout = 10 * time.Second
 )
 

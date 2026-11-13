@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
@@ -26,6 +28,8 @@ const (
 	generatorToken = `0:MockToken`
 	// generatorAPIBase is the Telegram API base URL for generatorToken.
 	generatorAPIBase = "https://api.telegram.org/bot" + generatorToken + "/"
+	// botInfoBody is a getMe reply for a bot named mockbot.
+	botInfoBody = `{"ok":true,"result":{"id":1,"is_bot":true,"username":"mockbot"}}`
 )
 
 // errUnexpectedRequest answers a request that no test responder matches.
@@ -209,6 +213,62 @@ func TestGeneratorUsesAPIURL(t *testing.T) {
 	assert.Equal(t, calls, httpmock.GetTotalCallCount(), "an invalid API URL must fail before any request")
 }
 
+// TestGeneratorRefusesRedirects verifies that the generator does not follow a
+// Bot API server's redirect to another host, which would carry the bot token
+// in the redirected request and in its Referer. It covers the client that
+// fetches the bot info and the long-poll client. The redirect names the
+// server as localhost, which is another host name for it. A followed redirect
+// then reaches the same server.
+func TestGeneratorRefusesRedirects(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the Bot API method the server redirects.
+	tests := []struct {
+		name     string
+		redirect string
+	}{
+		{name: "bot info", redirect: "/getMe"},
+		{name: "updates", redirect: "/getUpdates"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var redirected atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				host, port, err := net.SplitHostPort(req.Host)
+				if err != nil || host == "localhost" {
+					redirected.Add(1)
+					http.NotFound(w, req)
+
+					return
+				}
+
+				switch {
+				case strings.HasSuffix(req.URL.Path, tt.redirect):
+					target := "http://" + net.JoinHostPort("localhost", port) + req.URL.RequestURI()
+					http.Redirect(w, req, target, http.StatusTemporaryRedirect)
+				case strings.HasSuffix(req.URL.Path, "/getMe"):
+					_, _ = io.WriteString(w, botInfoBody)
+				default:
+					http.NotFound(w, req)
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			var output bytes.Buffer
+
+			_, err := newTestGenerator([]string{generatorToken}, &output).
+				Generate(nil, map[string]string{"apiurl": server.URL}, nil)
+
+			require.ErrorIs(t, err, httpclient.ErrRedirectRefused, "output:\n%s", output.String())
+			assert.Zero(t, redirected.Load(), "the redirect must not be followed")
+		})
+	}
+}
+
 // TestGeneratorSkipTLSVerify verifies the skiptlsverify property against a Bot
 // API server whose certificate cannot be verified. With it, the generator
 // skips verification for its requests, says so, and stores the setting in the
@@ -224,7 +284,7 @@ func TestGeneratorSkipTLSVerify(t *testing.T) {
 
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/getMe"):
-			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"mockbot"}}`)
+			_, _ = io.WriteString(w, botInfoBody)
 		case strings.HasSuffix(req.URL.Path, "/getUpdates"):
 			_, _ = io.WriteString(w, `{"ok":true,"result":[{"update_id":1,"message":{"text":"hi!",`+
 				`"from":{"username":"mockUser"},"chat":{"type":"private","id":667,"username":"mockUser"}}}]}`)

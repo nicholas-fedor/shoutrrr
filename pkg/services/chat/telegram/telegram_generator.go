@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -140,15 +141,12 @@ func (g *Generator) Generate(
 	userDialog.Writelnf("Fetching bot info...")
 
 	// Fetch the bot info with the default timeout, and switch to a client that
-	// outlasts the long poll only once polling starts.
+	// outlasts the long poll only once polling starts. Both refuse a redirect
+	// to another host, which would carry the bot token in the request path.
 	g.client = &Client{
 		token:      token,
 		apiURL:     apiURL,
-		httpClient: nil,
-	}
-
-	if roundTripper != nil {
-		g.client.httpClient = &http.Client{Transport: roundTripper, Timeout: defaultHTTPTimeout}
+		httpClient: httpclient.NewClient(roundTripper, defaultHTTPTimeout),
 	}
 
 	botInfo, err := g.client.GetBotInfo()
@@ -164,7 +162,7 @@ func (g *Generator) Generate(
 		format.ColorizeString("@", g.botName),
 	)
 
-	g.client.httpClient = &http.Client{Transport: roundTripper, Timeout: generatorHTTPTimeout}
+	g.client.httpClient = httpclient.NewClient(roundTripper, generatorHTTPTimeout)
 	g.done = false
 	lastUpdate := 0
 

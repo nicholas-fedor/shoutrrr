@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,6 +168,22 @@ func requireHTTPClient(t *testing.T, client types.HTTPClient) *http.Client {
 	require.True(t, ok, "client is a %T", client)
 
 	return httpClient
+}
+
+// TestNewClient verifies that a client built by NewClient keeps its transport
+// and timeout, and follows redirects under the default clients' policy.
+func TestNewClient(t *testing.T) {
+	t.Parallel()
+
+	roundTripper := http.DefaultTransport.(*http.Transport).Clone()
+	client := NewClient(roundTripper, 5*time.Second)
+
+	assert.Same(t, roundTripper, client.Transport)
+	assert.Equal(t, 5*time.Second, client.Timeout)
+
+	via := []*http.Request{httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://gotify.example.com/message", nil)}
+	err := client.CheckRedirect(httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://other.example.com/message", nil), via)
+	require.ErrorIs(t, err, ErrRedirectRefused)
 }
 
 // TestHolderClient verifies which client a Holder returns: the injected one

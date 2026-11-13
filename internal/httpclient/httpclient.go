@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -40,6 +41,23 @@ type nilClient struct {
 	typeName string
 }
 
+// NewClient returns a new HTTP client with the given transport and timeout.
+//
+// Like a [Holder]'s default clients, the client refuses a redirect to another
+// host or from HTTPS to HTTP with [ErrRedirectRefused]. It follows a redirect
+// on the same host, up to 10 for each request.
+//
+// Parameters:
+//   - roundTripper: the transport, or nil for [http.DefaultTransport].
+//   - timeout: the time limit of each request, including its redirects and
+//     reading the response body, or 0 for none.
+//
+// Returns:
+//   - *http.Client: the new client.
+func NewClient(roundTripper http.RoundTripper, timeout time.Duration) *http.Client {
+	return &http.Client{Transport: roundTripper, CheckRedirect: checkRedirect, Timeout: timeout}
+}
+
 // Client returns the client to send through.
 //
 // Without an injected client, it returns the default client, which it builds
@@ -58,7 +76,7 @@ func (h *Holder) Client() types.HTTPClient {
 	}
 
 	if h.fallback == nil {
-		h.fallback = &http.Client{CheckRedirect: checkRedirect}
+		h.fallback = NewClient(nil, 0)
 	}
 
 	return h.fallback
@@ -90,10 +108,7 @@ func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 	}
 
 	if h.insecure == nil {
-		h.insecure = &http.Client{
-			Transport:     transport.New(transport.InsecureTLSConfig("")),
-			CheckRedirect: checkRedirect,
-		}
+		h.insecure = NewClient(transport.New(transport.InsecureTLSConfig("")), 0)
 	}
 
 	insecure := h.insecure
