@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fail pushes that the Join API refuses by @nicholas-fedor in [#2172](https://github.com/nicholas-fedor/shoutrrr/pull/2172)
 
+### Chores
+
+- Update dependency backrefs to v8.3 by @renovate[bot] in [#2174](https://github.com/nicholas-fedor/shoutrrr/pull/2174)
+
 ## [0.24.0] - 2026-11-11
 
 ### Added
