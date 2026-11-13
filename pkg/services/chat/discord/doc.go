@@ -5,7 +5,8 @@
 //   - Plain text messages using Discord's content field for clean formatting
 //   - Rich embeds with customizable colors, authors, images, thumbnails, and fields
 //   - Message levels with color-coded embeds (error, warning, info, debug)
-//   - Thread support for sending messages to existing threads
+//   - Thread support for sending messages to existing threads, and creating
+//     threads in forum and media channels
 //   - File attachments with multipart/form-data uploads
 //   - Custom username and avatar overrides
 //   - JSON mode for raw payload control
@@ -51,6 +52,7 @@
 //   - avatar: Override webhook avatar URL
 //   - username: Override webhook username
 //   - thread_id: Send to specific thread
+//   - thread_name: Create a thread with this name in a forum or media channel
 //   - color: Border color for plain messages (hex)
 //   - colorError: Border color for error messages (hex)
 //   - colorWarn: Border color for warning messages (hex)

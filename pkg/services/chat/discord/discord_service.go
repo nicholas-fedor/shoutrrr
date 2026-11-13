@@ -49,11 +49,22 @@ type Service struct {
 type sendState struct {
 	// postURL is the webhook URL built from config.
 	postURL string
-	// mentions are the mentions the send pings, read from config.
+	// mentions are the mentions the send's next request carries, read from
+	// config. They are empty once a request has gone out.
 	mentions mentionSet
 	// config is the service config with the send's params applied, checked
-	// as described on [Config].
+	// as described on [Config]. Its trimmed ThreadName names the thread the
+	// send's next request creates, and is cleared once a request may have
+	// created it. Its ThreadID becomes the created thread once the reply
+	// names it.
 	config Config
+	// multipleRequests is true for a send that takes more than one request,
+	// whose first reply then names the thread the rest go into.
+	multipleRequests bool
+	// threadUnknown is true once the request that was to create the send's
+	// thread failed without a definite rejection, so the thread may exist
+	// but its ID is unknown. Later requests then fail without being sent.
+	threadUnknown bool
 }
 
 // Message limits and the webhook endpoint.
@@ -172,7 +183,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if send.config.JSON {
 		preparer := &JSONRequestPreparer{payload: []byte(message)}
 
-		if err = sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper); err != nil {
+		if _, err = sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper, nil); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 
@@ -310,24 +321,29 @@ func (s *Service) prepareSend(params *types.Params) (*sendState, error) {
 		return nil, types.ErrServiceNotInitialized
 	}
 
-	send := &sendState{postURL: "", mentions: mentionSet{}, config: *s.Config}
-	if err := s.pkr.UpdateConfigFromParams(&send.config, params); err != nil {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return nil, fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := send.config.validate(); err != nil {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
-	mentions, err := send.config.mentions()
+	mentions, err := config.mentions()
 	if err != nil {
 		return nil, err
 	}
 
-	send.mentions = mentions
-	send.postURL = send.config.postURL()
+	config.ThreadName = strings.TrimSpace(config.ThreadName)
 
-	return send, nil
+	return &sendState{
+		postURL:          config.postURL(),
+		mentions:         mentions,
+		config:           config,
+		multipleRequests: false,
+		threadUnknown:    false,
+	}, nil
 }
 
 // sendBatches sends items in batches that each fit one Discord message.
@@ -353,16 +369,13 @@ func (s *Service) sendBatches(ctx context.Context, send *sendState, items []type
 		return s.sendItems(ctx, send, items)
 	}
 
-	// The batches go out one at a time, so the flag marks the first request.
-	first := true
+	send.multipleRequests = true
 
 	return sequential.Send(ctx, batches, sequential.SharedDeadline,
 		func(ctx context.Context, batch []types.MessageItem) error {
 			payload := createEmbedPayload(batch, send.config.Title, send.config.LevelColors())
-			err := s.sendPayload(ctx, send, &payload, batch, first)
-			first = false
 
-			return err
+			return s.sendPayload(ctx, send, &payload, batch)
 		})
 }
 
@@ -412,32 +425,37 @@ func (s *Service) sendItems(ctx context.Context, send *sendState, items []types.
 		payload = createEmbedPayload(items, send.config.Title, send.config.LevelColors())
 	}
 
-	return s.sendPayload(ctx, send, &payload, items, true)
+	return s.sendPayload(ctx, send, &payload, items)
 }
 
 // sendPayload sends payload with the configured username and avatar, as
 // multipart with the items' files when any item carries one. The send's
-// mentions go on its first request.
+// mentions and thread name go on the request when the send still holds them,
+// which is only for its first request, so that only it creates a thread.
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
 //   - send: the config and webhook URL for this send.
 //   - payload: the webhook payload built from items.
 //   - items: the message items, whose files are attached.
-//   - first: whether the request is the first of its send.
 //
 // Returns:
-//   - error: the marshaling or send failure, or nil on success.
+//   - error: [ErrThreadUnknown] without a request when the thread for the
+//     request is unknown, the marshaling or send failure, or nil on success.
 func (s *Service) sendPayload(
 	ctx context.Context,
 	send *sendState,
 	payload *WebhookPayload,
 	items []types.MessageItem,
-	first bool,
 ) error {
+	if send.threadUnknown {
+		return ErrThreadUnknown
+	}
+
 	payload.Username = send.config.Username
 	payload.AvatarURL = send.config.Avatar
-	send.mentions.apply(payload, first)
+	payload.ThreadName = send.config.ThreadName
+	send.mentions.apply(payload)
 
 	// Most sends carry no files, so the slice is only made for one that does.
 	var files []types.File
@@ -461,7 +479,57 @@ func (s *Service) sendPayload(
 		preparer = &JSONRequestPreparer{payload: payloadBytes}
 	}
 
-	return sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
+	// Only a send whose later requests go into the new thread needs the reply
+	// that names it.
+	var reply *createdMessage
+	if send.config.ThreadName != "" && send.multipleRequests {
+		reply = &createdMessage{ChannelID: ""}
+	}
+
+	mayHaveCreated, err := sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper, reply)
+	send.finishRequest(reply, mayHaveCreated)
+
+	return err
+}
+
+// finishRequest moves the send past one request.
+//
+// A request that created no message, as the sender reports, leaves the
+// mentions and the thread name to the next request. After a request that may
+// have created one, later requests carry neither, so the send pings and
+// creates a thread once.
+//
+// A send that takes several requests and names a thread goes into the thread
+// that reply names, by a snowflake. When the request may have created the
+// thread but reply names none, the thread's ID is unknown. Later requests
+// then fail with [ErrThreadUnknown] without being sent, rather than going
+// without a thread.
+//
+// Parameters:
+//   - reply: the message the request created, or nil when the send did not
+//     read it.
+//   - mayHaveCreated: whether the request may have created a message.
+func (s *sendState) finishRequest(reply *createdMessage, mayHaveCreated bool) {
+	if !mayHaveCreated {
+		return
+	}
+
+	s.mentions = mentionSet{}
+	s.config.ThreadName = ""
+
+	if reply == nil {
+		return
+	}
+
+	// A failed request leaves reply empty, so it names no thread either.
+	if !isSnowflake(reply.ChannelID) {
+		s.threadUnknown = true
+
+		return
+	}
+
+	s.config.ThreadID = reply.ChannelID
+	s.postURL = s.config.postURL()
 }
 
 // sendsAsContent reports whether items go out as the message content, which

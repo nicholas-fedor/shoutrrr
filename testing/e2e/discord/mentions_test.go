@@ -1,10 +1,7 @@
 package e2e_test
 
 import (
-	"bytes"
 	"encoding/json/v2"
-	"io"
-	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -13,59 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// replyRecorder is an HTTP client that sends through [http.DefaultClient] and
-// keeps the body of the last response, which with wait=true is the message
-// Discord created.
-type replyRecorder struct {
-	// body is the body of the last response.
-	body []byte
-}
-
-// createdMessage is the part of the message object Discord returns that
-// records which mentions it parsed.
-type createdMessage struct {
-	// Content is the message content.
-	Content string `json:"content"`
-	// Mentions lists the users the message pinged.
-	Mentions []mentionedUser `json:"mentions"`
-	// MentionRoles lists the IDs of the roles the message pinged.
-	MentionRoles []string `json:"mention_roles"`
-	// MentionEveryone reports whether the message pinged @everyone or @here.
-	MentionEveryone bool `json:"mention_everyone"`
-}
-
-// mentionedUser is the part of a mentioned user object the test reads.
-type mentionedUser struct {
-	// ID is the user's ID.
-	ID string `json:"id"`
-}
-
-// Do sends req and keeps a copy of the response body.
-//
-// Parameters:
-//   - req: the request to send.
-//
-// Returns:
-//   - *http.Response: the response, with a body that can still be read.
-//   - error: the transport or read failure.
-func (r *replyRecorder) Do(req *http.Request) (*http.Response, error) {
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	r.body, err = io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	res.Body = io.NopCloser(bytes.NewReader(r.body))
-
-	return res, nil
-}
 
 // TestDiscordMentions verifies with the messages Discord created that the
 // mentions key makes a message ping, and that a mention in the text alone
@@ -136,14 +80,16 @@ func TestDiscordMentions(t *testing.T) {
 				t.Skipf("%s not set, skipping mention test", tt.needs)
 			}
 
-			service := newService(t, tt.query)
-			recorder := &replyRecorder{body: nil}
+			service := newService(t, webhookURLVar, tt.query)
+			recorder := &replyRecorder{bodies: nil}
 			service.SetHTTPClient(recorder)
 
 			require.NoError(t, service.Send(tt.message, nil))
 
 			var created createdMessage
-			require.NoError(t, json.Unmarshal(recorder.body, &created), "Discord returns the created message")
+
+			require.Len(t, recorder.bodies, 1)
+			require.NoError(t, json.Unmarshal(recorder.bodies[0], &created), "Discord returns the created message")
 
 			assert.True(t, strings.HasPrefix(created.Content, tt.wantPrefix), "content %q starts with %q", created.Content, tt.wantPrefix)
 			assert.Equal(t, tt.wantEveryone, created.MentionEveryone, "mention_everyone")

@@ -149,6 +149,16 @@ func TestConfigURLRoundTrip(t *testing.T) {
 		assert.Equal(t, original, *config)
 	})
 
+	t.Run("thread name", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL := (&Config{WebhookID: "123456789", Token: "test-token", ThreadName: "Deploy 42"}).GetURL()
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(serviceURL))
+		assert.Equal(t, "Deploy 42", config.ThreadName)
+	})
+
 	t.Run("JSON mode", func(t *testing.T) {
 		t.Parallel()
 
@@ -213,6 +223,8 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 		{name: "webhook ID past 64 bits", rawURL: "discord://token@18446744073709551616", wantErr: ErrInvalidWebhookID},
 		{name: "webhook ID with a port", rawURL: "discord://token@123:80", wantErr: ErrInvalidWebhookID},
 		{name: "thread ID not a number", rawURL: "discord://token@123?thread_id=thread-123", wantErr: ErrInvalidThreadID},
+		{name: "thread ID with a thread name", rawURL: "discord://token@123?thread_id=987654321&thread_name=Deploy", wantErr: ErrThreadIDAndName},
+		{name: "mention that cannot be read", rawURL: "discord://token@123?mentions=channel", wantErr: ErrInvalidMention},
 		{name: "no token", rawURL: "discord://@123", wantErr: ErrMissingToken},
 		{name: "blank token", rawURL: "discord://%20%20@123", wantErr: ErrMissingToken},
 		{name: "dot-dot token", rawURL: "discord://..@123", wantErr: util.ErrInvalidPathSegment},
@@ -265,6 +277,16 @@ func TestConfigValidate(t *testing.T) {
 		{name: "blank thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}},
 		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "thread-1"}, wantErr: ErrInvalidThreadID},
 		{name: "thread ID past 64 bits", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "18446744073709551616"}, wantErr: ErrInvalidThreadID},
+		{name: "thread name", config: Config{WebhookID: "123456789", Token: "test-token", ThreadName: " Deploy "}},
+		{name: "blank thread name", config: Config{WebhookID: "123456789", Token: "test-token", ThreadName: "  "}},
+		{name: "thread name of 100 characters", config: Config{WebhookID: "123456789", Token: "test-token", ThreadName: strings.Repeat("é", 100)}},
+		{name: "thread name over 100 characters", config: Config{WebhookID: "123456789", Token: "test-token", ThreadName: strings.Repeat("é", 101)}, wantErr: ErrInvalidThreadName},
+		{
+			name:    "thread name with a thread ID",
+			config:  Config{WebhookID: "123456789", Token: "test-token", ThreadID: "987654321", ThreadName: "Deploy"},
+			wantErr: ErrThreadIDAndName,
+		},
+		{name: "blank thread name with a thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "987654321", ThreadName: " "}},
 	}
 
 	for _, tt := range tests {

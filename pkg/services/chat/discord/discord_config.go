@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -15,8 +16,8 @@ import (
 
 // Config holds the settings required for sending Discord notifications.
 //
-// Reading a service URL checks the webhook ID, token, thread ID, and
-// mentions. Each send checks them again after applying its params. A Config built in code or
+// Reading a service URL checks the webhook ID, token, thread ID, thread
+// name, and mentions. Each send checks them again after applying its params. A Config built in code or
 // a param with an invalid value fails before any request with an error such as
 // [ErrInvalidWebhookID].
 type Config struct {
@@ -39,6 +40,12 @@ type Config struct {
 	// ThreadID is the thread to post the message in. It is sent as the
 	// thread_id query parameter of the webhook URL.
 	ThreadID string `default:"" desc:"The thread ID to send the message to" key:"thread_id"`
+	// ThreadName names a thread that each send creates in a forum or media
+	// channel, of up to 100 characters. A send that takes several requests
+	// creates the thread with the first and sends the rest into it. It cannot
+	// be set with ThreadID. JSON mode sends its payload as it is and ignores
+	// it.
+	ThreadName string `default:"" desc:"The name of a thread to create for each message in a forum or media channel" key:"thread_name"`
 	// Mentions lists who each send pings: everyone, here, user:ID, or
 	// role:ID. Shoutrrr adds them to the message content of the send's first
 	// request, the only place Discord notifies them from, and allows only
@@ -231,20 +238,23 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.validate()
 }
 
-// validate checks the webhook ID, token, and thread ID.
+// validate checks the webhook ID, token, thread ID, thread name, and mentions.
 //
 // Surrounding whitespace is ignored. The webhook ID is a Discord snowflake, a
 // number of up to 64 bits. The token is one segment of the webhook URL's path,
 // so it holds no slash and is not "." or "..". The thread ID is empty or a
-// snowflake.
+// snowflake. The thread name has at most 100 characters, and is empty when
+// the thread ID is set.
 //
 // Returns:
 //   - error: [ErrMissingWebhookID] or [ErrMissingToken] for a blank webhook
 //     ID or token. [ErrInvalidWebhookID] or [ErrInvalidThreadID] for a webhook
 //     ID or thread ID that is not a snowflake. An error wrapping
 //     [util.ErrInvalidPathSegment] for a token that is not one path segment.
-//     An error wrapping [ErrInvalidMention] for a mention that cannot be
-//     read. Otherwise nil.
+//     [ErrThreadIDAndName] for a thread ID and a thread name together, and
+//     [ErrInvalidThreadName] for a thread name over 100 characters. An error
+//     wrapping [ErrInvalidMention] for a mention that cannot be read.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	webhookID := strings.TrimSpace(c.WebhookID)
 	if webhookID == "" {
@@ -264,8 +274,18 @@ func (c *Config) validate() error {
 		return fmt.Errorf("token: %w", err)
 	}
 
-	if threadID := strings.TrimSpace(c.ThreadID); threadID != "" && !isSnowflake(threadID) {
+	threadID := strings.TrimSpace(c.ThreadID)
+	if threadID != "" && !isSnowflake(threadID) {
 		return ErrInvalidThreadID
+	}
+
+	threadName := strings.TrimSpace(c.ThreadName)
+	if threadName != "" && threadID != "" {
+		return ErrThreadIDAndName
+	}
+
+	if utf8.RuneCountInString(threadName) > maxThreadName {
+		return ErrInvalidThreadName
 	}
 
 	if _, err := c.mentions(); err != nil {

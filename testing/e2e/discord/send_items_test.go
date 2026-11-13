@@ -127,7 +127,7 @@ func TestDiscordSendItems(t *testing.T) {
 
 	for _, tt := range sends {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, newService(t, nil).SendItemsContext(t.Context(), tt.items, nil))
+			require.NoError(t, newService(t, webhookURLVar, nil).SendItemsContext(t.Context(), tt.items, nil))
 		})
 	}
 }

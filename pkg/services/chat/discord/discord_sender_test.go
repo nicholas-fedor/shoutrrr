@@ -316,7 +316,7 @@ func TestSendWithRetryResults(t *testing.T) {
 			client := mocks.NewMockHTTPClient(t)
 			client.EXPECT().Do(mock.Anything).Return(tt.resp, tt.err).Once()
 
-			err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t))
+			_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t), nil)
 
 			if tt.wantErr == nil && tt.wantText == "" {
 				require.NoError(t, err)
@@ -351,7 +351,8 @@ func TestSendWithRetryReadsReply(t *testing.T) {
 		Body:       body,
 	}, nil).Once()
 
-	require.NoError(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t)))
+	_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t), nil)
+	require.NoError(t, err)
 
 	assert.True(t, body.drainedAtClose, "the body is read to its end before it is closed")
 }
@@ -391,7 +392,108 @@ func TestSendWithRetryReadsRetriedReply(t *testing.T) {
 				assert.True(t, body.drainedAtClose, "the body is read to its end and closed before the wait")
 			}).Return().Once()
 
-			require.NoError(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper))
+			_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper, nil)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestSendWithRetryMayHaveCreated verifies when a send reports that its
+// request may have created a message.
+//
+// A success, a transport failure after the dial, and a client that answers
+// with neither a response nor an error may have. An error
+// status, server errors until the retries run out, a rate limit that cannot
+// be waited out, a failed dial, and a request that cannot be built created
+// nothing.
+func TestSendWithRetryMayHaveCreated(t *testing.T) {
+	t.Parallel()
+
+	refused := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
+
+	// respond answers every request with a fresh response of status.
+	respond := func(status int, header http.Header) func(*http.Request) (*http.Response, error) {
+		return func(*http.Request) (*http.Response, error) {
+			return statusResponse(status, header), nil
+		}
+	}
+
+	// tests lists the client's answers with the sleeps they need and the
+	// result to expect.
+	tests := []struct {
+		name   string
+		url    string
+		expect func(client *mocks.MockHTTPClient)
+		sleeps int
+		want   bool
+	}{
+		{
+			name: "success",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusNoContent, nil)).Once()
+			},
+			want: true,
+		},
+		{
+			name: "transport failure after the dial",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).Return(nil, errors.New("connection lost")).Once()
+			},
+			want: true,
+		},
+		{
+			name: "client without a response or an error",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).Return(nil, nil).Once()
+			},
+			want: true,
+		},
+		{
+			name: "error status",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusBadRequest, nil)).Once()
+			},
+		},
+		{
+			name: "rate limit that cannot be waited out",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusTooManyRequests, http.Header{"Retry-After": {"600"}})).Once()
+			},
+		},
+		{
+			name: "server errors until the retries run out",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusServiceUnavailable, nil)).Times(maxRetries + 1)
+			},
+			sleeps: maxRetries,
+		},
+		{
+			name:   "failed dial",
+			expect: func(c *mocks.MockHTTPClient) { c.EXPECT().Do(mock.Anything).Return(nil, refused).Times(4) },
+			sleeps: 3,
+		},
+		{name: "request that cannot be built", url: "://bad", expect: func(*mocks.MockHTTPClient) {}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mocks.NewMockHTTPClient(t)
+			tt.expect(client)
+
+			sleeper := mocks.NewMockSleeper(t)
+			if tt.sleeps > 0 {
+				sleeper.EXPECT().Sleep(mock.Anything).Return().Times(tt.sleeps)
+			}
+
+			requestURL := tt.url
+			if requestURL == "" {
+				requestURL = "http://example.com"
+			}
+
+			mayHaveCreated, _ := sendWithRetry(t.Context(), newJSONPreparer(), requestURL, client, sleeper, nil)
+			assert.Equal(t, tt.want, mayHaveCreated)
 		})
 	}
 }
@@ -553,7 +655,8 @@ func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 		sleeper := mocks.NewMockSleeper(t)
 		sleeper.EXPECT().Sleep(time.Second).Return().Once()
 
-		require.NoError(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper))
+		_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper, nil)
+		require.NoError(t, err)
 	})
 }
 
@@ -570,7 +673,8 @@ func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 
 		sleeper, waits := newRecordingSleeper(t, maxRetries)
 
-		require.ErrorIs(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper), ErrMaxRetries)
+		_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper, nil)
+		require.ErrorIs(t, err, ErrMaxRetries)
 		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}, *waits)
 	})
 }
@@ -589,7 +693,8 @@ func TestSendWithRetryRateLimitedUntilMaxRetries(t *testing.T) {
 
 		sleeper, waits := newRecordingSleeper(t, maxRetries)
 
-		require.ErrorIs(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper), ErrMaxRetries)
+		_, err := sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper, nil)
+		require.ErrorIs(t, err, ErrMaxRetries)
 		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}, *waits)
 	})
 }
@@ -628,7 +733,7 @@ func TestSendWithRetryRateLimitTooLong(t *testing.T) {
 				client.EXPECT().Do(mock.Anything).Return(statusResponse(http.StatusTooManyRequests, http.Header{"Retry-After": []string{tt.retryAfter}}), nil).Once()
 
 				// The sleeper has no expectations, so a wait fails the test.
-				err := sendWithRetry(ctx, newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t))
+				_, err := sendWithRetry(ctx, newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t), nil)
 
 				require.ErrorIs(t, err, ErrRateLimited)
 				assert.Contains(t, err.Error(), "rate limited by Discord")

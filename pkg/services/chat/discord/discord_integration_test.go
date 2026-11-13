@@ -89,6 +89,8 @@ type wirePayload struct {
 	Embeds []wireEmbed `json:"embeds"`
 	// Attachments holds the attachment metadata for the uploaded files.
 	Attachments []wireAttachment `json:"attachments"`
+	// ThreadName is the name of the thread the message creates.
+	ThreadName string `json:"thread_name"`
 	// AllowedMentions is the allowed mentions object, or nil when the
 	// payload has none.
 	AllowedMentions *wireAllowedMentions `json:"allowed_mentions"`
@@ -725,7 +727,8 @@ func TestIntegrationSendLongMessage(t *testing.T) {
 // long send ping no one. The allowed mentions let exactly the configured
 // mentions ping. A mentions param sets them per send. A send without
 // mentions lets no mention in its text ping. JSON mode sends its payload as
-// it is.
+// it is. TestIntegrationRejectedBeforeSending covers a mention that cannot be
+// read.
 func TestIntegrationSendMentions(t *testing.T) {
 	t.Parallel()
 
@@ -871,17 +874,169 @@ func TestIntegrationSendMentions(t *testing.T) {
 		require.NoError(t, newService(t, testServiceURL+"?json=true&mentions=here", client).Send(message, nil))
 		assert.JSONEq(t, message, string(hook.sent()[0].body))
 	})
+}
 
-	t.Run("invalid mention", func(t *testing.T) {
+// TestIntegrationSendThreadName verifies that thread_name creates one thread
+// per send.
+//
+// The first request of a send carries the name and creates the thread. Later
+// requests carry no name and go into the thread that the channel_id of the
+// returned message names. A send without a thread name stays in the channel.
+// A first request that Discord rejected leaves the name to the next. After a
+// first reply that names no thread, or no answer at all, the rest of the send
+// fails without a request. A retried first request keeps the name. A thread
+// name param applies to one send. A rich send with a file carries the name in
+// payload_json. TestIntegrationRejectedBeforeSending covers a name with a
+// thread ID and a name over 100 characters.
+func TestIntegrationSendThreadName(t *testing.T) {
+	t.Parallel()
+
+	const threadID = "222333444555666777"
+
+	created := reply{status: http.StatusOK, body: `{"id":"` + threadID + `","channel_id":"` + threadID + `"}`}
+	threadURL := testPostPath + "?thread_id=" + threadID + "&wait=true"
+	long := strings.Repeat("a", discord.TotalChunkSize+100)
+
+	// request is the URL, thread name, and content one request should carry.
+	type request struct {
+		url        string
+		threadName string
+		content    string
+	}
+
+	// tests lists sends with the replies they get, the requests they should
+	// make, and the error to expect, if any.
+	tests := []struct {
+		wantErr  error
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		replies  []reply
+		requests []request
+	}{
+		{
+			name:     "one request creates the thread",
+			rawURL:   testServiceURL + "?thread_name=Deploy",
+			message:  "Deployed",
+			replies:  []reply{created},
+			requests: []request{{testPostURL, "Deploy", "Deployed"}},
+		},
+		{
+			name:     "later requests go into the thread",
+			rawURL:   testServiceURL + "?thread_name=Deploy&splitLines=no",
+			message:  long,
+			replies:  []reply{created, noContent},
+			requests: []request{{testPostURL, "Deploy", ""}, {threadURL, "", ""}},
+		},
+		{
+			name:     "retried first request keeps the name",
+			rawURL:   testServiceURL + "?thread_name=Deploy&splitLines=no",
+			message:  long,
+			replies:  []reply{{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"0"}}}, created, noContent},
+			requests: []request{{testPostURL, "Deploy", ""}, {testPostURL, "Deploy", ""}, {threadURL, "", ""}},
+		},
+		{
+			name:     "send without a thread name stays in the channel",
+			rawURL:   testServiceURL + "?splitLines=no",
+			message:  long,
+			replies:  []reply{created, noContent},
+			requests: []request{{testPostURL, "", ""}, {testPostURL, "", ""}},
+		},
+		{
+			name:     "thread name param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"thread_name": " Incident 7 "},
+			message:  "Disk full",
+			replies:  []reply{created},
+			requests: []request{{testPostURL, "Incident 7", "Disk full"}},
+		},
+		{
+			name:     "rejected first request leaves the thread and mentions to the next",
+			rawURL:   testServiceURL + "?thread_name=Deploy&mentions=here&splitLines=no",
+			message:  long,
+			replies:  []reply{{status: http.StatusBadRequest, body: `{"message": "Invalid Form Body"}`}, created},
+			requests: []request{{testPostURL, "Deploy", "@here"}, {testPostURL, "Deploy", "@here"}},
+			wantErr:  discord.ErrUnexpectedStatus,
+		},
+		{
+			name:     "first request rate limited past the budget leaves the thread and mentions to the next",
+			rawURL:   testServiceURL + "?thread_name=Deploy&mentions=here&splitLines=no",
+			message:  long,
+			replies:  []reply{{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"600"}}}, created},
+			requests: []request{{testPostURL, "Deploy", "@here"}, {testPostURL, "Deploy", "@here"}},
+			wantErr:  discord.ErrRateLimited,
+		},
+		{
+			name:     "reply without a usable channel ID leaves the thread unknown",
+			rawURL:   testServiceURL + "?thread_name=Deploy&splitLines=no",
+			message:  long,
+			replies:  []reply{{status: http.StatusOK, body: `{"id":"1","channel_id":"not-a-snowflake"}`}},
+			requests: []request{{testPostURL, "Deploy", ""}},
+			wantErr:  discord.ErrThreadUnknown,
+		},
+		{
+			name:     "reply cut off after the channel ID leaves the thread unknown",
+			rawURL:   testServiceURL + "?thread_name=Deploy&splitLines=no",
+			message:  long,
+			replies:  []reply{{status: http.StatusOK, body: `{"channel_id":"` + threadID + `"`}},
+			requests: []request{{testPostURL, "Deploy", ""}},
+			wantErr:  discord.ErrThreadUnknown,
+		},
+		{
+			name:     "first request without an answer leaves the thread unknown",
+			rawURL:   testServiceURL + "?thread_name=Deploy&splitLines=no",
+			message:  long,
+			replies:  []reply{{err: errNetwork}},
+			requests: []request{{testPostURL, "Deploy", ""}},
+			wantErr:  discord.ErrThreadUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, hook := newWebhook(t, tt.replies...)
+
+			err := newService(t, tt.rawURL, client).Send(tt.message, tt.params)
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+
+			sent := hook.sent()
+			require.Len(t, sent, len(tt.requests))
+
+			for i, req := range sent {
+				payload := decodePayload(t, req.body)
+				assert.Equal(t, request{url: req.url, threadName: payload.ThreadName, content: payload.Content}, tt.requests[i], "request %d", i)
+			}
+		})
+	}
+
+	t.Run("rich send with a file", func(t *testing.T) {
 		t.Parallel()
 
-		serviceURL, err := url.Parse(testServiceURL + "?mentions=channel")
-		require.NoError(t, err)
-		require.ErrorIs(t, (&discord.Service{}).Initialize(serviceURL, nil), discord.ErrInvalidMention)
+		client, hook := newWebhook(t, created)
+		service := newService(t, testServiceURL+"?thread_name=Report", client)
+		items := []types.MessageItem{{Text: "Report", File: &types.File{Name: "report.txt", Data: []byte("body")}}}
 
-		// The mock has no expected calls, so a request fails the test.
-		service := newService(t, testServiceURL, mocks.NewMockHTTPClient(t))
-		require.ErrorIs(t, service.Send(testMessage, &types.Params{"mentions": "role:admins"}), discord.ErrInvalidMention)
+		require.NoError(t, service.SendItemsContext(t.Context(), items, nil))
+
+		payloadJSON, _ := readMultipart(t, hook.sent()[0])
+		assert.Equal(t, "Report", decodePayload(t, []byte(payloadJSON)).ThreadName)
+	})
+
+	t.Run("JSON mode sends its payload as it is", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, noContent)
+		message := `{"content":"raw"}`
+
+		require.NoError(t, newService(t, testServiceURL+"?json=true&thread_name=Deploy", client).Send(message, nil))
+		assert.JSONEq(t, message, string(hook.sent()[0].body))
 	})
 }
 
@@ -1812,6 +1967,30 @@ func TestIntegrationRejectedBeforeSending(t *testing.T) {
 			},
 			wantErr:  discord.ErrInvalidThreadID,
 			wantText: "invalid thread ID",
+		},
+		{
+			name: "mention param that cannot be read",
+			send: func(_ *testing.T, service *discord.Service) error {
+				return service.Send(testMessage, &types.Params{"mentions": "role:admins"})
+			},
+			wantErr:  discord.ErrInvalidMention,
+			wantText: "invalid mention",
+		},
+		{
+			name: "thread name param with a thread ID param",
+			send: func(_ *testing.T, service *discord.Service) error {
+				return service.Send(testMessage, &types.Params{"thread_id": "123", "thread_name": "Deploy"})
+			},
+			wantErr:  discord.ErrThreadIDAndName,
+			wantText: "thread ID and thread name both set",
+		},
+		{
+			name: "thread name param over 100 characters",
+			send: func(_ *testing.T, service *discord.Service) error {
+				return service.Send(testMessage, &types.Params{"thread_name": strings.Repeat("n", 101)})
+			},
+			wantErr:  discord.ErrInvalidThreadName,
+			wantText: "invalid thread name",
 		},
 		{
 			name: "single item without text",

@@ -33,6 +33,24 @@ You can obtain the `thread_id` by right-clicking a thread in Discord and selecti
 The thread ID is a number, and Shoutrrr rejects a thread ID that is not one.
 A `thread_id` send param sends that message to another thread, in JSON mode too.
 
+### New Threads in Forum and Media Channels
+
+A webhook on a forum or media channel can only send into a thread, which Discord's app shows as a post.
+Each message therefore needs either `thread_id` for an existing thread or `thread_name` to create a new one.
+With `thread_name`, each message creates a thread with that name, of up to 100 characters:
+
+!!! example "New Thread"
+    ```bash
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?thread_name=Deploy%20finished" --message "Version 1.4 is live"
+    ```
+
+A message long enough for several requests creates the thread with the first one, and Shoutrrr sends the rest into that thread.
+If the first request creates nothing, such as when Discord rejects it or the connection cannot be made, the next one creates the thread instead.
+If the first request ends without a usable answer, such as a dropped connection, Shoutrrr sends no more of the message, since it cannot tell which thread to send into.
+A `thread_name` send param sets the name for one message.
+Shoutrrr rejects `thread_name` together with `thread_id`, since Discord takes one or the other.
+JSON mode sends its payload as it is, so set `thread_name` in the payload there.
+
 ## Webhook Customization
 
 You can customize the webhook's appearance by overriding the default username and avatar that were set when creating the webhook.
