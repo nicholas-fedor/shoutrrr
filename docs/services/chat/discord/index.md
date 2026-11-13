@@ -109,9 +109,26 @@ Shoutrrr supports attaching files to your Discord messages when using the Go lib
 
 ## Delivery and Errors
 
-Shoutrrr reports a send as successful only after Discord confirms that it saved the message, which Shoutrrr requests through the webhook's `wait` parameter.
-If Discord rejects a message, the error includes the HTTP status along with the reason and code from Discord's [JSON Error Codes](https://discord.com/developers/docs/topics/opcodes-and-status-codes#json-json-error-codes) table.
-For example, a deleted webhook fails with `404 Not Found: Unknown Webhook (code 10015)`.
+### Delivery
+
+Shoutrrr sets the webhook's `wait` parameter, so Discord answers only after it has saved the message.
+A send that succeeds means Discord saved the message.
+
+### Errors
+
+When Discord rejects a message, the error names these parts in order:
+
+- __Status__: the HTTP status, such as `404 Not Found`.
+- __Reason__: Discord's message, such as `Unknown Webhook`.
+- __Code__: the code from Discord's [JSON Error Codes](https://discord.com/developers/docs/topics/opcodes-and-status-codes#json-json-error-codes) table, such as `(code 10015)`.
+- __Invalid fields__: up to five fields Discord found invalid, each with Discord's code for its error. They appear only for an Invalid Form Body (code 50035).
+
+| Cause                      | Error                                                                                         |
+|----------------------------|-----------------------------------------------------------------------------------------------|
+| Deleted webhook            | `404 Not Found: Unknown Webhook (code 10015)`                                                 |
+| Embed description too long | `400 Bad Request: Invalid Form Body (code 50035): embeds.0.description: BASE_TYPE_MAX_LENGTH` |
+
+A response that is not Discord's error JSON, such as an error page from a proxy, gives the status alone.
 
 --8<-- "docs/services/chat/discord/config.md"
 

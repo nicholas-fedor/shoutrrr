@@ -1435,6 +1435,12 @@ func TestIntegrationSendStatusErrors(t *testing.T) {
 			wantText: "404 Not Found: Unknown Webhook (code 10015)",
 		},
 		{
+			name:     "invalid form body",
+			status:   http.StatusBadRequest,
+			body:     `{"code": 50035, "errors": {"embeds": {"0": {"description": {"_errors": [{"code": "BASE_TYPE_MAX_LENGTH", "message": "Must be 4096 or fewer in length."}]}}}}, "message": "Invalid Form Body"}`,
+			wantText: "400 Bad Request: Invalid Form Body (code 50035): embeds.0.description: BASE_TYPE_MAX_LENGTH",
+		},
+		{
 			name:     "message on several lines",
 			status:   http.StatusForbidden,
 			body:     `{"message": "Missing\nPermissions\t", "code": 50013}`,
