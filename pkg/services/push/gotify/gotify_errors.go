@@ -18,9 +18,6 @@ var (
 	// ErrInvalidPriority indicates that the priority value is outside the valid range.
 	ErrInvalidPriority = errors.New("priority must be between -2 and 10")
 
-	// ErrInvalidDate indicates that the date format is invalid.
-	ErrInvalidDate = errors.New("invalid date format")
-
 	// ErrExtrasUnmarshalFailed indicates failure to unmarshal extras JSON.
 	ErrExtrasUnmarshalFailed = errors.New("failed to unmarshal extras JSON")
 
@@ -54,9 +51,6 @@ var (
 
 // Configuration errors.
 var (
-	// ErrConfigUpdateFailed indicates failure to update configuration.
-	ErrConfigUpdateFailed = errors.New("failed to update configuration")
-
 	// ErrConfigPropertyFailed indicates failure with a configuration property.
 	ErrConfigPropertyFailed = errors.New("failed to set configuration property")
 )

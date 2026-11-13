@@ -27,8 +27,10 @@ type Config struct {
 	// from JSON.
 	Extras map[string]any
 
-	// Token is the application token: a gtfya. token from Gotify 3.0 or
-	// later, or a 15-character token starting with A from earlier versions.
+	// Token is the application token. Gotify 3.0 and later issue gtfya.
+	// tokens. Earlier versions issue 15-character tokens starting with A,
+	// which Gotify 3 still accepts. A client token is rejected, because
+	// Gotify sends a message for one only with an application ID.
 	Token string `desc:"Application token" required:"" sensitive:"true" url:"path2"`
 	// Host is the server host, with an optional port.
 	Host string `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`
@@ -56,8 +58,9 @@ type Config struct {
 	// Deprecated: Use [Config.SkipTLSVerify], which the skiptlsverify key sets.
 	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`
 	// UseHeader sends the token in the X-Gotify-Key header instead of the
-	// URL query.
-	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
+	// URL query, where access logs record it. A URL without the useheader key
+	// turns it on, and a config built in code turns it on by setting it.
+	UseHeader bool `default:"Yes" desc:"Send the token in the X-Gotify-Key header instead of the URL query" key:"useheader"`
 
 	// prioritySet is true when the URL, the send params, or the level set the
 	// priority, so a priority of 0 is sent instead of leaving the application
@@ -218,6 +221,15 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 		return err
 	}
 
+	// The options start from their defaults, so an option the URL leaves out
+	// does not keep the value an earlier URL set. The extras have no default
+	// tag, so they are cleared here.
+	if err := resolver.SetDefaultProps(c); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
+
+	c.Extras = nil
+
 	// Process query parameters to set remaining configuration fields
 	if err := c.processQueryParameters(resolver, query); err != nil {
 		return fmt.Errorf("failed to process query parameters: %w", err)
@@ -249,7 +261,8 @@ func (c *Config) tokenPath() string {
 //     wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host that
 //     a URL cannot hold. An error wrapping [util.ErrInvalidPathSegment] for a
 //     subpath with a "." or ".." segment. [ErrInvalidToken] for a missing
-//     token or one in neither Gotify token format. Otherwise nil.
+//     token, a client token, or a token in neither application token format.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	// The host may carry a port, so a port alone names no host.
 	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
@@ -265,9 +278,12 @@ func (c *Config) validate() error {
 		return fmt.Errorf("subpath: %w", err)
 	}
 
-	if !(&DefaultValidator{}).ValidateToken(c.Token) {
+	switch {
+	case (&DefaultValidator{}).ValidateToken(c.Token):
+		return nil
+	case hasTokenForm(c.Token, clientTokenPrefix, legacyClientPrefix):
+		return fmt.Errorf("%w: client tokens need an application ID, so use an application token", ErrInvalidToken)
+	default:
 		return ErrInvalidToken
 	}
-
-	return nil
 }

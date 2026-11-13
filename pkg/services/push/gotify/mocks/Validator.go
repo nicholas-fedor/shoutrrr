@@ -45,66 +45,6 @@ func (_m *MockValidator) EXPECT() *MockValidator_Expecter {
 	return &MockValidator_Expecter{mock: &_m.Mock}
 }
 
-// ValidateDate provides a mock function for the type MockValidator
-func (_mock *MockValidator) ValidateDate(date string) (string, error) {
-	ret := _mock.Called(date)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ValidateDate")
-	}
-
-	var r0 string
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (string, error)); ok {
-		return returnFunc(date)
-	}
-	if returnFunc, ok := ret.Get(0).(func(string) string); ok {
-		r0 = returnFunc(date)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
-		r1 = returnFunc(date)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockValidator_ValidateDate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ValidateDate'
-type MockValidator_ValidateDate_Call struct {
-	*mock.Call
-}
-
-// ValidateDate is a helper method to define mock.On call
-//   - date string
-func (_e *MockValidator_Expecter) ValidateDate(date any) *MockValidator_ValidateDate_Call {
-	return &MockValidator_ValidateDate_Call{Call: _e.mock.On("ValidateDate", date)}
-}
-
-func (_c *MockValidator_ValidateDate_Call) Run(run func(date string)) *MockValidator_ValidateDate_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *MockValidator_ValidateDate_Call) Return(s string, err error) *MockValidator_ValidateDate_Call {
-	_c.Call.Return(s, err)
-	return _c
-}
-
-func (_c *MockValidator_ValidateDate_Call) RunAndReturn(run func(date string) (string, error)) *MockValidator_ValidateDate_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // ValidateMessage provides a mock function for the type MockValidator
 func (_mock *MockValidator) ValidateMessage(message string) error {
 	ret := _mock.Called(message)

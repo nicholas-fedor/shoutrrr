@@ -16,7 +16,7 @@
 //   - host: Gotify server hostname (required)
 //   - port: optional port number (default: 443 for HTTPS, 80 for HTTP)
 //   - path: optional subpath for Gotify installation (e.g., "/gotify")
-//   - token: application token for authentication (required, a gtfya. token from Gotify 3.0 or later, or 15 characters starting with 'A' from earlier versions)
+//   - token: application token for authentication (required). Gotify 3.0 and later issue gtfya. tokens. Earlier versions issue 15 characters starting with 'A', which Gotify 3 still accepts
 //   - query: configuration parameters
 //
 // # Configuration Options
@@ -29,7 +29,7 @@
 //   - disabletls: set to "yes" to disable TLS (use HTTP instead of HTTPS)
 //   - skiptlsverify: set to "yes" to skip TLS certificate verification (insecure, use with caution).
 //     The deprecated insecureskipverify key sets it too.
-//   - useheader: set to "yes" to send token in X-Gotify-Key header instead of URL query parameter
+//   - useheader: sends the token in the X-Gotify-Key header (default: yes). Set it to "no" to send the token in the URL query instead
 //   - date: deprecated and not sent, because Gotify stamps each message with the server time
 //   - extras: JSON string containing additional key-value pairs to include in the notification
 //
@@ -56,10 +56,10 @@
 //	url := "gotify://gotify.example.com/Aaa.bbb.ccc.ddd?title=Backup&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Flogs%22%7D"
 //	err := shoutrrr.Send(url, "Backup completed successfully")
 //
-// ## Notification with header authentication
+// ## Notification with the token in the URL query
 //
-//	url := "gotify://gotify.example.com/Aaa.bbb.ccc.ddd?useheader=yes"
-//	err := shoutrrr.Send(url, "Authenticated notification")
+//	url := "gotify://gotify.example.com/Aaa.bbb.ccc.ddd?useheader=no"
+//	err := shoutrrr.Send(url, "Notification with the token in the query")
 //
 // ## Notification with disabled TLS (insecure)
 //
@@ -126,6 +126,7 @@
 //
 // Common error scenarios:
 //   - Invalid token format (a gtfya. token from Gotify 3.0 or later, or 15 characters starting with 'A' from earlier versions)
+//   - A client token, which Gotify accepts for a message only with an application ID
 //   - Empty message content
 //   - Network connectivity issues
 //   - Invalid server hostname or port
@@ -138,7 +139,7 @@
 //
 // - Use HTTPS whenever possible (default behavior) to protect notification content in transit
 // - Store application tokens securely - avoid hardcoding them in source code or configuration files
-// - Use header-based authentication (useheader=yes) to avoid exposing tokens in server logs
+// - Keep header-based authentication on (the default) to avoid exposing tokens in server logs
 // - Consider token entropy - Gotify tokens are application-specific and should be treated as secrets
 // - Be cautious with disabletls=yes - only use in trusted environments as it disables TLS (uses HTTP)
 // - Be cautious with skiptlsverify=yes - only use in trusted environments as it disables certificate verification
@@ -150,7 +151,8 @@
 // # Limitations and Behaviors
 //
 // - Application tokens from Gotify 3.0 or later start with gtfya. followed by at least 43 characters
-// - Application tokens from earlier Gotify versions are exactly 15 characters long, start with 'A', and use only a-z, A-Z, 0-9, ., -, _
+// - Application tokens from earlier Gotify versions are exactly 15 characters long, start with 'A', and use only a-z, A-Z, 0-9, ., -, _. Gotify 3 still accepts them
+// - Client tokens (gtfyc. or 15 characters starting with 'C') are rejected when the URL is read, because Gotify sends a message for one only with an application ID
 // - Message content cannot be empty
 // - Priority can be set to a value between -2 and 10, where -2 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
 // - The date parameter is deprecated and not sent, because Gotify stamps each message with the server time. A warning is logged the first time it is set

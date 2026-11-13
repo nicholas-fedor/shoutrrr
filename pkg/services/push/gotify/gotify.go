@@ -92,10 +92,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	// Set the logger for this service instance to enable logging throughout the service lifecycle
 	s.SetLogger(logger)
 
-	// Initialize the configuration with default values
-	s.Config = &Config{
-		Title: "Shoutrrr notification", // Default notification title used when none specified
-	}
+	// Reading the URL sets the defaults of the options it leaves out.
+	s.Config = &Config{}
 
 	// The resolver parses the URL and applies the params of each send. It
 	// records the deprecated keys the URL uses.

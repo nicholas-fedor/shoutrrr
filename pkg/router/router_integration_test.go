@@ -418,8 +418,10 @@ var fixtures = []fixture{
 		secrets: []string{"SECRETgchatKEY", "SECRETgchatTOKEN"},
 	},
 	{
-		scheme:  "gotify",
-		url:     "gotify://gotify.example.invalid/ASECRETgotifyTK",
+		scheme: "gotify",
+		// The token goes in the request URL, so the checks cover it there
+		// instead of in the X-Gotify-Key header that Gotify sends by default.
+		url:     "gotify://gotify.example.invalid/ASECRETgotifyTK?useheader=no",
 		secrets: []string{"ASECRETgotifyTK"},
 		body:    `{"id":1}`,
 	},
