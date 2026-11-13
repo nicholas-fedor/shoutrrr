@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Leave token request redirects to the sending client by @nicholas-fedor in [#2186](https://github.com/nicholas-fedor/shoutrrr/pull/2186)
 - Refuse token exchange redirects to another host by @nicholas-fedor in [#2184](https://github.com/nicholas-fedor/shoutrrr/pull/2184)
 - Refuse generator redirects to another host by @nicholas-fedor in [#2182](https://github.com/nicholas-fedor/shoutrrr/pull/2182)
 - Reject client tokens and send the token in a header by @nicholas-fedor in [#2180](https://github.com/nicholas-fedor/shoutrrr/pull/2180)
