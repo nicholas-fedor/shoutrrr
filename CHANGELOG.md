@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Refuse generator redirects to another host by @nicholas-fedor in [#2182](https://github.com/nicholas-fedor/shoutrrr/pull/2182)
 - Reject client tokens and send the token in a header by @nicholas-fedor in [#2180](https://github.com/nicholas-fedor/shoutrrr/pull/2180)
 - Follow redirects only on the same host and never to HTTP by @nicholas-fedor in [#2178](https://github.com/nicholas-fedor/shoutrrr/pull/2178)
 - Stop sending a badge of 0 with every push by @nicholas-fedor in [#2176](https://github.com/nicholas-fedor/shoutrrr/pull/2176)
