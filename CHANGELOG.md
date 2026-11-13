@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Report server errors that may follow a saved message by @nicholas-fedor in [#2200](https://github.com/nicholas-fedor/shoutrrr/pull/2200)
 - Retry only failed dials of a webhook POST by @nicholas-fedor in [#2194](https://github.com/nicholas-fedor/shoutrrr/pull/2194)
 - Keep split lines whole up to Discord's embed limits by @nicholas-fedor in [#2192](https://github.com/nicholas-fedor/shoutrrr/pull/2192)
 - Name the invalid fields in form body errors by @nicholas-fedor in [#2190](https://github.com/nicholas-fedor/shoutrrr/pull/2190)
