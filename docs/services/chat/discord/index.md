@@ -79,7 +79,9 @@ This is implemented through Shoutrrr's PartitionMessage utility and is not a Dis
 !!! note ""
     The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.
 
-When `splitLines` is enabled (default), each line of the input becomes a separate embedded item. When disabled, long messages are automatically chunked to fit within Discord's limits.
+When `splitLines` is enabled (default), each line of the input becomes a separate embedded item.
+A line can hold up to 4096 characters, Discord's limit for an embed description, and a longer line is shortened.
+When `splitLines` is disabled, long messages are automatically chunked to fit within Discord's limits.
 
 !!! example "Long Message Chunking"
     ```bash
@@ -103,6 +105,9 @@ An item still over 6000 characters on its own loses fields from the end, then ha
 ## File Attachments
 
 Shoutrrr supports attaching files to your Discord messages when using the Go library. Files are sent as multipart/form-data along with the message payload. See Discord's [webhook execution documentation](https://discord.com/developers/docs/resources/webhook#execute-webhook) for details on file attachments.
+
+Discord limits the size of each file to 20 MiB by default, and allows larger files on servers with a higher Boost Tier, as its [Uploading Files](https://discord.com/developers/docs/reference#uploading-files) reference describes.
+Shoutrrr cannot tell which limit a webhook's server has, so it sends each file and reports Discord's error for one that is too large.
 
 !!! note ""
     File attachments require the webhook to have appropriate permissions, and files must be accessible from the system running Shoutrrr. File attachments are not supported in the CLI.

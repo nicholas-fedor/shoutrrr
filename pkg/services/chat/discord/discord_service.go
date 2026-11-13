@@ -494,6 +494,11 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 // createItemsFromPlain converts plain text into batches of MessageItems, one
 // batch per webhook request.
 //
+// With split lines, each line becomes an embed whose description holds up to
+// 4096 characters, so a longer line is shortened to that length. Without
+// them, the text is split into chunks of at most [ChunkSize] characters, and
+// none of it is left out.
+//
 // Discord counts the title on a batch's first embed toward the same total text
 // limit as the descriptions, so each batch's budget is reduced by the title's length.
 // Discord treats text of only whitespace as empty, so blank lines and chunks are
@@ -514,6 +519,8 @@ func createItemsFromPlain(plain string, splitLines bool, title string) [][]types
 	batchLimits.TotalChunkSize = max(TotalChunkSize-utf8.RuneCountInString(title), 1)
 
 	if splitLines {
+		batchLimits.ChunkSize = maxEmbedDescription
+
 		return util.MessageItemsFromLines(plain, batchLimits)
 	}
 
