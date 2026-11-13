@@ -9,6 +9,10 @@
 // service that keeps an exported client field for compatibility sends through
 // [Holder.Prefer].
 //
+// The default clients refuse a redirect that could carry a service's
+// credentials to another host or over plain HTTP, with [ErrRedirectRefused].
+// An injected client keeps its owner's redirect policy.
+//
 // [BoundContext] bounds a send whose context has no deadline, such as a direct
 // Send call without the router. [RetryAfter] reads the wait that a
 // rate-limited response asks for, so services read the header alike.

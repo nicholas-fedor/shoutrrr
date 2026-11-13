@@ -204,7 +204,8 @@ Every service follows the same rules, so services behave alike for users and for
 ### HTTP Clients
 
 - Keep the clients in `internal/httpclient.Holder`, and implement `SetHTTPClient` through it.
-- Send every request through that client, including token and API requests.
+- Send every request through that client, including token and API requests, so the holder's redirect policy covers them.
+  Its default clients refuse a redirect to another host or from HTTPS to HTTP.
 - Restore the default client when `SetHTTPClient` receives nil.
   The holder uses a nil value of another client type as given, and turns a runtime panic from it into `types.ErrNilHTTPClient`.
 - Export no client fields, client interfaces, or client constructors.

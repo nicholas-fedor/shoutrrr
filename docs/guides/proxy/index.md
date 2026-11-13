@@ -212,6 +212,10 @@ func main() {
   when the process sends its first HTTP request, so set them before starting the application. They affect every
   HTTP-based service that uses its own default client.
 - **Custom HTTP Client**: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.
+- **Redirects**: A service's own default client follows a redirect only on the host the request went to, and never from HTTPS to HTTP.
+  Other redirects fail the send, because the request's headers can hold the service's credentials.
+  A custom client keeps its own redirect policy.
+  Go's default policy forwards `Authorization`, `WWW-Authenticate`, and `Cookie` only within the first request's domain, and every other header to any host.
 - **Custom DialContext**: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use `HTTPClient`.
 - **Service Compatibility**: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).
 - **Timeouts**: The custom client example includes a 30-second dial timeout and 10-second TLS handshake timeout, adjustable as needed.

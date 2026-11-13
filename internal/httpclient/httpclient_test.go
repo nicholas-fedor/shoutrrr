@@ -4,7 +4,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -407,6 +409,54 @@ func TestHolderDefaultClient(t *testing.T) {
 	client := requireHTTPClient(t, holder.Client())
 	assert.Zero(t, client.Timeout)
 	assert.Nil(t, client.Transport)
+}
+
+// TestHolderDefaultClientsRedirect verifies that both default clients carry
+// the redirect policy. Each follows a redirect on the server's own host and
+// refuses one that names the server as localhost, another host name for it,
+// before connecting.
+func TestHolderDefaultClientsRedirect(t *testing.T) {
+	t.Parallel()
+
+	var holder Holder
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/same":
+			http.Redirect(w, r, "/done", http.StatusTemporaryRedirect)
+		case "/elsewhere":
+			_, port, _ := net.SplitHostPort(r.Host)
+			http.Redirect(w, r, "http://"+net.JoinHostPort("localhost", port)+"/done", http.StatusTemporaryRedirect)
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	clients := map[string]types.HTTPClient{
+		"default":  holder.Client(),
+		"insecure": holder.InsecureClient(nil),
+	}
+
+	for name, client := range clients {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/same", http.NoBody)
+			require.NoError(t, err)
+
+			res, err := client.Do(req)
+			require.NoError(t, err)
+			require.NoError(t, res.Body.Close())
+			assert.Equal(t, http.StatusNoContent, res.StatusCode)
+
+			req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/elsewhere", http.NoBody)
+			require.NoError(t, err)
+
+			_, err = client.Do(req)
+			require.ErrorIs(t, err, ErrRedirectRefused)
+		})
+	}
 }
 
 // TestHolderInsecureClient verifies which client InsecureClient returns. It

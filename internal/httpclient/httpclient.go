@@ -14,7 +14,8 @@ import (
 // Holder holds the injected HTTP client of a service and its default clients.
 // The zero value is ready to use and holds no client. The default clients
 // have no timeout of their own, because each send bounds its requests with
-// [BoundContext]. A Holder must not be copied after first use.
+// [BoundContext]. They fail a redirect to another host or from HTTPS to HTTP
+// with [ErrRedirectRefused]. A Holder must not be copied after first use.
 type Holder struct {
 	// injected is the client from Set, or nil.
 	injected types.HTTPClient
@@ -57,7 +58,7 @@ func (h *Holder) Client() types.HTTPClient {
 	}
 
 	if h.fallback == nil {
-		h.fallback = &http.Client{}
+		h.fallback = &http.Client{CheckRedirect: checkRedirect}
 	}
 
 	return h.fallback
@@ -89,7 +90,10 @@ func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 	}
 
 	if h.insecure == nil {
-		h.insecure = &http.Client{Transport: transport.New(transport.InsecureTLSConfig(""))}
+		h.insecure = &http.Client{
+			Transport:     transport.New(transport.InsecureTLSConfig("")),
+			CheckRedirect: checkRedirect,
+		}
 	}
 
 	insecure := h.insecure
