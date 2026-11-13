@@ -503,7 +503,8 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 // With split lines, each line becomes an item for an embed whose description
 // holds up to 4096 characters, so a longer line is shortened to that length.
 // Without them, the text is split into chunks of at most [ChunkSize]
-// characters, and none of it is left out. Discord treats text of only
+// characters, at a space or line break near the limit when there is one, and
+// that space or line break is left out. Discord treats text of only
 // whitespace as empty, so blank lines and chunks are left out, and a message
 // of only whitespace gives no items.
 //

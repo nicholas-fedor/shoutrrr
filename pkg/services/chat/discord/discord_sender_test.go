@@ -3,11 +3,14 @@ package discord
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -876,12 +879,26 @@ func TestIsTransientError(t *testing.T) {
 		expected bool
 	}{
 		{name: "context canceled", err: context.Canceled, expected: false},
-		{name: "context deadline exceeded", err: context.DeadlineExceeded, expected: true},
-		{name: "timeout network error", err: &mockTimeoutError{}, expected: true},
-		{name: "temporary network error", err: &mockTemporaryError{}, expected: true},
-		{name: "connection refused", err: errors.New("dial tcp 127.0.0.1:8080: connect: connection refused"), expected: true},
-		{name: "connection reset", err: errors.New("read tcp 127.0.0.1:8080: connection reset by peer"), expected: true},
-		{name: "wrapped transient error", err: &url.Error{Op: "Get", URL: "http://example.com", Err: context.DeadlineExceeded}, expected: true},
+		{name: "context deadline exceeded", err: context.DeadlineExceeded, expected: false},
+		{name: "timeout network error", err: &mockTimeoutError{}, expected: false},
+		{name: "temporary network error that is not a timeout", err: &mockTemporaryError{}, expected: false},
+		{name: "refused connection named only in text", err: errors.New("dial tcp 127.0.0.1:8080: connect: connection refused"), expected: false},
+		{name: "reset connection named only in text", err: errors.New("read tcp 127.0.0.1:8080: connection reset by peer"), expected: false},
+		{name: "deadline in a request error", err: &url.Error{Op: "Post", URL: "http://example.com", Err: context.DeadlineExceeded}, expected: false},
+		{
+			name: "dial timeout in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "dial", Net: "tcp", Err: &mockTimeoutError{},
+			}},
+			expected: true,
+		},
+		{
+			name: "read timeout in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "read", Net: "tcp", Err: &mockTimeoutError{},
+			}},
+			expected: false,
+		},
 		{
 			name: "refused dial in a request error",
 			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
@@ -894,7 +911,28 @@ func TestIsTransientError(t *testing.T) {
 			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
 				Op: "read", Net: "tcp", Err: errors.New("connection reset by peer"),
 			}},
-			expected: true,
+			expected: false,
+		},
+		{
+			name: "broken write in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "write", Net: "tcp", Err: errors.New("broken pipe"),
+			}},
+			expected: false,
+		},
+		{
+			name: "canceled dial in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "dial", Net: "tcp", Err: fmt.Errorf("dialing: %w", context.Canceled),
+			}},
+			expected: false,
+		},
+		{
+			name: "TLS alert in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "remote error", Err: errors.New("tls: handshake failure"),
+			}},
+			expected: false,
 		},
 		{name: "other request error", err: &url.Error{Op: "Post", URL: "http://example.com", Err: errors.New("bad gateway")}, expected: false},
 		{name: "generic error", err: errors.New("some other error"), expected: false},
@@ -910,6 +948,86 @@ func TestIsTransientError(t *testing.T) {
 	}
 }
 
+// TestIsTransientErrorConnections verifies on loopback, whatever errors the
+// operating system running the test reports, that a refused dial is
+// transient. A canceled dial and a reset read are not, since the webhook POST
+// may have reached Discord before a read failed.
+func TestIsTransientErrorConnections(t *testing.T) {
+	t.Parallel()
+
+	t.Run("refused dial", func(t *testing.T) {
+		t.Parallel()
+
+		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		addr := listener.Addr().String()
+		require.NoError(t, listener.Close())
+
+		conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
+		if conn != nil {
+			_ = conn.Close()
+		}
+
+		require.Error(t, err, "nothing listens on the port")
+		assert.True(t, isTransientError(err), "%v is transient", err)
+	})
+
+	t.Run("canceled dial", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", "127.0.0.1:1")
+		if conn != nil {
+			_ = conn.Close()
+		}
+
+		require.Error(t, err, "the dial's context is canceled")
+		assert.False(t, isTransientError(err), "%v is not transient", err)
+	})
+
+	t.Run("reset read", func(t *testing.T) {
+		t.Parallel()
+
+		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		defer func() { _ = listener.Close() }()
+
+		accepted := make(chan net.Conn, 1)
+
+		go func() {
+			conn, err := listener.Accept()
+			if err != nil {
+				close(accepted)
+
+				return
+			}
+
+			accepted <- conn
+		}()
+
+		client, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		defer func() { _ = client.Close() }()
+
+		server, ok := (<-accepted).(*net.TCPConn)
+		require.True(t, ok, "the listener accepts the connection")
+
+		// Closing with a linger of zero sends a reset instead of a close.
+		require.NoError(t, server.SetLinger(0))
+		require.NoError(t, server.Close())
+
+		_, err = client.Read(make([]byte, 1))
+
+		require.Error(t, err, "the server reset the connection")
+		assert.False(t, isTransientError(err), "%v is not transient", err)
+	})
+}
+
 // TestExecuteWithTransportRetry verifies that transient transport errors are
 // retried with exponential backoff, that the last error is returned once the
 // retries run out, and that a context canceled before the first request stops
@@ -917,6 +1035,8 @@ func TestIsTransientError(t *testing.T) {
 // covers a cancel during the backoff.
 func TestExecuteWithTransportRetry(t *testing.T) {
 	t.Parallel()
+
+	refused := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
 
 	// tests lists the client's replies with the backoff waits and error to
 	// expect.
@@ -928,14 +1048,15 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		wantErr       error
 	}{
 		{name: "success on the first attempt", replies: []error{nil}},
-		{name: "success after a transient error", replies: []error{context.DeadlineExceeded, nil}, wantSleeps: []time.Duration{time.Second}},
+		{name: "success after a refused dial", replies: []error{refused, nil}, wantSleeps: []time.Duration{time.Second}},
 		{
-			name:       "transient errors until the retries run out",
-			replies:    []error{context.DeadlineExceeded, context.DeadlineExceeded, context.DeadlineExceeded, context.DeadlineExceeded},
+			name:       "refused dials until the retries run out",
+			replies:    []error{refused, refused, refused, refused},
 			wantSleeps: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second},
-			wantErr:    context.DeadlineExceeded,
+			wantErr:    refused,
 		},
-		{name: "context canceled before the first request", replies: []error{context.DeadlineExceeded}, cancelContext: true, wantErr: context.Canceled},
+		{name: "deadline not retried", replies: []error{context.DeadlineExceeded}, wantErr: context.DeadlineExceeded},
+		{name: "context canceled before the first request", replies: []error{refused}, cancelContext: true, wantErr: context.Canceled},
 	}
 
 	for _, tt := range tests {
@@ -992,7 +1113,7 @@ func TestExecuteWithTransportRetryStopsOnCancel(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		client := mocks.NewMockHTTPClient(t)
-		client.EXPECT().Do(mock.Anything).Return(nil, errors.New("connection refused")).Once()
+		client.EXPECT().Do(mock.Anything).Return(nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}).Once()
 
 		ctx, cancel := context.WithCancel(t.Context())
 		time.AfterFunc(10*time.Millisecond, cancel)
@@ -1007,6 +1128,61 @@ func TestExecuteWithTransportRetryStopsOnCancel(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Equal(t, 10*time.Millisecond, time.Since(start), "the one second backoff ends at the cancel")
 	})
+}
+
+// TestExecuteWithTransportRetryCanceledDial verifies that a dial its own
+// context canceled is not retried while the send's context is still active.
+func TestExecuteWithTransportRetryCanceledDial(t *testing.T) {
+	t.Parallel()
+
+	canceled := &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+		Op: "dial", Net: "tcp", Err: fmt.Errorf("dialing: %w", context.Canceled),
+	}}
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).Return(nil, canceled).Once()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://example.com", http.NoBody)
+	require.NoError(t, err)
+
+	// The sleeper has no expectations, so a retry's wait fails the test.
+	_, err = executeWithTransportRetry(t.Context(), client, req, mocks.NewMockSleeper(t))
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.NoError(t, t.Context().Err(), "the send's context is still active")
+}
+
+// TestExecuteWithTransportRetryClientTimeout verifies that a client's own
+// timeout while it awaits Discord's answer is not retried, since the webhook
+// POST already reached the server.
+func TestExecuteWithTransportRetryClientTimeout(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	defer server.Close()
+	defer close(release)
+
+	client := &http.Client{Timeout: 50 * time.Millisecond}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, strings.NewReader("test"))
+	require.NoError(t, err)
+
+	// The sleeper has no expectations, so a retry's wait fails the test.
+	resp, err := executeWithTransportRetry(t.Context(), client, req, mocks.NewMockSleeper(t))
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	require.ErrorIs(t, err, context.DeadlineExceeded, "the client's timeout ends the request")
+	assert.Equal(t, int32(1), requests.Load(), "the POST reached the server once")
 }
 
 // TestRetryRequest verifies that a retry gets a copy of the request with the

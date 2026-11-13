@@ -76,8 +76,8 @@
 //
 // # File Attachments
 //
-// Files can be attached using MessageItem.File or via CLI --file option.
-// Multiple files are supported per message.
+// Files can be attached through the Go library by setting MessageItem.File.
+// The CLI does not attach files. Multiple files are supported per message.
 //
 // # Important Notes
 //

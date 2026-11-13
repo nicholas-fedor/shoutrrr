@@ -356,12 +356,16 @@ func (b errorBody) reason() string {
 	return message
 }
 
-// isTransientError checks if an error is transient and should be retried.
+// isTransientError reports whether a transport error may pass on a retry.
 //
-// A canceled context is not transient, and a passed deadline is. A
-// [net.Error] that reports a timeout or a temporary failure is transient.
-// Any other error, including a [net.Error] that reports neither, is transient
-// when its text mentions a refused or reset connection.
+// Only a [net.OpError] from dialing the connection is transient, which covers
+// a connection the server refused or a dial that timed out, on every
+// platform. The request never left, so sending it again is safe. Any other
+// failure may come after the webhook POST reached Discord, where sending it
+// again could post the message twice: a failed read or write, a timeout while
+// awaiting the answer, and a TLS alert. The HTTP transport already retries a
+// request on a reused connection that failed before any of it was written. A
+// canceled context is not transient either, even inside a dial it canceled.
 //
 // Parameters:
 //   - err: the transport error, or nil.
@@ -369,34 +373,20 @@ func (b errorBody) reason() string {
 // Returns:
 //   - bool: whether a retry may succeed.
 func isTransientError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	if errors.Is(err, context.Canceled) {
 		return false
 	}
 
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
+	opErr, ok := errors.AsType[*net.OpError](err)
 
-	if netErr, ok := errors.AsType[net.Error](err); ok &&
-		(netErr.Timeout() || netErr.Temporary()) { //nolint:staticcheck // Temporary is deprecated but still used for compatibility
-		return true
-	}
-
-	errStr := err.Error()
-
-	return strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset")
+	return ok && opErr.Op == "dial"
 }
 
 // executeWithTransportRetry executes an HTTP request with transport-level retries.
 //
 // The first attempt sends req, and each retry sends a copy of it with a fresh
-// body. A transient error is retried up to three times with an exponential
-// backoff. A timeout and a refused or reset connection count as transient.
+// body. A failed dial is retried up to three times with an exponential
+// backoff, since the request never reached Discord.
 //
 // Parameters:
 //   - ctx: the context of each request and wait.
