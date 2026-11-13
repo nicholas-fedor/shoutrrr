@@ -356,12 +356,14 @@ func (b errorBody) reason() string {
 	return message
 }
 
-// isTransientError checks if an error is transient and should be retried.
+// isTransientError reports whether a transport error may pass on a retry.
 //
-// A canceled context is not transient, and a passed deadline is. A
-// [net.Error] that reports a timeout or a temporary failure is transient.
-// Any other error, including a [net.Error] that reports neither, is transient
-// when its text mentions a refused or reset connection.
+// A canceled context is not transient, even inside a [net.OpError] from a
+// dial it canceled. A passed deadline is transient, and so is a [net.Error]
+// that reports a timeout. A [net.OpError] from dialing the connection or from
+// reading or writing on it is transient too, which covers a connection the
+// server refused or reset on every platform. Any other error is not, a TLS
+// alert included.
 //
 // Parameters:
 //   - err: the transport error, or nil.
@@ -369,11 +371,7 @@ func (b errorBody) reason() string {
 // Returns:
 //   - bool: whether a retry may succeed.
 func isTransientError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, context.Canceled) {
+	if err == nil || errors.Is(err, context.Canceled) {
 		return false
 	}
 
@@ -381,15 +379,21 @@ func isTransientError(err error) bool {
 		return true
 	}
 
-	if netErr, ok := errors.AsType[net.Error](err); ok &&
-		(netErr.Timeout() || netErr.Temporary()) { //nolint:staticcheck // Temporary is deprecated but still used for compatibility
+	if netErr, ok := errors.AsType[net.Error](err); ok && netErr.Timeout() {
 		return true
 	}
 
-	errStr := err.Error()
+	opErr, ok := errors.AsType[*net.OpError](err)
+	if !ok {
+		return false
+	}
 
-	return strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset")
+	switch opErr.Op {
+	case "dial", "read", "write":
+		return true
+	default:
+		return false
+	}
 }
 
 // executeWithTransportRetry executes an HTTP request with transport-level retries.

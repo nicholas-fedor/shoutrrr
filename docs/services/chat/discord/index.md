@@ -62,34 +62,29 @@ A short message without a title is sent as plain content, which has no embed to 
 
 ## Message Chunking
 
-### Discord API Constraints
+Shoutrrr splits a long plain message so that each webhook request fits Discord's limits.
+These come from Discord's [Execute Webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook) parameters and [Embed Limits](https://discord.com/developers/docs/resources/message#embed-object-embed-limits):
 
-Discord limits individual messages to 2000 characters.
-Messages exceeding this limit are sent as separate messages without automatic merging.
+| Limit                          | Value                                                                        |
+|--------------------------------|------------------------------------------------------------------------------|
+| Message content                | 2000 characters                                                              |
+| Embed description              | 4096 characters                                                              |
+| Embeds in one message          | 10                                                                           |
+| Text across a message's embeds | 6000 characters, counting titles, descriptions, fields, footers, and authors |
 
-### Shoutrrr Implementation
+How the message is split depends on `splitLines`:
 
-Shoutrrr provides additional message chunking as a feature to handle longer content.
-This is implemented through Shoutrrr's PartitionMessage utility and is not a Discord requirement.
+- __`splitLines=yes`__ (default): each line becomes an embed. A line holds up to 4096 characters, and a longer line is shortened. Blank lines are left out.
+- __`splitLines=no`__: the text is split into chunks of up to 2000 characters, at a space or line break near the limit when there is one. Each chunk becomes an embed. The space or line break at each split is left out, and so are chunks of only whitespace.
 
-- __Chunk Size__: Maximum 2000 characters per message (matches Discord API limit)
-- __Total Size__: Maximum 6000 characters total across all chunks (Shoutrrr-specific limit)
-- __Max Chunks__: Up to 10 message chunks per send operation (Shoutrrr-specific limit)
-
-!!! note ""
-    The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.
-
-When `splitLines` is enabled (default), each line of the input becomes a separate embedded item.
-A line can hold up to 4096 characters, Discord's limit for an embed description, and a longer line is shortened.
-When `splitLines` is disabled, long messages are automatically chunked to fit within Discord's limits.
+Shoutrrr sends the embeds in as many requests as they need.
+Each request holds up to 10 embeds and 6000 characters of embed text, counting the title on its first embed and each embed's level footer.
+A message that becomes a single line or chunk of up to 2000 characters, without a title, is sent as plain message content instead of an embed.
 
 !!! example "Long Message Chunking"
     ```bash
-    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?splitLines=false" --message "This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?splitLines=no" --message "$(cat build.log)"
     ```
-
-!!! note ""
-    Message chunking only applies when `splitLines` is set to `false`. When `splitLines` is `true` (default), each line becomes a separate embed instead.
 
 ## Enhanced Embeds
 
