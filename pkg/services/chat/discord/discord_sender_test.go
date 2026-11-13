@@ -402,8 +402,9 @@ func TestSendWithRetryReadsRetriedReply(t *testing.T) {
 // request may have created a message.
 //
 // A success, a transport failure after the dial, and a client that answers
-// with neither a response nor an error may have. An error
-// status, server errors until the retries run out, a rate limit that cannot
+// with neither a response nor an error may have. So may any attempt that got
+// a server error other than 502, even when a later attempt fails otherwise.
+// An error status, 502s until the retries run out, a rate limit that cannot
 // be waited out, a failed dial, and a request that cannot be built created
 // nothing.
 func TestSendWithRetryMayHaveCreated(t *testing.T) {
@@ -466,6 +467,49 @@ func TestSendWithRetryMayHaveCreated(t *testing.T) {
 				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusServiceUnavailable, nil)).Times(maxRetries + 1)
 			},
 			sleeps: maxRetries,
+			want:   true,
+		},
+		{
+			name: "no gateway until the retries run out",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusBadGateway, nil)).Times(maxRetries + 1)
+			},
+			sleeps: maxRetries,
+		},
+		{
+			name: "server error, then an error status",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusInternalServerError, nil)).Once()
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusBadRequest, nil)).Once()
+			},
+			sleeps: 1,
+			want:   true,
+		},
+		{
+			name: "server error, then a failed dial",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusInternalServerError, nil)).Once()
+				c.EXPECT().Do(mock.Anything).Return(nil, refused).Times(4)
+			},
+			sleeps: 4,
+			want:   true,
+		},
+		{
+			name: "server error, then a rate limit that cannot be waited out",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusInternalServerError, nil)).Once()
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusTooManyRequests, http.Header{"Retry-After": {"600"}})).Once()
+			},
+			sleeps: 1,
+			want:   true,
+		},
+		{
+			name: "no gateway, then an error status",
+			expect: func(c *mocks.MockHTTPClient) {
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusBadGateway, nil)).Once()
+				c.EXPECT().Do(mock.Anything).RunAndReturn(respond(http.StatusBadRequest, nil)).Once()
+			},
+			sleeps: 1,
 		},
 		{
 			name:   "failed dial",
@@ -1275,7 +1319,9 @@ func TestExecuteWithTransportRetryClientTimeout(t *testing.T) {
 	defer server.Close()
 	defer close(release)
 
-	client := &http.Client{Timeout: 50 * time.Millisecond}
+	// The timeout leaves the request ample time to reach the server, even
+	// under the load of the whole suite, before the client gives up.
+	client := &http.Client{Timeout: time.Second}
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, strings.NewReader("test"))
 	require.NoError(t, err)

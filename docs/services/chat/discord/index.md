@@ -177,6 +177,10 @@ Shoutrrr cannot tell which limit a webhook's server has, so it sends each file a
 Shoutrrr sets the webhook's `wait` parameter, so Discord answers only after it has saved the message.
 A send that succeeds means Discord saved the message.
 
+Shoutrrr retries a request that Discord answers with a rate limit or a server error, up to 5 times within 5 minutes, as Discord's own libraries do.
+Discord documents a 502 as no gateway being available to process the request, but another server error may come after Discord saved the message, so in rare cases a retry posts it twice.
+When server errors other than 502 end the first request of a message that creates a thread with `thread_name`, Shoutrrr sends no more of that message, since it cannot tell whether the thread exists.
+
 ### Errors
 
 When Discord rejects a message, the error names these parts in order:
