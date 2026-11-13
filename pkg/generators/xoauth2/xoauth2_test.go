@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 )
 
@@ -596,6 +598,44 @@ func Test_runOAuth2Flow(t *testing.T) {
 			tt.check(t, config, output.String(), conf.Endpoint.TokenURL)
 		})
 	}
+}
+
+// TestTokenExchangeRefusesRedirects verifies that the token exchange does
+// not follow a redirect to another host. A 307 redirect would send the request
+// body again, with the client secret, the code, and the PKCE verifier. The
+// redirect names the token endpoint as localhost, another host name for it,
+// so a followed redirect reaches the same server.
+func TestTokenExchangeRefusesRedirects(t *testing.T) {
+	t.Parallel()
+
+	var redirected atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, port, err := net.SplitHostPort(r.Host)
+		if err != nil || host == "localhost" {
+			redirected.Add(1)
+			http.NotFound(w, r)
+
+			return
+		}
+
+		target := "http://" + net.JoinHostPort("localhost", port) + r.URL.RequestURI()
+		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(server.Close)
+
+	conf := newTestConfig(server.URL+"/token", "urn:ietf:wg:oauth:2.0:oob")
+
+	var output strings.Builder
+
+	lines := newLineReader(strings.NewReader(testCode + "\n" + testSender + "\n"))
+	defer lines.stop()
+
+	_, err := runOAuth2Flow(t.Context(), conf, "smtp.example.com", lines, &output)
+
+	require.ErrorIs(t, err, ErrTokenExchangeFailed)
+	require.ErrorIs(t, err, httpclient.ErrRedirectRefused)
+	assert.Zero(t, redirected.Load(), "the redirect must not be followed")
 }
 
 // TestPastedRedirectAddress verifies that the paste flow reads a pasted
