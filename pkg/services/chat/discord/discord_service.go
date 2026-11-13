@@ -177,32 +177,24 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return nil
 	}
 
-	batches := createItemsFromPlain(message, send.config.SplitLines, send.config.Title)
+	items := plainItems(message, send.config.SplitLines)
 
 	// Splitting leaves out blank lines and chunks, so a message of only
 	// whitespace leaves nothing to post.
-	if len(batches) == 0 {
+	if len(items) == 0 {
 		return ErrEmptyMessage
 	}
 
-	level := s.plainLevel(&send.config, params)
+	// A message sent as plain content has no embed to color, so it keeps its
+	// form. The level is set before batching, since its footer counts toward
+	// each message's total.
+	if level := s.plainLevel(&send.config, params); level != types.Unknown && !sendsAsContent(items, send.config.Title) {
+		for i := range items {
+			items[i].Level = level
+		}
+	}
 
-	err = sequential.Send(
-		ctx,
-		batches,
-		sequential.SharedDeadline,
-		func(ctx context.Context, batch []types.MessageItem) error {
-			// A batch sent as plain content has no embed to color, so it keeps its form.
-			if level != types.Unknown && !sendsAsContent(batch, send.config.Title) {
-				for i := range batch {
-					batch[i].Level = level
-				}
-			}
-
-			return s.sendItems(ctx, send, batch)
-		},
-	)
-	if err != nil {
+	if err := s.sendBatches(ctx, send, items); err != nil {
 		return fmt.Errorf("failed to send discord notification: %w", err)
 	}
 
@@ -330,15 +322,40 @@ func (s *Service) prepareSend(params *types.Params) (*sendState, error) {
 	return send, nil
 }
 
-// sendItemBatches sends items in batches that each fit one Discord message.
+// sendBatches sends items in batches that each fit one Discord message.
 //
 // A batch holds at most [MaxEmbeds] embeds, and their text stays within
-// [TotalChunkSize] characters with the title counted on the first. Items that
-// fit in one batch go out as one message, where a single plain item is sent
-// as the message content. Otherwise every batch is sent as embeds, so a batch
-// of one plain item matches the others and gets the embed length limit. A
-// failed batch does not stop the batches after it. A context without a
-// deadline is bounded by the budget that [Service.ServiceTimeout] reports.
+// [TotalChunkSize] characters, counting the title on the first and each
+// embed's footer. Items that fit in one batch go out as one message, where a
+// single plain item is sent as the message content. Otherwise every batch is
+// sent as embeds, so a batch of one plain item matches the others and gets
+// the embed length limit. A failed batch does not stop the batches after it.
+//
+// Parameters:
+//   - ctx: bounds the requests and their retries.
+//   - send: the config and webhook URL for this send.
+//   - items: the message items to send.
+//
+// Returns:
+//   - error: the send's failures joined. A send that ctx ends reports ctx's
+//     error once.
+func (s *Service) sendBatches(ctx context.Context, send *sendState, items []types.MessageItem) error {
+	batches := batchItems(items, send.config.Title, send.config.LevelColors())
+	if len(batches) <= 1 {
+		return s.sendItems(ctx, send, items)
+	}
+
+	return sequential.Send(ctx, batches, sequential.SharedDeadline,
+		func(ctx context.Context, batch []types.MessageItem) error {
+			payload := createEmbedPayload(batch, send.config.Title, send.config.LevelColors())
+
+			return s.sendPayload(ctx, send, &payload, batch)
+		})
+}
+
+// sendItemBatches sends rich message items with params applied, in batches
+// that each fit one Discord message. A context without a deadline is bounded
+// by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds the requests and their retries.
@@ -357,17 +374,7 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	batches := batchItems(items, send.config.Title, send.config.LevelColors())
-	if len(batches) <= 1 {
-		return s.sendItems(ctx, send, items)
-	}
-
-	return sequential.Send(ctx, batches, sequential.SharedDeadline,
-		func(ctx context.Context, batch []types.MessageItem) error {
-			payload := createEmbedPayload(batch, send.config.Title, send.config.LevelColors())
-
-			return s.sendPayload(ctx, send, &payload, batch)
-		})
+	return s.sendBatches(ctx, send, items)
 }
 
 // sendItems builds the webhook payload for items and sends it, as multipart when
@@ -488,60 +495,50 @@ func batchItems(items []types.MessageItem, title string, colors [types.MessageLe
 //   - [][]types.MessageItem: the message items, grouped by request, or none
 //     for a message of only whitespace.
 func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
-	return createItemsFromPlain(plain, splitLines, "")
+	return batchItems(plainItems(plain, splitLines), "", [types.MessageLevelCount]uint{})
 }
 
-// createItemsFromPlain converts plain text into batches of MessageItems, one
-// batch per webhook request.
+// plainItems splits plain text into message items, in order.
 //
-// With split lines, each line becomes an embed whose description holds up to
-// 4096 characters, so a longer line is shortened to that length. Without
-// them, the text is split into chunks of at most [ChunkSize] characters, and
-// none of it is left out.
-//
-// Discord counts the title on a batch's first embed toward the same total text
-// limit as the descriptions, so each batch's budget is reduced by the title's length.
-// Discord treats text of only whitespace as empty, so blank lines and chunks are
-// left out, and a message of only whitespace gives no batches.
+// With split lines, each line becomes an item for an embed whose description
+// holds up to 4096 characters, so a longer line is shortened to that length.
+// Without them, the text is split into chunks of at most [ChunkSize]
+// characters, and none of it is left out. Discord treats text of only
+// whitespace as empty, so blank lines and chunks are left out, and a message
+// of only whitespace gives no items.
 //
 // Parameters:
 //   - plain: the message text.
 //   - splitLines: whether to send each line as its own embed.
-//   - title: the title added to the first embed of every batch.
 //
 // Returns:
-//   - [][]types.MessageItem: the message items, grouped by request, or none
-//     for a message of only whitespace.
-func createItemsFromPlain(plain string, splitLines bool, title string) [][]types.MessageItem {
-	var batches [][]types.MessageItem
-
-	batchLimits := limits
-	batchLimits.TotalChunkSize = max(TotalChunkSize-utf8.RuneCountInString(title), 1)
-
+//   - []types.MessageItem: the message items, or none for a message of only
+//     whitespace.
+func plainItems(plain string, splitLines bool) []types.MessageItem {
 	if splitLines {
-		batchLimits.ChunkSize = maxEmbedDescription
+		lineLimits := limits
+		lineLimits.ChunkSize = maxEmbedDescription
 
-		return util.MessageItemsFromLines(plain, batchLimits)
+		return slices.Concat(util.MessageItemsFromLines(plain, lineLimits)...)
 	}
 
-	for {
-		items, omitted := util.PartitionMessage(plain, batchLimits, MaxSearchRunes)
+	var items []types.MessageItem
 
-		items = slices.DeleteFunc(items, func(item types.MessageItem) bool {
-			return strings.TrimSpace(item.Text) == ""
-		})
-		if len(items) > 0 {
-			batches = append(batches, items)
+	for {
+		chunks, omitted := util.PartitionMessage(plain, limits, MaxSearchRunes)
+
+		for _, chunk := range chunks {
+			if strings.TrimSpace(chunk.Text) != "" {
+				items = append(items, chunk)
+			}
 		}
 
 		if omitted == 0 {
-			break
+			return items
 		}
 
 		// PartitionMessage reports the omitted text in runes, so slice by runes.
 		runes := []rune(plain)
 		plain = string(runes[len(runes)-omitted:])
 	}
-
-	return batches
 }

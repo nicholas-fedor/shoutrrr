@@ -611,49 +611,63 @@ func TestCreateItemsFromPlain(t *testing.T) {
 
 		assert.Equal(t, plain, joined.String())
 	})
-
-	t.Run("untitled batches match CreateItemsFromPlain", func(t *testing.T) {
-		t.Parallel()
-
-		plain := strings.Repeat("a", TotalChunkSize+1000)
-
-		assert.Equal(t, CreateItemsFromPlain(plain, false), createItemsFromPlain(plain, false, ""))
-	})
 }
 
-// TestCreateItemsFromPlainTitleLimit verifies that each batch and its title fit
-// within the embed text limit.
-func TestCreateItemsFromPlainTitleLimit(t *testing.T) {
+// TestPlainItemsBatchLimit verifies that the batches of a plain message fit
+// Discord's total text limit once the title and each embed's level footer are
+// counted, and that no text is shortened to fit.
+func TestPlainItemsBatchLimit(t *testing.T) {
 	t.Parallel()
 
-	title := strings.Repeat("t", 100)
+	colors := (&Config{}).LevelColors()
 
-	// tests lists messages and split modes whose batches must leave room for the
-	// title.
+	// tests lists messages, split modes, titles, and levels whose batches must
+	// leave room for the title and the footers.
 	tests := []struct {
 		name       string
 		plain      string
+		title      string
 		splitLines bool
+		level      types.MessageLevel
 	}{
-		{name: "split lines", plain: strings.TrimSuffix(strings.Repeat(strings.Repeat("a", 1000)+"\n", 12), "\n"), splitLines: true},
-		{name: "chunked", plain: strings.Repeat("a", TotalChunkSize+1000), splitLines: false},
+		{name: "split lines with a title", plain: strings.TrimSuffix(strings.Repeat(strings.Repeat("a", 1000)+"\n", 12), "\n"), title: strings.Repeat("t", 100), splitLines: true},
+		{name: "chunks with a title", plain: strings.Repeat("a", TotalChunkSize+1000), title: strings.Repeat("t", 100)},
+		{name: "two long lines with a level", plain: strings.Repeat("a", 3000) + "\n" + strings.Repeat("b", 3000), splitLines: true, level: types.Info},
+		{name: "chunks with a level", plain: strings.Repeat("a", TotalChunkSize), level: types.Info},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			batches := createItemsFromPlain(tt.plain, tt.splitLines, title)
+			items := plainItems(tt.plain, tt.splitLines)
+			for i := range items {
+				items[i].Level = tt.level
+			}
+
+			batches := batchItems(items, tt.title, colors)
 			require.NotEmpty(t, batches)
 
+			var sent int
+
 			for _, batch := range batches {
-				total := utf8.RuneCountInString(title)
-				for _, item := range batch {
-					total += utf8.RuneCountInString(item.Text)
+				payload := createEmbedPayload(batch, tt.title, colors)
+
+				total := 0
+				for i := range payload.Embeds {
+					total += embedLength(&payload.Embeds[i])
+					sent += utf8.RuneCountInString(payload.Embeds[i].Content)
 				}
 
 				assert.LessOrEqual(t, total, TotalChunkSize)
 			}
+
+			var text int
+			for _, item := range items {
+				text += utf8.RuneCountInString(item.Text)
+			}
+
+			assert.Equal(t, text, sent, "no text is shortened to fit")
 		})
 	}
 }

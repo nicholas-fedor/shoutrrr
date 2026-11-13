@@ -101,6 +101,14 @@ type wireEmbed struct {
 	Description string `json:"description"`
 	// Fields holds the embed fields.
 	Fields []wireField `json:"fields"`
+	// Footer is the embed footer, or nil when the embed has none.
+	Footer *wireFooter `json:"footer"`
+}
+
+// wireFooter is the part of an embed footer the tests decode.
+type wireFooter struct {
+	// Text is the footer text, such as a message level.
+	Text string `json:"text"`
 }
 
 // wireAuthor is the part of an embed author the tests decode.
@@ -552,8 +560,8 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 // as many requests as Discord's limits need.
 //
 // Message content stays within 2000 characters and each embed description
-// within 4096. No request goes over the total size, including its title, or
-// over the embed count. The text survives intact. With lines split, a line
+// within 4096. No request goes over the total size, including its title and
+// each embed's level footer, or over the embed count. The text survives intact. With lines split, a line
 // is sent whole up to 4096 characters and shortened past that.
 func TestIntegrationSendLongMessage(t *testing.T) {
 	t.Parallel()
@@ -603,6 +611,23 @@ func TestIntegrationSendLongMessage(t *testing.T) {
 			message:      strings.Join(longLines, "\n"),
 			separator:    "\n",
 			wantText:     strings.Join(longLines, "\n"),
+			wantRequests: 3,
+		},
+		{
+			name:         "lines batched by total length with a level footer on each embed",
+			rawURL:       testServiceURL,
+			params:       &types.Params{"level": "Info"},
+			message:      strings.Repeat("0", 3000) + "\n" + strings.Repeat("1", 3000),
+			separator:    "\n",
+			wantText:     strings.Repeat("0", 3000) + "\n" + strings.Repeat("1", 3000),
+			wantRequests: 2,
+		},
+		{
+			name:         "chunks batched by total length with a level footer on each embed",
+			rawURL:       testServiceURL + "?splitLines=false",
+			params:       &types.Params{"level": "Info"},
+			message:      chunked,
+			wantText:     chunked,
 			wantRequests: 3,
 		},
 		{
@@ -662,6 +687,11 @@ func TestIntegrationSendLongMessage(t *testing.T) {
 
 					assert.LessOrEqual(t, utf8.RuneCountInString(embed.Description), embedDescriptionLimit)
 					total += utf8.RuneCountInString(embed.Title) + utf8.RuneCountInString(embed.Description)
+
+					if embed.Footer != nil {
+						total += utf8.RuneCountInString(embed.Footer.Text)
+					}
+
 					pieces = append(pieces, embed.Description)
 				}
 
@@ -1129,6 +1159,9 @@ func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 		bigFields[i] = types.Field{Key: fmt.Sprintf("%0100d", i), Value: strings.Repeat("v", 1000)}
 	}
 
+	// infoFooter is the footer of an embed at the Info level.
+	infoFooter := &wireFooter{Text: "Info"}
+
 	itemsOf := func(count, length int, level types.MessageLevel) []types.MessageItem {
 		items := make([]types.MessageItem, count)
 		for i := range items {
@@ -1148,7 +1181,7 @@ func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 		{
 			name:  "long description",
 			items: []types.MessageItem{{Text: strings.Repeat("a", 5000), Level: types.Info}},
-			want:  [][]wireEmbed{{{Description: shortened("a", 4096)}}},
+			want:  [][]wireEmbed{{{Description: shortened("a", 4096), Footer: infoFooter}}},
 		},
 		{
 			name:  "long single plain item",
@@ -1189,8 +1222,8 @@ func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 			name:  "batched by combined length",
 			items: itemsOf(4, 2000, types.Info),
 			want: [][]wireEmbed{
-				{{Description: strings.Repeat("0", 2000)}, {Description: strings.Repeat("1", 2000)}},
-				{{Description: strings.Repeat("2", 2000)}, {Description: strings.Repeat("3", 2000)}},
+				{{Description: strings.Repeat("0", 2000), Footer: infoFooter}, {Description: strings.Repeat("1", 2000), Footer: infoFooter}},
+				{{Description: strings.Repeat("2", 2000), Footer: infoFooter}, {Description: strings.Repeat("3", 2000), Footer: infoFooter}},
 			},
 		},
 		{
