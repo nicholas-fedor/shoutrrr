@@ -21,4 +21,7 @@ var (
 
 	// ErrInvalidScheme indicates a scheme other than http or https.
 	ErrInvalidScheme = errors.New("invalid scheme: use http or https, or disabletls instead")
+
+	// ErrInvalidBadge indicates a negative badge.
+	ErrInvalidBadge = errors.New("badge must not be negative")
 )

@@ -40,13 +40,17 @@ type Config struct {
 	Group string `default:"" desc:"The group of the notification" key:"group"`
 	// URL is the URL to open when the notification is tapped.
 	URL string `default:"" desc:"Url that will jump when click notification" key:"url"`
-	// Category is a field that Bark reserves for future use.
-	Category string `default:"" desc:"Reserved field, no use yet" key:"category"`
+	// Category is accepted in URLs and params but not sent.
+	//
+	// Deprecated: Bark sets the category of each notification, so a category
+	// has no effect.
+	Category string `default:"" desc:"Deprecated: not sent, because Bark sets the category of each notification" key:"category"`
 	// Copy is the text to copy to the clipboard when the notification is
 	// tapped.
 	Copy string `default:"" desc:"The value to be copied" key:"copy"`
-	// Badge is the number displayed next to the app icon.
-	Badge int64 `default:"0" desc:"The number displayed next to App icon" key:"badge"`
+	// Badge is the number displayed on the app icon. It is sent only when it
+	// is positive, so 0 sends none. A negative badge fails the config's checks.
+	Badge int64 `default:"0" desc:"Number displayed on the app icon, or 0 for none" key:"badge"`
 	// DisableTLS sends over HTTP whatever Scheme says.
 	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 	// SkipTLSVerify skips verification of the server's TLS certificate.
@@ -68,6 +72,7 @@ const (
 var ErrSetQueryFailed = errors.New("failed to set query parameter")
 
 // GetAPIURL constructs the full API URL for a given endpoint.
+//
 // The endpoint is appended to the configured host and path. The URL uses HTTP
 // when TLS is disabled or the deprecated scheme is http, and HTTPS otherwise.
 //
@@ -105,14 +110,17 @@ func (c *Config) GetAPIURL(endpoint string) string {
 }
 
 // GetURL returns a URL representation of the current configuration.
+//
 // This URL can be used to share or persist the service configuration. An
-// http scheme is written as disabletls, and the config is left unchanged.
+// http scheme is written as disabletls. The deprecated category is left out,
+// because a push never sends it. The config is left unchanged.
 //
 // Returns:
 //   - *url.URL: the service URL, with the options as query parameters.
 func (c *Config) GetURL() *url.URL {
 	normalized := *c
 	normalized.normalizeScheme()
+	normalized.Category = ""
 	resolver := format.NewPropKeyResolver(&normalized)
 
 	return normalized.getURL(&resolver)
@@ -133,8 +141,9 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// applyScheme checks the deprecated Scheme and turns TLS off when it is http,
-// so DisableTLS alone decides the protocol. An empty Scheme counts as https.
+// applyScheme checks the deprecated Scheme and turns TLS off when it is http.
+//
+// DisableTLS then decides the protocol alone. An empty Scheme counts as https.
 //
 // Returns:
 //   - error: [ErrInvalidScheme] for a scheme other than http or https.
@@ -170,8 +179,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // normalizeScheme writes an http scheme as DisableTLS and resets the scheme to
-// its default, so a config URL carries disabletls instead of the deprecated
-// scheme key. An invalid scheme is kept, so reading the URL reports it.
+// its default.
+//
+// A config URL then carries disabletls instead of the deprecated scheme key.
+// An invalid scheme is kept, so reading the URL reports it.
 func (c *Config) normalizeScheme() {
 	switch strings.ToLower(c.Scheme) {
 	case schemeHTTP:
@@ -228,7 +239,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.validate()
 }
 
-// validate checks that the config has the device key and the host a push needs.
+// validate checks that the config has the device key and the host a push
+// needs, and that its badge is not negative.
 //
 // Reading a service URL and each send run it, so a config built in code fails
 // before a request.
@@ -237,7 +249,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field. An
 //     error wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a host
 //     that a URL cannot hold. An error wrapping [util.ErrInvalidPathSegment]
-//     for a server path with a "." or ".." segment. Otherwise nil.
+//     for a server path with a "." or ".." segment. An error wrapping
+//     [ErrInvalidBadge] for a negative badge. Otherwise nil.
 func (c *Config) validate() error {
 	if c.DeviceKey == "" {
 		return ErrMissingDeviceKey
@@ -255,6 +268,10 @@ func (c *Config) validate() error {
 
 	if err := util.ValidatePathSegments(c.Path); err != nil {
 		return fmt.Errorf("server path: %w", err)
+	}
+
+	if c.Badge < 0 {
+		return fmt.Errorf("%w: %d", ErrInvalidBadge, c.Badge)
 	}
 
 	return nil

@@ -28,11 +28,13 @@
 //   - title: notification title (default: empty, uses app name)
 //   - sound: notification sound (default: empty, uses default system sound)
 //     See: https://github.com/Finb/Bark/tree/master/Sounds
-//   - badge: badge number displayed next to app icon (default: 0)
+//   - badge: number displayed on the app icon, sent only when positive
+//     (default: 0, which sends no badge)
 //   - icon: URL to notification icon (iOS 15+ only)
 //   - group: notification group identifier
 //   - url: URL to open when notification is tapped
-//   - category: notification category (reserved for future use)
+//   - category: deprecated and not sent, because Bark sets the category of
+//     each notification
 //   - copy: text to copy to clipboard when notification is tapped
 //   - disabletls: send over HTTP instead of HTTPS (default: no)
 //   - skiptlsverify: skip verification of the server's TLS certificate (default: no)
@@ -169,8 +171,9 @@
 //   - Device key is required and must be provided in the URL password field
 //   - Message content cannot be empty
 //   - Icon is only available on iOS 15 or later
-//   - Category is reserved for future use
-//   - Badge number can be any non-negative integer
+//   - A category is not sent, and the first send with one logs a warning
+//   - A badge of 0 sends no badge, because Bark clears the app's notifications
+//     for a badge of 0. A negative badge is rejected
 //   - Sound values must match available sounds in the Bark server
 //     (see: https://github.com/Finb/Bark/tree/master/Sounds)
 //   - Custom sounds can be added to the Bark server

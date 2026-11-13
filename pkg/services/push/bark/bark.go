@@ -132,6 +132,7 @@ func (s *Service) GetID() string {
 }
 
 // Initialize sets up the Bark service with configuration from the provided URL.
+//
 // It keeps an HTTP client that is already set, and warns once when the URL
 // uses the deprecated scheme key. It performs no network I/O.
 //
@@ -180,9 +181,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext transmits a notification message to the Bark server. Params
-// apply to this send only, including disabletls. A context without a deadline
-// is bounded by the budget that [Service.ServiceTimeout] reports.
+// SendContext transmits a notification message to the Bark server.
+//
+// Params apply to this send only, including disabletls. A context without a
+// deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -249,10 +251,11 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client. It clears the
-// deprecated HTTPClient field, so the sends use this client until that field
-// is set again.
+// SetHTTPClient sets a custom HTTP client for the service.
+//
+// A nil client, including a nil *http.Client, selects the default client. It
+// clears the deprecated HTTPClient field, so the sends use this client until
+// that field is set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
@@ -262,7 +265,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // sendAPI sends a notification to the Bark server using the configured endpoint.
-// This method handles JSON serialization, HTTP request creation, and response parsing.
+//
+// It posts the payload as JSON and then reads the server's reply.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -279,13 +283,22 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		Body:      message,
 		DeviceKey: config.DeviceKey,
 		Title:     config.Title,
-		Category:  config.Category,
+		Category:  "",
 		Copy:      config.Copy,
 		Sound:     config.Sound,
 		Group:     config.Group,
-		Badge:     &config.Badge,
+		Badge:     nil,
 		Icon:      config.Icon,
 		URL:       config.URL,
+	}
+
+	// Bark clears the app's notifications for a badge of 0, so a push carries
+	// a badge only when it is positive.
+	// The pointer is to a copy, so the send's config does not escape to the
+	// heap.
+	if config.Badge > 0 {
+		badge := config.Badge
+		request.Badge = &badge
 	}
 
 	requestBody, err := json.Marshal(request, jsonopts.Default)
@@ -340,11 +353,12 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	return nil
 }
 
-// sendClient returns the client for a send. A send that skips certificate
-// verification uses the insecure default client, and the first such send logs
-// the shared warning. A client set through [Service.HTTPClient] or
-// [Service.SetHTTPClient] is used unchanged and never warned about, because
-// its owner controls its TLS settings.
+// sendClient returns the client for a send.
+//
+// A send that skips certificate verification uses the insecure default client,
+// and the first such send logs the shared warning. A client set through
+// [Service.HTTPClient] or [Service.SetHTTPClient] is used unchanged and never
+// warned about, because its owner controls its TLS settings.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its warnings.
@@ -360,11 +374,13 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	return s.client.Prefer(s.HTTPClient)
 }
 
-// sendConfig returns the config for one send. The stored scheme moves into
-// DisableTLS before the params apply, so a disabletls param can turn TLS back
-// on. A scheme param of either protocol applies only when the params do not
-// set disabletls. The deprecated Scheme field and scheme param are each warned
-// about once.
+// sendConfig returns the config for one send.
+//
+// The stored scheme moves into DisableTLS before the params apply, so a
+// disabletls param can turn TLS back on. A scheme param of either protocol
+// applies only when the params do not set disabletls. The deprecated Scheme
+// field and scheme param are each warned about once. So is a category, which
+// the push leaves out.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its warnings.
@@ -421,6 +437,12 @@ func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config,
 
 	if err := config.validate(); err != nil {
 		return config, err
+	}
+
+	if config.Category != "" {
+		s.warnings.Do("category", func() {
+			s.Warn(ctx, "category ignored, because Bark sets the category of each notification")
+		})
 	}
 
 	return config, nil
