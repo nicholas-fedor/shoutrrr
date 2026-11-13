@@ -3114,7 +3114,9 @@ This is implemented through Shoutrrr's PartitionMessage utility and is not a Dis
 <div class="admonition note">
 <p>The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.</p>
 </div>
-<p>When <code>splitLines</code> is enabled (default), each line of the input becomes a separate embedded item. When disabled, long messages are automatically chunked to fit within Discord's limits.</p>
+<p>When <code>splitLines</code> is enabled (default), each line of the input becomes a separate embedded item.
+A line can hold up to 4096 characters, Discord's limit for an embed description, and a longer line is shortened.
+When <code>splitLines</code> is disabled, long messages are automatically chunked to fit within Discord's limits.</p>
 <div class="admonition example">
 <p class="admonition-title">Long Message Chunking</p>
 <div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID?splitLines=false"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."</span>
@@ -3133,6 +3135,8 @@ An item still over 6000 characters on its own loses fields from the end, then ha
 </div>
 <h2 id="file_attachments">File Attachments<a class="headerlink" href="#file_attachments" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr supports attaching files to your Discord messages when using the Go library. Files are sent as multipart/form-data along with the message payload. See Discord's <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">webhook execution documentation</a> for details on file attachments.</p>
+<p>Discord limits the size of each file to 20 MiB by default, and allows larger files on servers with a higher Boost Tier, as its <a href="https://discord.com/developers/docs/reference#uploading-files">Uploading Files</a> reference describes.
+Shoutrrr cannot tell which limit a webhook's server has, so it sends each file and reports Discord's error for one that is too large.</p>
 <div class="admonition note">
 <p>File attachments require the webhook to have appropriate permissions, and files must be accessible from the system running Shoutrrr. File attachments are not supported in the CLI.</p>
 </div>
@@ -3280,7 +3284,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 14:30:42 UTC"><span class="timeago" datetime="2026-11-13T14:30:42+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 14:30:42 UTC">2026-11-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 15:19:27 UTC"><span class="timeago" datetime="2026-11-13T15:19:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 15:19:27 UTC">2026-11-13</span>
   </span>
 
     
