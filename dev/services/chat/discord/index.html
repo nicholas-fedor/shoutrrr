@@ -1241,34 +1241,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Message Chunking">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#discord_api_constraints" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Discord API Constraints
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#shoutrrr_implementation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shoutrrr Implementation
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -2911,34 +2883,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Message Chunking">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#discord_api_constraints" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Discord API Constraints
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#shoutrrr_implementation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shoutrrr Implementation
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -3100,30 +3044,46 @@ Embeds then use the color configured for that level with <code>colorDebug</code>
 A <code>color</code> in the URL or the send params takes precedence over the level, even when it is set to the default.
 A short message without a title is sent as plain content, which has no embed to color, so the level leaves it as it is.</p>
 <h2 id="message_chunking">Message Chunking<a class="headerlink" href="#message_chunking" title="Permanent link">&para;</a></h2>
-<h3 id="discord_api_constraints">Discord API Constraints<a class="headerlink" href="#discord_api_constraints" title="Permanent link">&para;</a></h3>
-<p>Discord limits individual messages to 2000 characters.
-Messages exceeding this limit are sent as separate messages without automatic merging.</p>
-<h3 id="shoutrrr_implementation">Shoutrrr Implementation<a class="headerlink" href="#shoutrrr_implementation" title="Permanent link">&para;</a></h3>
-<p>Shoutrrr provides additional message chunking as a feature to handle longer content.
-This is implemented through Shoutrrr's PartitionMessage utility and is not a Discord requirement.</p>
+<p>Shoutrrr splits a long plain message so that each webhook request fits Discord's limits.
+These come from Discord's <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">Execute Webhook</a> parameters and <a href="https://discord.com/developers/docs/resources/message#embed-object-embed-limits">Embed Limits</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Message content</td>
+<td>2000 characters</td>
+</tr>
+<tr>
+<td>Embed description</td>
+<td>4096 characters</td>
+</tr>
+<tr>
+<td>Embeds in one message</td>
+<td>10</td>
+</tr>
+<tr>
+<td>Text across a message's embeds</td>
+<td>6000 characters, counting titles, descriptions, fields, footers, and authors</td>
+</tr>
+</tbody>
+</table>
+<p>How the message is split depends on <code>splitLines</code>:</p>
 <ul>
-<li><strong>Chunk Size</strong>: Maximum 2000 characters per message (matches Discord API limit)</li>
-<li><strong>Total Size</strong>: Maximum 6000 characters total across all chunks (Shoutrrr-specific limit)</li>
-<li><strong>Max Chunks</strong>: Up to 10 message chunks per send operation (Shoutrrr-specific limit)</li>
+<li><strong><code>splitLines=yes</code></strong> (default): each line becomes an embed. A line holds up to 4096 characters, and a longer line is shortened. Blank lines are left out.</li>
+<li><strong><code>splitLines=no</code></strong>: the text is split into chunks of up to 2000 characters, at a space or line break near the limit when there is one. Each chunk becomes an embed. The space or line break at each split is left out, and so are chunks of only whitespace.</li>
 </ul>
-<div class="admonition note">
-<p>The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.</p>
-</div>
-<p>When <code>splitLines</code> is enabled (default), each line of the input becomes a separate embedded item.
-A line can hold up to 4096 characters, Discord's limit for an embed description, and a longer line is shortened.
-When <code>splitLines</code> is disabled, long messages are automatically chunked to fit within Discord's limits.</p>
+<p>Shoutrrr sends the embeds in as many requests as they need.
+Each request holds up to 10 embeds and 6000 characters of embed text, counting the title on its first embed and each embed's level footer.
+A message that becomes a single line or chunk of up to 2000 characters, without a title, is sent as plain message content instead of an embed.</p>
 <div class="admonition example">
 <p class="admonition-title">Long Message Chunking</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID?splitLines=false"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://TOKEN@WEBHOOK_ID?splitLines=no"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>cat<span class="w"> </span>build.log<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
-</div>
-<div class="admonition note">
-<p>Message chunking only applies when <code>splitLines</code> is set to <code>false</code>. When <code>splitLines</code> is <code>true</code> (default), each line becomes a separate embed instead.</p>
 </div>
 <h2 id="enhanced_embeds">Enhanced Embeds<a class="headerlink" href="#enhanced_embeds" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr supports rich embed formatting with authors, images, thumbnails, and custom fields when using the Go library API. Embeds are automatically created when using structured message items with metadata. For detailed information about embed objects, refer to Discord's <a href="https://discord.com/developers/docs/resources/channel#embed-object">embed documentation</a>.</p>
@@ -3284,7 +3244,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 15:19:27 UTC"><span class="timeago" datetime="2026-11-13T15:19:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 15:19:27 UTC">2026-11-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 16:40:55 UTC"><span class="timeago" datetime="2026-11-13T16:40:55+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 16:40:55 UTC">2026-11-13</span>
   </span>
 
     
