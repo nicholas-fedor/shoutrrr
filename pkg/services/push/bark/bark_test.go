@@ -167,8 +167,11 @@ func TestInitialize(t *testing.T) {
 	})
 }
 
-// TestSend verifies the request a send makes: a JSON POST to the push
-// endpoint carrying the payload built from the config and params.
+// TestSend verifies the request a send makes.
+//
+// A send posts JSON to the push endpoint, carrying the payload built from the
+// config and params. A badge goes out only when it is positive, since Bark
+// clears the app's notifications for a badge of 0. A category is never sent.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -185,7 +188,7 @@ func TestSend(t *testing.T) {
 			name:     "required fields only",
 			rawURL:   "bark://:devicekey@hostname",
 			wantURL:  "https://hostname/push",
-			wantBody: `{"body":"Message","device_key":"devicekey","title":"","badge":0}`,
+			wantBody: `{"body":"Message","device_key":"devicekey","title":""}`,
 		},
 		{
 			name: "configured props and path",
@@ -193,14 +196,27 @@ func TestSend(t *testing.T) {
 				"&icon=https%3A%2F%2Fexample.com%2Ficon.png&group=Group&url=https%3A%2F%2Fexample.com&category=Cat&copy=Copied",
 			wantURL: "http://hostname:8080/bark/push",
 			wantBody: `{"body":"Message","device_key":"devicekey","title":"Title","sound":"bell","badge":3,` +
-				`"icon":"https://example.com/icon.png","group":"Group","url":"https://example.com","category":"Cat","copy":"Copied"}`,
+				`"icon":"https://example.com/icon.png","group":"Group","url":"https://example.com","copy":"Copied"}`,
 		},
 		{
 			name:     "params",
 			rawURL:   "bark://:devicekey@hostname?title=Configured",
-			params:   &types.Params{"title": "Override", "sound": "alarm", "badge": "7"},
+			params:   &types.Params{"title": "Override", "sound": "alarm", "badge": "1", "category": "Cat"},
 			wantURL:  "https://hostname/push",
-			wantBody: `{"body":"Message","device_key":"devicekey","title":"Override","sound":"alarm","badge":7}`,
+			wantBody: `{"body":"Message","device_key":"devicekey","title":"Override","sound":"alarm","badge":1}`,
+		},
+		{
+			name:     "badge of 0 in the URL",
+			rawURL:   "bark://:devicekey@hostname?badge=0",
+			wantURL:  "https://hostname/push",
+			wantBody: `{"body":"Message","device_key":"devicekey","title":""}`,
+		},
+		{
+			name:     "badge param of 0",
+			rawURL:   "bark://:devicekey@hostname?badge=3",
+			params:   &types.Params{"badge": "0"},
+			wantURL:  "https://hostname/push",
+			wantBody: `{"body":"Message","device_key":"devicekey","title":""}`,
 		},
 	}
 
@@ -226,14 +242,17 @@ func TestSend(t *testing.T) {
 // reading a URL does.
 //
 // A config without a device key or a host fails before any request. So does an
-// IPv6 host without brackets, and a server path with a ".." segment.
+// IPv6 host without brackets, a server path with a ".." segment, and a
+// negative badge from the config or the params.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
-	// tests lists config changes with the error the send must return.
+	// tests lists config changes and params with the error the send must
+	// return.
 	tests := []struct {
 		change  func(config *Config)
 		wantErr error
+		params  *types.Params
 		name    string
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingDeviceKey},
@@ -241,6 +260,8 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "port without a host", change: func(config *Config) { config.Host = ":8080" }, wantErr: ErrMissingHost},
 		{name: "IPv6 host without brackets", change: func(config *Config) { config.Host = "2001:db8::1" }, wantErr: util.ErrInvalidHost},
 		{name: "server path that walks up", change: func(config *Config) { config.Path = "/base/../.." }, wantErr: util.ErrInvalidPathSegment},
+		{name: "negative badge", change: func(config *Config) { config.Badge = -1 }, wantErr: ErrInvalidBadge},
+		{name: "negative badge param", params: &types.Params{"badge": "-2"}, wantErr: ErrInvalidBadge},
 	}
 
 	for _, tt := range tests {
@@ -250,9 +271,12 @@ func TestSendChecksConfig(t *testing.T) {
 			service := newTestService(t, "bark://:devicekey@hostname")
 			// The mock has no expectations, so a request fails the test.
 			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-			tt.change(service.Config)
 
-			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+			if tt.change != nil {
+				tt.change(service.Config)
+			}
+
+			require.ErrorIs(t, service.Send("Message", tt.params), tt.wantErr)
 		})
 	}
 }
@@ -271,7 +295,7 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Override", "scheme": "http"}))
 	assert.Equal(t, "http://hostname/push", captured.url)
-	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Override","badge":0}`, captured.body)
+	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Override"}`, captured.body)
 	assert.Equal(t, want, *service.Config)
 
 	client, captured = newRespondingClient(t, http.StatusOK, successBody)
@@ -279,13 +303,15 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 
 	require.NoError(t, service.Send("Message", nil))
 	assert.Equal(t, "https://hostname/push", captured.url)
-	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Configured","badge":0}`, captured.body)
+	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Configured"}`, captured.body)
 }
 
 // TestSendSchemePrecedence verifies that disabletls decides the protocol of a
-// send over the deprecated scheme. A disabletls param overrides a stored http
-// scheme, a scheme param of either protocol applies when the params do not set
-// disabletls, and disabletls wins when the params set both.
+// send over the deprecated scheme.
+//
+// A disabletls param overrides a stored http scheme. A scheme param of either
+// protocol applies when the params do not set disabletls. disabletls wins when
+// the params set both.
 func TestSendSchemePrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -334,9 +360,12 @@ func TestSendSchemePrecedence(t *testing.T) {
 	}
 }
 
-// TestSendWarnings verifies that the plaintext warning, the deprecated scheme
-// key, and the deprecated Scheme field are each warned about once over two
-// sends, and appear again after the service is initialized again.
+// TestSendWarnings verifies that the plaintext warning and the deprecated
+// settings are each warned about once over two sends, and appear again after
+// the service is initialized again.
+//
+// The deprecated settings are the scheme key, the Scheme field, and a category
+// from the params or the URL.
 func TestSendWarnings(t *testing.T) {
 	t.Parallel()
 
@@ -352,26 +381,33 @@ func TestSendWarnings(t *testing.T) {
 	service.SetHTTPClient(client)
 	service.Config.Scheme = "http"
 
-	params := &types.Params{"scheme": "http"}
+	params := &types.Params{"scheme": "http", "category": "Cat"}
 	require.NoError(t, service.Send("Message", params))
 	require.NoError(t, service.Send("Message", params))
 
 	want := []string{
 		"WARN config field is deprecated field=Scheme replacement=DisableTLS",
 		`WARN config key is deprecated key=scheme replacement=disabletls`,
+		"WARN category ignored, because Bark sets the category of each notification",
 		"WARN sending without TLS",
 	}
 	assert.Equal(t, want, warningLines(logs.String()))
 
-	require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=http"), log.New(&logs, "", 0)))
+	require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=http&category=Cat"), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("Message", nil))
 
-	again := []string{`WARN config key is deprecated key=scheme replacement=disabletls`, "WARN sending without TLS"}
+	again := []string{
+		`WARN config key is deprecated key=scheme replacement=disabletls`,
+		"WARN category ignored, because Bark sets the category of each notification",
+		"WARN sending without TLS",
+	}
 	assert.Equal(t, slices.Concat(want, again), warningLines(logs.String()))
 }
 
 // TestSendSkipTLSVerify verifies sends to a server whose certificate cannot be
-// verified. Without skiptlsverify the send fails. With it in the URL or the
+// verified.
+//
+// Without skiptlsverify the send fails. With it in the URL or the
 // params, the send goes through the insecure default client and warns once
 // over two sends. A client set through the deprecated HTTPClient field is used
 // unchanged and never warned about.
@@ -491,11 +527,13 @@ func TestSendItems(t *testing.T) {
 	items := []types.MessageItem{{Text: "first"}, {Text: "second"}}
 	require.NoError(t, service.SendItems(items, nil))
 
-	assert.JSONEq(t, `{"body":"first\nsecond\n","device_key":"devicekey","title":"","badge":0}`, captured.body)
+	assert.JSONEq(t, `{"body":"first\nsecond\n","device_key":"devicekey","title":""}`, captured.body)
 }
 
 // TestSendServerErrors verifies how a send reports a response the Bark server
-// rejects. The server's message comes back as an *APIResponse, and a response
+// rejects.
+//
+// The server's message comes back as an *APIResponse, and a response
 // without a message as ErrUnexpectedStatus. An error status whose body is not
 // JSON, or whose JSON body reports success, gives ErrUnexpectedStatus with the
 // HTTP status. A success status with a body that is not JSON gives a decoding
@@ -723,7 +761,7 @@ func TestSendDefaultClient(t *testing.T) {
 			received := <-requests
 			assert.Equal(t, http.MethodPost, received.method)
 			assert.Equal(t, "/push", received.url)
-			assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"","badge":0}`, received.body)
+			assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":""}`, received.body)
 		})
 	}
 }

@@ -87,7 +87,9 @@ const (
 )
 
 // DeprecatedFields logs a warning for each deprecated config field, once per
-// field. The warning names the field and its replacement.
+// field.
+//
+// The warning names the field and its replacement.
 //
 // Parameters:
 //   - ctx: the context of the call, passed to the log handler.
@@ -99,6 +101,7 @@ func (o *Once) DeprecatedFields(ctx context.Context, logger Logger, deprecations
 }
 
 // DeprecatedKeys logs a warning for each deprecated config key, once per key.
+//
 // The warning names the key and its replacement.
 //
 // Parameters:
@@ -110,21 +113,29 @@ func (o *Once) DeprecatedKeys(ctx context.Context, logger Logger, deprecations [
 	logDeprecations(ctx, logger, &o.keys, deprecatedKeyWarning, KeyKey, deprecations)
 }
 
-// Do calls warn unless a warning with the same key was logged before. It
-// suits a warning that only one service logs.
+// Do calls warn unless a warning with the same key was logged before.
+//
+// It suits a warning that only one service logs.
 //
 // Parameters:
 //   - key: identifies the warning.
 //   - warn: logs the warning.
 func (o *Once) Do(key string, warn func()) {
+	// Load does not keep its key, so a warning logged before costs no
+	// allocation. LoadOrStore decides which of concurrent first calls logs.
+	if _, logged := o.logged.Load(key); logged {
+		return
+	}
+
 	if _, loaded := o.logged.LoadOrStore(key, struct{}{}); !loaded {
 		warn()
 	}
 }
 
-// Insecure logs, once, that a send skips TLS certificate verification, so its
-// connection can be intercepted. A service does not log it for an injected
-// client, whose owner controls its TLS settings.
+// Insecure logs, once, that a send skips TLS certificate verification.
+//
+// Such a connection can be intercepted. A service does not log it for an
+// injected client, whose owner controls its TLS settings.
 //
 // Parameters:
 //   - ctx: the context of the call, passed to the log handler.
@@ -158,9 +169,10 @@ func (o *Once) Reset() {
 	o.plaintext.Store(false)
 }
 
-// logOnce logs msg unless logged is already true, and sets it. Of concurrent
-// first calls, only the one that sets logged logs. The warning's source is the
-// service's call to the Once method that calls logOnce.
+// logOnce logs msg unless logged is already true, and sets it.
+//
+// Of concurrent first calls, only the one that sets logged logs. The warning's
+// source is the service's call to the Once method that calls logOnce.
 //
 // Parameters:
 //   - ctx: the context of the call, passed to the log handler.
@@ -177,9 +189,10 @@ func logOnce(ctx context.Context, logger Logger, logged *atomic.Bool, msg string
 }
 
 // logDeprecations logs a warning for each deprecation that logged has not
-// recorded yet, and records it. The warning names the deprecated name and its
-// replacement. Its source is the service's call to the Once method that calls
-// logDeprecations.
+// recorded yet, and records it.
+//
+// The warning names the deprecated name and its replacement. Its source is the
+// service's call to the Once method that calls logDeprecations.
 //
 // Parameters:
 //   - ctx: the context of the call, passed to the log handler.

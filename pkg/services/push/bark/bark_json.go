@@ -11,8 +11,8 @@ type PushPayload struct {
 	Title string `json:"title"`
 	// Sound is the name of the notification sound. It is omitted when empty.
 	Sound string `json:"sound,omitempty"`
-	// Badge is the number displayed next to the app icon. It is omitted only
-	// when nil, so a badge of 0 is still sent.
+	// Badge is the number displayed on the app icon. It is omitted when nil,
+	// and the service sets it only for a positive badge.
 	Badge *int64 `json:"badge,omitzero"`
 	// Icon is the URL of the notification icon. It is omitted when empty.
 	Icon string `json:"icon,omitempty"`
@@ -21,8 +21,10 @@ type PushPayload struct {
 	// URL is the URL to open when the notification is tapped. It is omitted
 	// when empty.
 	URL string `json:"url,omitempty"`
-	// Category is a field that Bark reserves for future use. It is omitted
-	// when empty.
+	// Category is omitted when empty, and the service leaves it empty.
+	//
+	// Deprecated: Bark sets the category of each notification, so a category
+	// has no effect.
 	Category string `json:"category,omitempty"`
 	// Copy is the text to copy to the clipboard when the notification is
 	// tapped. It is omitted when empty.

@@ -21,6 +21,7 @@ When a URL or the send params hold both a deprecated query key and its replaceme
 | `scheme` query key | ntfy | `disabletls`. A `scheme` of `http` turns TLS off. | v0.23.0 |
 | `scheme` query key | Bark | `disabletls`. A `scheme` of `http` turns TLS off. | v0.23.0 |
 | `disabletlsverification` query key | MQTT | `skiptlsverify` | v0.23.0 |
+| `category` query key | Bark | None. Bark sets the category of each notification, so the key has no effect. | Unreleased |
 
 ## Go Package
 
@@ -86,3 +87,5 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `Config.DisableTLSVerification` | `pkg/services/push/mqtt` | `Config.SkipTLSVerify` | v0.23.0 |
 | `Logger.Log` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | v0.23.0 |
 | `Logger.Logf` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | v0.23.0 |
+| `Config.Category` | `pkg/services/push/bark` | None. The category is not sent. | Unreleased |
+| `PushPayload.Category` | `pkg/services/push/bark` | None. The category is not sent. | Unreleased |

@@ -74,9 +74,11 @@ func TestConfigGetAPIURL(t *testing.T) {
 }
 
 // TestConfigSetURLScheme verifies how the disabletls key and the deprecated
-// scheme key choose the protocol. A scheme of http, in any case, turns TLS
-// off. disabletls wins when the query sets both, whatever their order. A
-// scheme other than http or https is rejected.
+// scheme key choose the protocol.
+//
+// A scheme of http, in any case, turns TLS off. disabletls wins when the
+// query sets both, whatever their order. A scheme other than http or https is
+// rejected.
 func TestConfigSetURLScheme(t *testing.T) {
 	t.Parallel()
 
@@ -201,6 +203,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 			rawURL:   "bark://:mock-device@host/?badge=many",
 			wantErrs: []error{ErrSetQueryFailed},
 		},
+		{
+			name:     "negative badge",
+			rawURL:   "bark://:mock-device@host/?badge=-1",
+			wantErrs: []error{ErrInvalidBadge},
+		},
 	}
 
 	for _, tt := range tests {
@@ -221,17 +228,32 @@ func TestConfigSetURLErrors(t *testing.T) {
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	rawURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&disabletls=Yes&group=GROUP&skiptlsverify=Yes&title=TITLE&url=URL"
+	rawURL := "bark://:device-key@example.com:2225/?badge=5&disabletls=Yes&group=GROUP&skiptlsverify=Yes&title=TITLE&url=URL"
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
 
 	assert.Equal(t, rawURL, config.GetURL().String())
 }
 
+// TestConfigGetURLCategory verifies that GetURL leaves out the deprecated
+// category without changing the config.
+func TestConfigGetURLCategory(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "bark://:device-key@example.com/?category=CAT")))
+
+	original := *config
+
+	assert.Equal(t, "bark://:device-key@example.com/?", config.GetURL().String())
+	assert.Equal(t, original, *config)
+}
+
 // TestConfigGetURLScheme verifies that GetURL writes an http scheme as
-// disabletls, without changing the config, so a config URL never carries the
-// deprecated scheme key. An invalid scheme is kept, so reading the URL
-// reports it.
+// disabletls without changing the config.
+//
+// A config URL then never carries the deprecated scheme key. An invalid
+// scheme is kept, so reading the URL reports it.
 func TestConfigGetURLScheme(t *testing.T) {
 	t.Parallel()
 
@@ -259,9 +281,10 @@ func TestConfigGetURLScheme(t *testing.T) {
 	}
 }
 
-// TestConfigQueryResolver verifies the config's query props: an unknown key
-// is rejected, the defaults apply cleanly, and there are ten keys and no
-// enums.
+// TestConfigQueryResolver verifies the config's query props.
+//
+// An unknown key is rejected and the defaults apply cleanly. The config has
+// ten keys and no enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
 

@@ -7,8 +7,10 @@ import (
 )
 
 // BenchmarkOnceLogged measures the warnings a send repeats after the first.
-// It covers an insecure warning and a deprecation that were already logged,
-// and the empty deprecation list that most sends pass.
+//
+// It covers an insecure warning, a deprecation, and a warning keyed for Do
+// that were already logged. It also covers the empty deprecation list that
+// most sends pass.
 func BenchmarkOnceLogged(b *testing.B) {
 	var once Once
 
@@ -17,6 +19,7 @@ func BenchmarkOnceLogged(b *testing.B) {
 
 	once.Insecure(b.Context(), logger)
 	once.DeprecatedKeys(b.Context(), logger, keys)
+	once.Do("warning", func() {})
 
 	b.Run("insecure", func(b *testing.B) {
 		for b.Loop() {
@@ -27,6 +30,12 @@ func BenchmarkOnceLogged(b *testing.B) {
 	b.Run("deprecated key", func(b *testing.B) {
 		for b.Loop() {
 			once.DeprecatedKeys(b.Context(), logger, keys)
+		}
+	})
+
+	b.Run("do", func(b *testing.B) {
+		for b.Loop() {
+			once.Do("warning", func() {})
 		}
 	})
 
