@@ -36,6 +36,20 @@ var (
 	// ErrMissingToken indicates a config without a token.
 	ErrMissingToken = errors.New("token missing from config")
 
+	// ErrInvalidThreadName indicates a thread name longer than Discord's 100
+	// characters.
+	ErrInvalidThreadName = errors.New("invalid thread name")
+
+	// ErrThreadIDAndName indicates a config that sets both a thread ID and a
+	// thread name, which Discord takes one at a time.
+	ErrThreadIDAndName = errors.New("thread ID and thread name both set")
+
+	// ErrThreadUnknown indicates a request of a send that names a thread, made
+	// after the request that was to create the thread failed in a way that
+	// leaves the thread unknown. The request is not sent, since it has no
+	// thread to go into.
+	ErrThreadUnknown = errors.New("thread for the rest of the message is unknown")
+
 	// ErrInvalidMention indicates a mention that is not everyone, here,
 	// user:ID, or role:ID with a Discord snowflake as the ID, or more than 100
 	// user or role mentions.

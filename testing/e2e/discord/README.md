@@ -34,6 +34,7 @@ The end-to-end tests validate the complete Discord webhook functionality by maki
 
 - Posting to existing threads using `thread_id`
 - Thread permission and state handling
+- Creating a thread in a forum channel with `thread_name`, with a long message staying in that thread
 
 ### Mentions
 
@@ -79,6 +80,9 @@ SHOUTRRR_DISCORD_URL=discord://YOUR_WEBHOOK_TOKEN@YOUR_WEBHOOK_ID
 # Optional: Thread ID for thread testing
 SHOUTRRR_DISCORD_THREAD_ID=YOUR_THREAD_ID
 
+# Optional: a webhook on a forum channel for the thread creation test
+SHOUTRRR_DISCORD_FORUM_URL=discord://YOUR_FORUM_WEBHOOK_TOKEN@YOUR_FORUM_WEBHOOK_ID
+
 # Optional: a user and a mentionable role for the mention tests
 SHOUTRRR_DISCORD_USER_ID=YOUR_USER_ID
 SHOUTRRR_DISCORD_ROLE_ID=YOUR_ROLE_ID
@@ -95,6 +99,7 @@ A role pings only when it is mentionable.
 ```bash
 SHOUTRRR_DISCORD_URL=discord://<TOKEN>@<WEBHOOK_ID>
 SHOUTRRR_DISCORD_THREAD_ID=<THREAD_ID>
+SHOUTRRR_DISCORD_FORUM_URL=discord://<FORUM_TOKEN>@<FORUM_WEBHOOK_ID>
 SHOUTRRR_DISCORD_USER_ID=<USER_ID>
 SHOUTRRR_DISCORD_ROLE_ID=<ROLE_ID>
 ```
@@ -158,4 +163,4 @@ Each test file covers one kind of send, with a subtest per feature:
 - **Send Tests** (`send_test.go`): Basic text, special characters, custom username and avatar, JSON mode, and long messages
 - **Send Items Tests** (`send_items_test.go`): Embed colors, timestamps, fields, images, author information, multiple embeds, file attachments, and all of these combined
 - **Mention Tests** (`mentions_test.go`): A mention in the text alone, `@here` from plain content and beside embeds, and a user and a role
-- **Thread Tests** (`thread_test.go`): Posting messages to existing threads
+- **Thread Tests** (`thread_test.go`): Posting messages to existing threads, and creating a thread in a forum channel with `thread_name`

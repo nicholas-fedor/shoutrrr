@@ -1,10 +1,12 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,11 +17,11 @@ import (
 //nolint:paralleltest // Sends to a live webhook one message at a time.
 func TestDiscordThread(t *testing.T) {
 	threadID := os.Getenv("SHOUTRRR_DISCORD_THREAD_ID")
-	if os.Getenv("SHOUTRRR_DISCORD_URL") != "" && threadID == "" {
+	if os.Getenv(webhookURLVar) != "" && threadID == "" {
 		t.Skip("SHOUTRRR_DISCORD_THREAD_ID not set, skipping thread posting test")
 	}
 
-	service := newService(t, map[string]string{"thread_id": threadID})
+	service := newService(t, webhookURLVar, map[string]string{"thread_id": threadID})
 
 	t.Logf(
 		"Discord config - WebhookID: %s, Token: %s, ThreadID: %s",
@@ -37,6 +39,30 @@ func TestDiscordThread(t *testing.T) {
 	}
 
 	require.NoError(t, err)
+}
+
+// TestDiscordThreadName verifies that thread_name creates one new thread per
+// send. Discord lets a webhook create threads only in a forum or media
+// channel, so the test needs a webhook on one. A message long enough for two
+// requests creates the thread with the first, and the second goes into the
+// same thread.
+//
+//nolint:paralleltest // Sends to a live webhook one message at a time.
+func TestDiscordThreadName(t *testing.T) {
+	service := newService(t, forumURLVar, map[string]string{"thread_name": "E2E Test: new thread", "splitLines": "no"})
+	recorder := &replyRecorder{bodies: nil}
+	service.SetHTTPClient(recorder)
+
+	message := "E2E Test: New thread from a message that takes two requests - " + strings.Repeat("Long thread text. ", 360)
+	require.NoError(t, service.Send(message, nil))
+	require.Len(t, recorder.bodies, 2, "the message takes two requests")
+
+	var first, second createdMessage
+	require.NoError(t, json.Unmarshal(recorder.bodies[0], &first))
+	require.NoError(t, json.Unmarshal(recorder.bodies[1], &second))
+
+	assert.Equal(t, first.ID, first.ChannelID, "the first message starts the thread, which has its ID")
+	assert.Equal(t, first.ChannelID, second.ChannelID, "the second message goes into the same thread")
 }
 
 // redact masks a sensitive value for logging, keeping its last four characters.

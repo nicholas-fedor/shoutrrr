@@ -106,6 +106,14 @@ type errorBody struct {
 	Errors jsontext.Value `json:"errors"`
 }
 
+// createdMessage is the part of the message that Discord returns with
+// wait=true that a send reads.
+type createdMessage struct {
+	// ChannelID is the channel the message was sent in. For the message that
+	// created a thread in a forum or media channel, it is that thread.
+	ChannelID string `json:"channel_id"`
+}
+
 // fieldError is one entry of an _errors list in a Discord error response,
 // such as {"code": "BASE_TYPE_MAX_LENGTH", "message": "Must be 4096 or fewer
 // in length."}. Its message is left out, since it can quote the request.
@@ -501,14 +509,24 @@ func handleServerError(
 // minutes. A 200 or 204 response is a success, and any other status fails at
 // once.
 //
+// It also reports whether the request may have created a message. Discord
+// creates none for a response it answers with an error status, which is also
+// why rate limits and server errors can be retried, and none for a request
+// that failed before it was sent or at the dial. Any other transport failure
+// may have come after Discord received the request.
+//
 // Parameters:
 //   - ctx: bounds the requests and the waits between them.
 //   - preparer: creates the request once. Each retry sends a copy of it.
 //   - requestURL: the webhook URL.
 //   - httpClient: sends the requests.
 //   - sleeper: waits between attempts.
+//   - reply: receives the message Discord created, or is nil when the send
+//     does not need it.
 //
 // Returns:
+//   - bool: whether the request may have created a message. It is true on
+//     success and after a transport failure that was not a failed dial.
 //   - error: nil on success. An error matching [ErrMaxRetries] when the
 //     retries or the 5 minutes run out. An error wrapping [ErrRateLimited]
 //     when a retry wait would end past the 5 minutes or the context's
@@ -520,18 +538,19 @@ func sendWithRetry(
 	requestURL string,
 	httpClient types.HTTPClient,
 	sleeper Sleeper,
-) error {
+	reply *createdMessage,
+) (bool, error) {
 	startTime := time.Now()
 
 	req, err := preparer.PrepareRequest(ctx, requestURL)
 	if err != nil {
-		return fmt.Errorf("preparing request: %w", err)
+		return false, fmt.Errorf("preparing request: %w", err)
 	}
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Check if we've exceeded the maximum retry timeout
 		if time.Since(startTime) > maxRetryTimeout {
-			return fmt.Errorf(
+			return false, fmt.Errorf(
 				"max retry timeout exceeded after %v: %w",
 				maxRetryTimeout,
 				ErrMaxRetries,
@@ -540,24 +559,25 @@ func sendWithRetry(
 
 		if attempt > 0 {
 			if req, err = retryRequest(ctx, req); err != nil {
-				return err
+				return false, err
 			}
 		}
 
 		// Execute request with transport retries
 		res, err := executeWithTransportRetry(ctx, httpClient, req, sleeper)
 		if err != nil {
-			return err
+			// A failed dial never sent the request.
+			return !isTransientError(err), err
 		}
 
 		if res == nil {
-			return ErrUnknownAPIError
+			return true, ErrUnknownAPIError
 		}
 
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
-				return err
+				return false, err
 			}
 
 			continue
@@ -565,7 +585,7 @@ func sendWithRetry(
 
 		// Handle server errors
 		if err := handleServerError(ctx, res, attempt, startTime, sleeper); err != nil {
-			return err
+			return false, err
 		}
 
 		if res.StatusCode >= serverErrorStatusCode {
@@ -573,16 +593,21 @@ func sendWithRetry(
 		}
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
-			return statusError(res)
+			return false, statusError(res)
 		}
 
-		// The body holds the message Discord created, which is not needed.
+		// The body holds the message Discord created. A reply that cannot be
+		// decoded names no thread, but the message was still created.
+		if reply != nil && json.UnmarshalRead(io.LimitReader(res.Body, httpbody.MaxSize), reply, jsonopts.Default) != nil {
+			*reply = createdMessage{ChannelID: ""}
+		}
+
 		drainAndClose(res)
 
-		return nil
+		return true, nil
 	}
 
-	return ErrMaxRetries
+	return false, ErrMaxRetries
 }
 
 // waitWithTimeout waits for the specified duration with timeout and context

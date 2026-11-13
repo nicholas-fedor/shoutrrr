@@ -13,6 +13,9 @@ import (
 
 // WebhookPayload is the webhook endpoint payload.
 type WebhookPayload struct {
+	// ThreadName names the thread the message creates in a forum or media
+	// channel, or is empty to send in the channel or the thread_id thread.
+	ThreadName string `json:"thread_name,omitempty"`
 	// AllowedMentions sets which mentions in the content ping. Without it,
 	// Discord pings every mention in a channel webhook's content.
 	AllowedMentions *allowedMentions `json:"allowed_mentions,omitzero"`
@@ -132,6 +135,12 @@ const (
 	MaxEmbeds = 10
 )
 
+// Thread limits from Discord's channel documentation.
+const (
+	// maxThreadName is the longest thread name, in characters.
+	maxThreadName = 100
+)
+
 // Mention settings from Discord's allowed mentions documentation.
 const (
 	// maxMentionIDs is the most user IDs, and the most role IDs, an allowed
@@ -162,6 +171,11 @@ const (
 	// maxAuthorName is the longest embed author name.
 	maxAuthorName = 256
 )
+
+// noMentions is the allowed mentions object that lets no mention ping. The
+// payloads of requests without mentions share it, since encoding only reads
+// it.
+var noMentions = allowedMentions{Parse: nil, Users: nil, Roles: nil}
 
 // add lets one mention from the mentions key ping.
 //
@@ -201,18 +215,16 @@ func (a *allowedMentions) add(mention string) (string, error) {
 
 // apply puts the mentions on one request's payload.
 //
-// Every request lets only the send's mentions ping, so a mention in the
-// message text, such as @everyone in a log line, never does. The first
-// request of a send carries the mentions in front of its content, or as its
-// whole content when its message goes as embeds. Later requests, and every
-// request of a send without mentions, let no mention ping.
+// The request lets only these mentions ping, so a mention in the message
+// text, such as @everyone in a log line, never does. The mentions go in front
+// of the content, or are the whole content when the message goes as embeds.
+// An empty set lets no mention ping.
 //
 // Parameters:
 //   - payload: the request's payload.
-//   - first: whether the request is the first of its send.
-func (m *mentionSet) apply(payload *WebhookPayload, first bool) {
-	if !first || m.text == "" {
-		payload.AllowedMentions = &allowedMentions{Parse: nil, Users: nil, Roles: nil}
+func (m *mentionSet) apply(payload *WebhookPayload) {
+	if m.text == "" {
+		payload.AllowedMentions = &noMentions
 
 		return
 	}

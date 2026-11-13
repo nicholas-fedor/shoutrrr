@@ -49,7 +49,7 @@ func TestDiscordSend(t *testing.T) {
 
 	for _, tt := range sends {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, newService(t, tt.query).Send(tt.message, nil))
+			require.NoError(t, newService(t, webhookURLVar, tt.query).Send(tt.message, nil))
 		})
 	}
 }
