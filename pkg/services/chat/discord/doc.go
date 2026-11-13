@@ -18,7 +18,9 @@
 //   - Delivery that Discord confirms with the webhook's wait parameter, and
 //     errors that name the reason and code Discord gives
 //   - A mentions list that adds pings for everyone, here, a user, or a role,
-//     and lets no other mention in the message ping
+//     and lets no other mention in the message ping. Discord counts @everyone
+//     and @here as one kind, so mentions=here does not block @everyone in
+//     the message text
 //
 // # URL Format
 //
