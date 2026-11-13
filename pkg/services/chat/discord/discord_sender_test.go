@@ -895,14 +895,14 @@ func TestIsTransientError(t *testing.T) {
 			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
 				Op: "read", Net: "tcp", Err: errors.New("connection reset by peer"),
 			}},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "broken write in a request error",
 			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
 				Op: "write", Net: "tcp", Err: errors.New("broken pipe"),
 			}},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "canceled dial in a request error",
@@ -932,9 +932,10 @@ func TestIsTransientError(t *testing.T) {
 	}
 }
 
-// TestIsTransientErrorConnections verifies that a refused dial and a reset
-// read on loopback are transient, whatever errors the operating system
-// running the test reports for them.
+// TestIsTransientErrorConnections verifies on loopback, whatever errors the
+// operating system running the test reports, that a refused dial is
+// transient. A canceled dial and a reset read are not, since the webhook POST
+// may have reached Discord before a read failed.
 func TestIsTransientErrorConnections(t *testing.T) {
 	t.Parallel()
 
@@ -1007,7 +1008,7 @@ func TestIsTransientErrorConnections(t *testing.T) {
 		_, err = client.Read(make([]byte, 1))
 
 		require.Error(t, err, "the server reset the connection")
-		assert.True(t, isTransientError(err), "%v is transient", err)
+		assert.False(t, isTransientError(err), "%v is not transient", err)
 	})
 }
 

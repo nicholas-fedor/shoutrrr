@@ -360,10 +360,13 @@ func (b errorBody) reason() string {
 //
 // A canceled context is not transient, even inside a [net.OpError] from a
 // dial it canceled. A passed deadline is transient, and so is a [net.Error]
-// that reports a timeout. A [net.OpError] from dialing the connection or from
-// reading or writing on it is transient too, which covers a connection the
-// server refused or reset on every platform. Any other error is not, a TLS
-// alert included.
+// that reports a timeout. A [net.OpError] from dialing the connection is
+// transient too, which covers a connection the server refused on every
+// platform. A failed read or write is not, since the webhook POST may have
+// reached Discord, and sending it again could post the message twice. The
+// HTTP transport already retries a request on a reused connection that
+// failed before any of it was written. Any other error is not transient, a
+// TLS alert included.
 //
 // Parameters:
 //   - err: the transport error, or nil.
@@ -388,19 +391,14 @@ func isTransientError(err error) bool {
 		return false
 	}
 
-	switch opErr.Op {
-	case "dial", "read", "write":
-		return true
-	default:
-		return false
-	}
+	return opErr.Op == "dial"
 }
 
 // executeWithTransportRetry executes an HTTP request with transport-level retries.
 //
 // The first attempt sends req, and each retry sends a copy of it with a fresh
 // body. A transient error is retried up to three times with an exponential
-// backoff. A timeout and a refused or reset connection count as transient.
+// backoff. A timeout and a refused connection count as transient.
 //
 // Parameters:
 //   - ctx: the context of each request and wait.
