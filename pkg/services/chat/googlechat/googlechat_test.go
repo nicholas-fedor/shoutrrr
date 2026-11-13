@@ -144,7 +144,10 @@ func TestServiceInitialize(t *testing.T) {
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
 		assert.Equal(t, &Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}, service.Config)
-		assert.Equal(t, &http.Client{}, service.client.Client(), "the default client has no request timeout")
+		client, ok := service.client.Client().(*http.Client)
+		require.True(t, ok, "the default client is an *http.Client")
+		assert.Zero(t, client.Timeout, "the default client has no request timeout")
+		assert.Nil(t, client.Transport, "the default client sends through http.DefaultTransport")
 	})
 
 	t.Run("injected client", func(t *testing.T) {
@@ -364,7 +367,10 @@ func TestSetHTTPClient(t *testing.T) {
 			service := newTestService(t, mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
-			assert.Equal(t, &http.Client{}, service.client.Client(), "the default client has no request timeout")
+			client, ok := service.client.Client().(*http.Client)
+			require.True(t, ok, "the default client is an *http.Client")
+			assert.Zero(t, client.Timeout, "the default client has no request timeout")
+			assert.Nil(t, client.Transport, "the default client sends through http.DefaultTransport")
 		})
 	}
 }
