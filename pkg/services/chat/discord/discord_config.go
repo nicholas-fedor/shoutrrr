@@ -131,12 +131,14 @@ func (c *Config) postURL() string {
 	webhookID := strings.TrimSpace(c.WebhookID)
 	token := url.PathEscape(strings.TrimSpace(c.Token))
 
-	threadID := strings.TrimSpace(c.ThreadID)
-	if threadID == "" {
-		return HooksBaseURL + "/" + webhookID + "/" + token
+	postURL := HooksBaseURL + "/" + webhookID + "/" + token + "?"
+	if threadID := strings.TrimSpace(c.ThreadID); threadID != "" {
+		postURL += "thread_id=" + threadID + "&"
 	}
 
-	return HooksBaseURL + "/" + webhookID + "/" + token + "?thread_id=" + threadID
+	// wait=true makes Discord confirm the message was saved, or answer with
+	// an error. Without it, Discord answers 204 before saving.
+	return postURL + "wait=true"
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
@@ -227,9 +229,10 @@ func (c *Config) validate() error {
 //   - config: the configuration with the webhook ID, token, and thread ID.
 //
 // Returns:
-//   - string: the webhook URL under [HooksBaseURL], with a thread_id query
-//     parameter when the config sets a thread ID that is not blank. It is
-//     empty for a config that fails the checks described on [Config].
+//   - string: the webhook URL under [HooksBaseURL] with wait=true, plus a
+//     thread_id query parameter when the config sets a thread ID that is not
+//     blank. It is empty for a config that fails the checks described on
+//     [Config].
 func CreatePostURLFromConfig(config *Config) string {
 	if config.validate() != nil {
 		return ""

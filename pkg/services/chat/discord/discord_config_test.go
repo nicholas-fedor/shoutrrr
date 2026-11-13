@@ -18,10 +18,14 @@ const (
 	// testHooksBaseURL is the webhook base URL the tests expect, written out
 	// so that the tests pin the API version.
 	testHooksBaseURL = "https://discord.com/api/v10/webhooks"
-	// testWebhookURL is the API URL for webhook 123456789 with token test-token.
-	testWebhookURL = testHooksBaseURL + "/123456789/test-token"
+	// testWebhookPath is the API URL for webhook 123456789 with token
+	// test-token, without its query.
+	testWebhookPath = testHooksBaseURL + "/123456789/test-token"
+	// testWebhookURL is the URL a send posts to for that webhook, which asks
+	// Discord to confirm the message with wait=true.
+	testWebhookURL = testWebhookPath + "?wait=true"
 	// testWebhookURLWithThread is testWebhookURL posting to thread 987654321.
-	testWebhookURLWithThread = testWebhookURL + "?thread_id=987654321"
+	testWebhookURLWithThread = testWebhookPath + "?thread_id=987654321&wait=true"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -276,8 +280,10 @@ func TestConfigValidate(t *testing.T) {
 }
 
 // TestCreatePostURLFromConfig verifies the webhook API URL with its thread
-// ID. Surrounding spaces are trimmed and the token is path-escaped. An invalid
-// config gives no URL, and the cases include a thread ID that is not a number.
+// ID and wait=true, so Discord confirms each message.
+//
+// Surrounding spaces are trimmed and the token is path-escaped. An invalid
+// config gives no URL. The cases include a thread ID that is not a number.
 func TestCreatePostURLFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -296,11 +302,11 @@ func TestCreatePostURLFromConfig(t *testing.T) {
 		{name: "no webhook ID or token", config: Config{}, want: ""},
 		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "a b&c"}, want: ""},
 		{name: "blank thread", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}, want: testWebhookURL},
-		{name: "token with reserved characters", config: Config{WebhookID: "123456789", Token: "a?c#d%"}, want: testHooksBaseURL + "/123456789/a%3Fc%23d%25"},
+		{name: "token with reserved characters", config: Config{WebhookID: "123456789", Token: "a?c#d%"}, want: testHooksBaseURL + "/123456789/a%3Fc%23d%25?wait=true"},
 		{name: "dot-dot token", config: Config{WebhookID: "123456789", Token: ".."}, want: ""},
 		{name: "webhook ID not a number", config: Config{WebhookID: "webhook", Token: "test-token"}, want: ""},
 		{name: "blank token", config: Config{WebhookID: "123456789", Token: "  "}, want: ""},
-		{name: "longest webhook ID and a long token", config: Config{WebhookID: longID, Token: longToken}, want: testHooksBaseURL + "/" + longID + "/" + longToken},
+		{name: "longest webhook ID and a long token", config: Config{WebhookID: longID, Token: longToken}, want: testHooksBaseURL + "/" + longID + "/" + longToken + "?wait=true"},
 	}
 
 	for _, tt := range tests {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -20,6 +21,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // HTTPClient defines the interface for HTTP operations.
@@ -86,11 +88,17 @@ type MultipartRequestPreparer struct {
 	files []types.File
 }
 
-// rateLimitBody is the part of a 429 response body that sets the wait.
-type rateLimitBody struct {
-	// RetryAfter is how many seconds to wait before the next request, with a
-	// fraction. It is nil when the body has no retry_after or holds null.
+// errorBody is the JSON body of a Discord error response, such as
+// {"message": "Unknown Webhook", "code": 10015}.
+type errorBody struct {
+	// RetryAfter is the wait in seconds before the next request, which a 429
+	// response gives with a fraction. It is nil when the body has no
+	// retry_after or holds null.
 	RetryAfter *float64 `json:"retry_after"`
+	// Code is Discord's JSON error code, or nil when the body has none.
+	Code *int `json:"code"`
+	// Message describes the error, or is empty when the body has none.
+	Message string `json:"message"`
 }
 
 // HTTP settings for requests to Discord.
@@ -100,6 +108,9 @@ const (
 
 	// serverErrorStatusCode is the HTTP status code for server errors (5xx).
 	serverErrorStatusCode = 500
+	// maxReasonLength is the most characters of Discord's error message that
+	// an error quotes. Discord's messages are short, such as "Unknown Webhook".
+	maxReasonLength = 200
 )
 
 // Retry limits and backoff for sends.
@@ -269,6 +280,27 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	return req, nil
 }
 
+// reason returns the body's message as an error can quote it.
+//
+// The message is the provider's text, so it is kept to one line and to
+// 200 characters, which leaves it safe to log and to match on. Each run of
+// characters that are not printable, such as newlines and tabs, becomes one
+// space.
+//
+// Returns:
+//   - string: the cleaned message, or empty when the body has none.
+func (b errorBody) reason() string {
+	printable := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+
+		return ' '
+	}, b.Message)
+
+	return util.Ellipsis(strings.Join(strings.Fields(printable), " "), maxReasonLength)
+}
+
 // isTransientError checks if an error is transient and should be retried.
 //
 // A canceled context is not transient, and a passed deadline is. A
@@ -383,10 +415,10 @@ func retryRequest(ctx context.Context, req *http.Request) (*http.Request, error)
 
 // handleServerError handles 5xx server errors with retry logic.
 //
-// A response below 500 is left as it is. For a 5xx response it waits an
-// exponential backoff before the next attempt and closes the body. After the
-// last attempt it closes the body and returns [ErrMaxRetries] without
-// waiting.
+// A response below 500 is left as it is. A 5xx response has its body read
+// and closed first, so the next attempt can reuse the connection. Then it
+// waits an exponential backoff before the next attempt. After the last
+// attempt it returns [ErrMaxRetries] without waiting.
 //
 // Parameters:
 //   - ctx: bounds the wait.
@@ -409,21 +441,13 @@ func handleServerError(
 		return nil
 	}
 
-	if attempt >= maxRetries {
-		_ = res.Body.Close()
+	drainAndClose(res)
 
+	if attempt >= maxRetries {
 		return ErrMaxRetries
 	}
 
-	if err := waitWithTimeout(ctx, backoff(attempt), startTime, sleeper); err != nil {
-		_ = res.Body.Close()
-
-		return err
-	}
-
-	_ = res.Body.Close()
-
-	return nil // Continue retry
+	return waitWithTimeout(ctx, backoff(attempt), startTime, sleeper)
 }
 
 // sendWithRetry executes an HTTP request with exponential backoff retries.
@@ -496,24 +520,19 @@ func sendWithRetry(
 
 		// Handle server errors
 		if err := handleServerError(ctx, res, attempt, startTime, sleeper); err != nil {
-			_ = res.Body.Close()
-
 			return err
 		}
 
 		if res.StatusCode >= serverErrorStatusCode {
-			_ = res.Body.Close()
-
 			continue
 		}
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
-			_ = res.Body.Close()
-
-			return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
+			return statusError(res)
 		}
 
-		_ = res.Body.Close()
+		// The body holds the message Discord created, which is not needed.
+		drainAndClose(res)
 
 		return nil
 	}
@@ -604,8 +623,9 @@ func sleepContext(ctx context.Context, sleeper Sleeper, duration time.Duration) 
 
 // handleRateLimitResponse handles rate limiting logic for 429 responses.
 //
-// It waits for the response's wait before the next attempt. After the last
-// attempt it returns [ErrMaxRetries] without waiting.
+// It reads and closes the response body first, so the next attempt can reuse
+// the connection. Then it waits for the response's wait before the next
+// attempt. After the last attempt it returns [ErrMaxRetries] without waiting.
 //
 // Parameters:
 //   - ctx: bounds the wait.
@@ -624,13 +644,14 @@ func handleRateLimitResponse(
 	startTime time.Time,
 	sleeper Sleeper,
 ) error {
-	defer func() { _ = res.Body.Close() }()
+	wait := rateLimitWait(res, attempt)
+	drainAndClose(res)
 
 	if attempt >= maxRetries {
 		return ErrMaxRetries
 	}
 
-	return waitWithTimeout(ctx, rateLimitWait(res, attempt), startTime, sleeper)
+	return waitWithTimeout(ctx, wait, startTime, sleeper)
 }
 
 // rateLimitWait returns how long to wait before retrying a 429.
@@ -657,6 +678,48 @@ func rateLimitWait(res *http.Response, attempt int) time.Duration {
 	return backoff(attempt)
 }
 
+// statusError returns the error for a response whose status is neither a
+// success nor one that is retried. It reads and closes the response body.
+//
+// Discord answers with a JSON body that gives the reason, such as
+// {"message": "Unknown Webhook", "code": 10015}. The error names the status,
+// then that message and code when the body has them. The message is kept to
+// one line of at most 200 characters. The error never quotes a body that is
+// not Discord's error JSON.
+//
+// Parameters:
+//   - res: the response, whose body is read up to [httpbody.MaxSize].
+//
+// Returns:
+//   - error: an error wrapping [ErrUnexpectedStatus].
+func statusError(res *http.Response) error {
+	defer func() { _ = res.Body.Close() }()
+
+	body, ok := readErrorBody(res.Body)
+
+	reason := body.reason()
+	if !ok || reason == "" {
+		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
+	}
+
+	if body.Code == nil {
+		return fmt.Errorf("%w: %s: %s", ErrUnexpectedStatus, res.Status, reason)
+	}
+
+	return fmt.Errorf("%w: %s: %s (code %d)", ErrUnexpectedStatus, res.Status, reason, *body.Code)
+}
+
+// drainAndClose reads what is left of a response's body, up to
+// [httpbody.MaxSize], then closes it. A body read to its end lets the
+// connection carry the next request.
+//
+// Parameters:
+//   - res: the response whose body is read and closed.
+func drainAndClose(res *http.Response) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, httpbody.MaxSize)) //nolint:errcheck // A failed read only keeps the connection from being reused.
+	_ = res.Body.Close()
+}
+
 // bodyRetryAfter reads the retry_after of a 429 response body, in seconds
 // with a fraction.
 //
@@ -671,17 +734,32 @@ func rateLimitWait(res *http.Response, attempt int) time.Duration {
 //     body that cannot be read or decoded and one without the field. A null
 //     or negative value gives none either.
 func bodyRetryAfter(body io.Reader) (time.Duration, bool) {
-	data, err := httpbody.Read(body, httpbody.MaxSize)
-	if err != nil {
-		return 0, false
-	}
-
-	var parsed rateLimitBody
-	if err := json.Unmarshal(data, &parsed, jsonopts.Default); err != nil || parsed.RetryAfter == nil {
+	parsed, ok := readErrorBody(body)
+	if !ok || parsed.RetryAfter == nil {
 		return 0, false
 	}
 
 	return httpclient.Duration(*parsed.RetryAfter, time.Second)
+}
+
+// readErrorBody reads and decodes the JSON body of a Discord error response.
+//
+// Parameters:
+//   - body: the response body, read up to [httpbody.MaxSize].
+//
+// Returns:
+//   - errorBody: the decoded body.
+//   - bool: false for a body that cannot be read or is not Discord's error
+//     JSON.
+func readErrorBody(body io.Reader) (errorBody, bool) {
+	var parsed errorBody
+
+	data, err := httpbody.Read(body, httpbody.MaxSize)
+	if err != nil || json.Unmarshal(data, &parsed, jsonopts.Default) != nil {
+		return parsed, false
+	}
+
+	return parsed, true
 }
 
 // backoff returns the exponential backoff before a retry, which doubles from

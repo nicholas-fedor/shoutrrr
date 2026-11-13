@@ -140,8 +140,12 @@ const (
 	// testHooksBaseURL is the webhook base URL the tests expect, written out
 	// so that the tests pin the API version.
 	testHooksBaseURL = "https://discord.com/api/v10/webhooks"
-	// testPostURL is the webhook API URL for testServiceURL.
-	testPostURL = testHooksBaseURL + "/123456789012345678/test-token"
+	// testPostPath is the webhook API URL for testServiceURL, without its
+	// query.
+	testPostPath = testHooksBaseURL + "/123456789012345678/test-token"
+	// testPostURL is the URL a send for testServiceURL posts to. It asks
+	// Discord to confirm the message with wait=true.
+	testPostURL = testPostPath + "?wait=true"
 	// testMessage is the message the tests send when its text does not matter.
 	testMessage = "Test message"
 )
@@ -277,28 +281,28 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			name:     "numeric webhook ID and token",
 			rawURL:   "discord://123@456",
 			message:  testMessage,
-			wantURL:  testHooksBaseURL + "/456/123",
+			wantURL:  testHooksBaseURL + "/456/123?wait=true",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
 			name:     "token with reserved characters",
 			rawURL:   "discord://a%3Fc%23d%25zz@456",
 			message:  testMessage,
-			wantURL:  testHooksBaseURL + "/456/a%3Fc%23d%25zz",
+			wantURL:  testHooksBaseURL + "/456/a%3Fc%23d%25zz?wait=true",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
 			name:     "thread from the URL",
 			rawURL:   testServiceURL + "?thread_id=123456789",
 			message:  testMessage,
-			wantURL:  testPostURL + "?thread_id=123456789",
+			wantURL:  testPostPath + "?thread_id=123456789&wait=true",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
 			name:     "thread ID with surrounding spaces",
 			rawURL:   testServiceURL + "?thread_id=%20%20123456789%20%20",
 			message:  testMessage,
-			wantURL:  testPostURL + "?thread_id=123456789",
+			wantURL:  testPostPath + "?thread_id=123456789&wait=true",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
@@ -306,7 +310,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			rawURL:   testServiceURL + "?thread_id=111222333",
 			params:   &types.Params{"thread_id": "444555666"},
 			message:  testMessage,
-			wantURL:  testPostURL + "?thread_id=444555666",
+			wantURL:  testPostPath + "?thread_id=444555666&wait=true",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
@@ -345,7 +349,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			rawURL:   testServiceURL + "?thread_id=555666777",
 			params:   &types.Params{"username": "ThreadBot", "avatar": "https://example.com/thread-avatar.png"},
 			message:  "Thread message with custom appearance",
-			wantURL:  testPostURL + "?thread_id=555666777",
+			wantURL:  testPostPath + "?thread_id=555666777&wait=true",
 			wantBody: `{"content":"Thread message with custom appearance","username":"ThreadBot","avatar_url":"https://example.com/thread-avatar.png"}`,
 		},
 		{
@@ -462,9 +466,9 @@ func TestIntegrationSendParamsApplyToOneSend(t *testing.T) {
 
 	sent := hook.sent()
 	require.Len(t, sent, 2)
-	assert.Equal(t, testPostURL+"?thread_id=456", sent[0].url)
+	assert.Equal(t, testPostPath+"?thread_id=456&wait=true", sent[0].url)
 	assert.JSONEq(t, `{"embeds":[{"title":"Once","description":"First","color":5298687}],"username":"OnceBot"}`, string(sent[0].body))
-	assert.Equal(t, testPostURL+"?thread_id=123", sent[1].url)
+	assert.Equal(t, testPostPath+"?thread_id=123&wait=true", sent[1].url)
 	assert.JSONEq(t, `{"content":"Second"}`, string(sent[1].body))
 }
 
@@ -506,7 +510,7 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 			name:    "thread from the URL",
 			rawURL:  testServiceURL + "?json=true&thread_id=987654321",
 			message: `{"content": "Thread JSON message"}`,
-			wantURL: testPostURL + "?thread_id=987654321",
+			wantURL: testPostPath + "?thread_id=987654321&wait=true",
 		},
 		{
 			name:    "json from params",
@@ -520,7 +524,7 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 			rawURL:  testServiceURL + "?json=true&thread_id=987654321",
 			params:  &types.Params{"thread_id": "444555666"},
 			message: `{"content": "Thread JSON message"}`,
-			wantURL: testPostURL + "?thread_id=444555666",
+			wantURL: testPostPath + "?thread_id=444555666&wait=true",
 		},
 	}
 
@@ -780,7 +784,7 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 				Fields: []types.Field{{Key: "Thread", Value: "Yes"}, {Key: "Type", Value: "Test"}},
 				Level:  types.Info,
 			}},
-			wantURL: testPostURL + "?thread_id=888999000",
+			wantURL: testPostPath + "?thread_id=888999000&wait=true",
 			wantBody: `{"embeds":[{
 				"description":"Thread message with rich embed",
 				"color":2394367,
@@ -930,7 +934,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 				},
 				{Text: "Second file in thread", File: &types.File{Name: "file2.txt", Data: []byte("content 2")}},
 			},
-			wantURL: testPostURL + "?thread_id=111000222",
+			wantURL: testPostPath + "?thread_id=111000222&wait=true",
 			wantPayload: `{
 				"embeds":[
 					{"description":"First file in thread","color":16761921,"footer":{"text":"Warning"},"fields":[{"name":"Build","value":"42"}]},
@@ -1397,16 +1401,17 @@ func TestIntegrationSendRetriesFiles(t *testing.T) {
 // TestIntegrationSendStatusErrors verifies that error statuses other than
 // rate limits and server errors fail at once.
 //
-// The error wraps ErrUnexpectedStatus and names the status, for plain, JSON
-// mode, and rich sends. Any 2xx status Discord uses counts as success, whatever
-// the body.
+// The error wraps ErrUnexpectedStatus and names the status. When the body is
+// Discord's JSON error, the message and code follow. The cases cover plain,
+// JSON mode, and rich sends. Any 2xx status Discord uses counts as success,
+// whatever the body.
 func TestIntegrationSendStatusErrors(t *testing.T) {
 	t.Parallel()
 
 	fileItems := []types.MessageItem{{Text: "Test", File: &types.File{Name: "large.txt", Data: make([]byte, 1024)}}}
 
-	// tests lists service URLs, sends, and statuses with the error text to
-	// expect, or none for success.
+	// tests lists service URLs, sends, and statuses with the end of the error
+	// text to expect, or none for success.
 	tests := []struct {
 		name     string
 		rawURL   string
@@ -1415,16 +1420,44 @@ func TestIntegrationSendStatusErrors(t *testing.T) {
 		wantText string
 		status   int
 	}{
-		{name: "bad request", status: http.StatusBadRequest, body: `{"message": "Invalid webhook"}`, wantText: "failed to send discord notification: unexpected response status code: 400 Bad Request"},
-		{name: "unauthorized", status: http.StatusUnauthorized, body: `{"message": "Invalid token"}`, wantText: "401 Unauthorized"},
-		{name: "forbidden", status: http.StatusForbidden, body: `{"message": "Missing permissions"}`, wantText: "403 Forbidden"},
-		{name: "unknown webhook", status: http.StatusNotFound, body: `{"message": "Unknown Webhook", "code": 10015}`, wantText: "404 Not Found"},
+		{
+			name:     "bad request",
+			status:   http.StatusBadRequest,
+			body:     `{"message": "Invalid webhook"}`,
+			wantText: "failed to send discord notification: unexpected response status code: 400 Bad Request: Invalid webhook",
+		},
+		{name: "unauthorized", status: http.StatusUnauthorized, body: `{"message": "Invalid token"}`, wantText: "401 Unauthorized: Invalid token"},
+		{name: "forbidden", status: http.StatusForbidden, body: `{"message": "Missing permissions"}`, wantText: "403 Forbidden: Missing permissions"},
+		{
+			name:     "unknown webhook",
+			status:   http.StatusNotFound,
+			body:     `{"message": "Unknown Webhook", "code": 10015}`,
+			wantText: "404 Not Found: Unknown Webhook (code 10015)",
+		},
+		{
+			name:     "message on several lines",
+			status:   http.StatusForbidden,
+			body:     `{"message": "Missing\nPermissions\t", "code": 50013}`,
+			wantText: "403 Forbidden: Missing Permissions (code 50013)",
+		},
+		{
+			name:     "message that is blank",
+			status:   http.StatusBadRequest,
+			body:     `{"message": " \n", "code": 50006}`,
+			wantText: "unexpected response status code: 400 Bad Request",
+		},
+		{
+			name:     "error body that is not JSON",
+			status:   http.StatusMethodNotAllowed,
+			body:     "<html>Method Not Allowed</html>",
+			wantText: "unexpected response status code: 405 Method Not Allowed",
+		},
 		{
 			name:     "JSON mode",
 			rawURL:   testServiceURL + "?json=true",
 			status:   http.StatusBadRequest,
 			body:     `{"message": "Cannot send an empty message"}`,
-			wantText: "sending JSON message: unexpected response status code: 400 Bad Request",
+			wantText: "sending JSON message: unexpected response status code: 400 Bad Request: Cannot send an empty message",
 		},
 		{
 			name: "rich send with a file",
@@ -1435,7 +1468,7 @@ func TestIntegrationSendStatusErrors(t *testing.T) {
 			},
 			status:   http.StatusRequestEntityTooLarge,
 			body:     `{"message": "Request entity too large"}`,
-			wantText: "unexpected response status code: 413 Request Entity Too Large",
+			wantText: "unexpected response status code: 413 Request Entity Too Large: Request entity too large",
 		},
 		{name: "OK with a body that is not JSON", status: http.StatusOK, body: "invalid json"},
 	}
@@ -1468,7 +1501,8 @@ func TestIntegrationSendStatusErrors(t *testing.T) {
 			}
 
 			require.ErrorIs(t, err, discord.ErrUnexpectedStatus)
-			assert.Contains(t, err.Error(), tt.wantText)
+			assert.True(t, strings.HasSuffix(err.Error(), tt.wantText), "error %q ends with %q", err, tt.wantText)
+			assert.NotContains(t, err.Error(), tt.body, "the error never quotes the body")
 		})
 	}
 }
