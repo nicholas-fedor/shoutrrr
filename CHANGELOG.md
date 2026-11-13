@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Confirm delivery and report Discord's error reason by @nicholas-fedor in [#2188](https://github.com/nicholas-fedor/shoutrrr/pull/2188)
 - Leave token request redirects to the sending client by @nicholas-fedor in [#2186](https://github.com/nicholas-fedor/shoutrrr/pull/2186)
 - Refuse token exchange redirects to another host by @nicholas-fedor in [#2184](https://github.com/nicholas-fedor/shoutrrr/pull/2184)
 - Refuse generator redirects to another host by @nicholas-fedor in [#2182](https://github.com/nicholas-fedor/shoutrrr/pull/2182)
