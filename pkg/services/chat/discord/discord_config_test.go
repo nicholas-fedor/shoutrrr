@@ -2,6 +2,7 @@ package discord
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -139,6 +140,7 @@ func TestConfigURLRoundTrip(t *testing.T) {
 			SplitLines: false,
 			JSON:       false,
 			ThreadID:   "987654321",
+			Mentions:   []string{"here", "role:123456789012345678", "user:876543210987654321"},
 		}
 
 		config := newDefaultConfig(t)
@@ -275,6 +277,70 @@ func TestConfigValidate(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, tt.wantErr)
 			}
+		})
+	}
+}
+
+// TestConfigMentions verifies how the mentions key reads into the text in
+// front of the message and the allowed mentions object.
+//
+// Keywords and prefixes match in any case. Blank and repeated mentions are
+// left out. A mention that is not everyone, here, user:ID, or role:ID with a
+// snowflake ID fails, and so do more than 100 user or role mentions.
+func TestConfigMentions(t *testing.T) {
+	t.Parallel()
+
+	tooManyUsers := make([]string, maxMentionIDs+1)
+	for i := range tooManyUsers {
+		tooManyUsers[i] = "user:" + strconv.Itoa(1000+i)
+	}
+
+	// tests lists mentions with the text and allowed mentions they read
+	// into, or the error.
+	tests := []struct {
+		name        string
+		mentions    []string
+		wantText    string
+		wantAllowed allowedMentions
+		wantErr     bool
+	}{
+		{name: "none"},
+		{name: "everyone", mentions: []string{"everyone"}, wantText: "@everyone", wantAllowed: allowedMentions{Parse: []string{"everyone"}}},
+		{name: "here", mentions: []string{"here"}, wantText: "@here", wantAllowed: allowedMentions{Parse: []string{"everyone"}}},
+		{name: "everyone and here share one type", mentions: []string{"everyone", "here"}, wantText: "@everyone @here", wantAllowed: allowedMentions{Parse: []string{"everyone"}}},
+		{name: "user", mentions: []string{"user:123"}, wantText: "<@123>", wantAllowed: allowedMentions{Users: []string{"123"}}},
+		{name: "role", mentions: []string{"role:456"}, wantText: "<@&456>", wantAllowed: allowedMentions{Roles: []string{"456"}}},
+		{
+			name:        "mixed in any case with blanks and repeats",
+			mentions:    []string{" HERE ", "", "Role:456", "USER:123", "role:456", "here", "user:123"},
+			wantText:    "@here <@&456> <@123>",
+			wantAllowed: allowedMentions{Parse: []string{"everyone"}, Users: []string{"123"}, Roles: []string{"456"}},
+		},
+		{name: "unknown keyword", mentions: []string{"channel"}, wantErr: true},
+		{name: "Discord's own syntax", mentions: []string{"<@123>"}, wantErr: true},
+		{name: "user without an ID", mentions: []string{"user:"}, wantErr: true},
+		{name: "role with a name", mentions: []string{"role:admins"}, wantErr: true},
+		{name: "signed ID", mentions: []string{"user:+123"}, wantErr: true},
+		{name: "more than 100 users", mentions: tooManyUsers, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{WebhookID: "123456789", Token: "test-token", Mentions: tt.mentions}
+
+			set, err := config.mentions()
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrInvalidMention)
+				require.ErrorIs(t, config.validate(), ErrInvalidMention, "the config's checks reject it")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantText, set.text)
+			assert.Equal(t, tt.wantAllowed, set.allowed)
 		})
 	}
 }

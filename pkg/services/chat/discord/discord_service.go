@@ -49,6 +49,8 @@ type Service struct {
 type sendState struct {
 	// postURL is the webhook URL built from config.
 	postURL string
+	// mentions are the mentions the send pings, read from config.
+	mentions mentionSet
 	// config is the service config with the send's params applied, checked
 	// as described on [Config].
 	config Config
@@ -188,7 +190,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// A message sent as plain content has no embed to color, so it keeps its
 	// form. The level is set before batching, since its footer counts toward
 	// each message's total.
-	if level := s.plainLevel(&send.config, params); level != types.Unknown && !sendsAsContent(items, send.config.Title) {
+	if level := s.plainLevel(&send.config, params); level != types.Unknown && !send.sendsAsContent(items) {
 		for i := range items {
 			items[i].Level = level
 		}
@@ -308,7 +310,7 @@ func (s *Service) prepareSend(params *types.Params) (*sendState, error) {
 		return nil, types.ErrServiceNotInitialized
 	}
 
-	send := &sendState{postURL: "", config: *s.Config}
+	send := &sendState{postURL: "", mentions: mentionSet{}, config: *s.Config}
 	if err := s.pkr.UpdateConfigFromParams(&send.config, params); err != nil {
 		return nil, fmt.Errorf("updating config from params: %w", err)
 	}
@@ -317,6 +319,12 @@ func (s *Service) prepareSend(params *types.Params) (*sendState, error) {
 		return nil, err
 	}
 
+	mentions, err := send.config.mentions()
+	if err != nil {
+		return nil, err
+	}
+
+	send.mentions = mentions
 	send.postURL = send.config.postURL()
 
 	return send, nil
@@ -345,11 +353,16 @@ func (s *Service) sendBatches(ctx context.Context, send *sendState, items []type
 		return s.sendItems(ctx, send, items)
 	}
 
+	// The batches go out one at a time, so the flag marks the first request.
+	first := true
+
 	return sequential.Send(ctx, batches, sequential.SharedDeadline,
 		func(ctx context.Context, batch []types.MessageItem) error {
 			payload := createEmbedPayload(batch, send.config.Title, send.config.LevelColors())
+			err := s.sendPayload(ctx, send, &payload, batch, first)
+			first = false
 
-			return s.sendPayload(ctx, send, &payload, batch)
+			return err
 		})
 }
 
@@ -377,8 +390,10 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 	return s.sendBatches(ctx, send, items)
 }
 
-// sendItems builds the webhook payload for items and sends it, as multipart when
-// any item carries a file. A single plain item is sent as the message content.
+// sendItems builds the webhook payload for items and sends it as the only
+// request of its send, as multipart when any item carries a file. A single
+// plain item is sent as the message content when it fits there with the
+// send's mentions in front, and as an embed otherwise.
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
@@ -393,17 +408,23 @@ func (s *Service) sendItems(ctx context.Context, send *sendState, items []types.
 		return fmt.Errorf("creating payload: %w", err)
 	}
 
-	return s.sendPayload(ctx, send, &payload, items)
+	if payload.Content != "" && !send.sendsAsContent(items) {
+		payload = createEmbedPayload(items, send.config.Title, send.config.LevelColors())
+	}
+
+	return s.sendPayload(ctx, send, &payload, items, true)
 }
 
 // sendPayload sends payload with the configured username and avatar, as
-// multipart with the items' files when any item carries one.
+// multipart with the items' files when any item carries one. The send's
+// mentions go on its first request.
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
 //   - send: the config and webhook URL for this send.
 //   - payload: the webhook payload built from items.
 //   - items: the message items, whose files are attached.
+//   - first: whether the request is the first of its send.
 //
 // Returns:
 //   - error: the marshaling or send failure, or nil on success.
@@ -412,9 +433,11 @@ func (s *Service) sendPayload(
 	send *sendState,
 	payload *WebhookPayload,
 	items []types.MessageItem,
+	first bool,
 ) error {
 	payload.Username = send.config.Username
 	payload.AvatarURL = send.config.Avatar
+	send.mentions.apply(payload, first)
 
 	// Most sends carry no files, so the slice is only made for one that does.
 	var files []types.File
@@ -439,6 +462,19 @@ func (s *Service) sendPayload(
 	}
 
 	return sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
+}
+
+// sendsAsContent reports whether items go out as the message content, which
+// holds the send's mentions in front of the text. A message that fits as
+// content alone but not with the mentions goes as an embed instead.
+//
+// Parameters:
+//   - items: the message items of one request.
+//
+// Returns:
+//   - bool: whether the items are sent as the message content.
+func (s *sendState) sendsAsContent(items []types.MessageItem) bool {
+	return sendsAsContent(items, s.config.Title) && s.mentions.fits(items[0].Text)
 }
 
 // batchItems groups items into batches that each fit one Discord message.

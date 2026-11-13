@@ -60,6 +60,51 @@ Embeds then use the color configured for that level with `colorDebug`, `colorInf
 A `color` in the URL or the send params takes precedence over the level, even when it is set to the default.
 A short message without a title is sent as plain content, which has no embed to color, so the level leaves it as it is.
 
+## Mentions
+
+The `mentions` key does two things:
+
+- __Adds mentions__: Shoutrrr writes each listed mention into the message, so the message pings them.
+- __Allows only them__: no other mention in the message pings, so `@everyone` in a log line shows as text unless the list includes it.
+
+Discord never pings a mention inside an embed, so Shoutrrr puts the listed mentions in the message content.
+
+### Setting Mentions
+
+| Mention        | Pings                                   |
+|----------------|-----------------------------------------|
+| `everyone`     | everyone in the channel, as `@everyone` |
+| `here`         | the members who are online, as `@here`  |
+| `user:USER_ID` | the user with that ID                   |
+| `role:ROLE_ID` | the members of the role with that ID    |
+
+!!! example "Ping a Role"
+    ```bash
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?mentions=here,role:ROLE_ID" --message "Backup failed"
+    ```
+
+Replace `USER_ID` or `ROLE_ID` with the ID that Discord shows with *Copy User ID* or *Copy Role ID* in Developer Mode.
+
+### How Mentions Are Sent
+
+Shoutrrr puts the mentions in the message content of a send's first request, and every request lets only them ping.
+Where they appear depends on how the message is sent:
+
+| Message                                              | Content of the first request                             |
+|------------------------------------------------------|----------------------------------------------------------|
+| Short message sent as plain content                  | The mentions, then the message: `@here Backup failed`    |
+| Message sent as embeds                               | The mentions alone, shown above the embeds               |
+| Short message over 2000 characters with the mentions | The mentions alone, with the message moved into an embed |
+
+A long message that needs several requests pings once, from its first request.
+
+A mention already in the message text pings when the list allows it, such as `<@USER_ID>` for a listed `user:USER_ID`.
+Discord treats `@everyone` and `@here` as one kind of mention, so listing either one lets both ping from the text.
+
+!!! note ""
+    Discord still applies its own rules, such as a role having to be mentionable, as its [allowed mentions](https://discord.com/developers/docs/resources/message#allowed-mentions-object) documentation describes.
+    JSON mode sends its payload as it is, so `mentions` does not apply there.
+
 ## Message Chunking
 
 Shoutrrr splits a long plain message so that each webhook request fits Discord's limits.

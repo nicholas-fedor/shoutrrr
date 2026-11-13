@@ -381,8 +381,9 @@ var undefinedEnumValues = []int64{-1, 99}
 // check gives a string-list field that the fixture leaves empty and that does
 // not accept [sampleText].
 var listSamples = map[string]map[string]string{
-	"xmpp":  {"Rooms": roomJIDSample},
-	"xmpps": {"Rooms": roomJIDSample},
+	"discord": {"Mentions": "here"},
+	"xmpp":    {"Rooms": roomJIDSample},
+	"xmpps":   {"Rooms": roomJIDSample},
 }
 
 // serverHostSchemes lists the schemes whose URL host is the server they connect
