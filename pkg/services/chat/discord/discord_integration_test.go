@@ -133,8 +133,8 @@ type wireAttachment struct {
 	ID int `json:"id"`
 }
 
-// timeoutError is a [net.Error] that reports a timeout, which the service
-// retries at the transport level.
+// timeoutError is a [net.Error] that reports a timeout. The service does not
+// retry it, since the request may already have reached Discord.
 type timeoutError struct{}
 
 // roundTripFunc adapts a function to an [http.RoundTripper].
@@ -1268,8 +1268,9 @@ func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 // TestIntegrationSendRetries verifies how a send started with SendContext
 // retries with the service's default sleeper. A rate limit waits for
 // Retry-After first and the body's retry_after second. Without either it
-// backs off exponentially, as a server error does. A transient transport
-// error is retried, and each retry resends the same payload. The send fails
+// backs off exponentially, as a server error does. A failed dial is retried,
+// and each retry resends the same payload. A transport timeout is not
+// retried. The send fails
 // when the retries run out or a wait cannot fit the deadline. It also fails
 // when the context is canceled. The fake clock checks the total wait.
 func TestIntegrationSendRetries(t *testing.T) {
@@ -1278,7 +1279,8 @@ func TestIntegrationSendRetries(t *testing.T) {
 	rateLimited := reply{status: http.StatusTooManyRequests, body: `{"message": "You are being rate limited.", "retry_after": 2.5}`}
 	rateLimitedNoHint := reply{status: http.StatusTooManyRequests, body: `{"message": "You are being rate limited."}`}
 	serverError := reply{status: http.StatusInternalServerError, body: `{"message": "Server error"}`}
-	timeout := reply{err: timeoutError{}}
+	refusedErr := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
+	refused := reply{err: refusedErr}
 
 	// tests lists scripted replies and contexts with the number of requests,
 	// the total wait, and the error to expect.
@@ -1315,10 +1317,16 @@ func TestIntegrationSendRetries(t *testing.T) {
 			wantRequests: 2,
 		},
 		{
-			name:         "transport timeout then success",
-			replies:      []reply{timeout, noContent},
+			name:         "refused dial then success",
+			replies:      []reply{refused, noContent},
 			wantElapsed:  time.Second,
 			wantRequests: 2,
+		},
+		{
+			name:         "transport timeout not retried",
+			replies:      []reply{{err: timeoutError{}}},
+			wantErr:      timeoutError{},
+			wantRequests: 1,
 		},
 		{
 			name:         "zero Retry-After until retries run out",
@@ -1341,9 +1349,9 @@ func TestIntegrationSendRetries(t *testing.T) {
 			wantRequests: 6,
 		},
 		{
-			name:         "transport timeouts until retries run out",
-			replies:      repeatReply(timeout, 4),
-			wantErr:      timeoutError{},
+			name:         "refused dials until retries run out",
+			replies:      repeatReply(refused, 4),
+			wantErr:      refusedErr,
 			wantElapsed:  7 * time.Second,
 			wantRequests: 4,
 		},
@@ -1421,15 +1429,15 @@ func TestIntegrationSendRetries(t *testing.T) {
 }
 
 // TestIntegrationSendRetriesFiles verifies that every attempt of a multipart
-// send carries the whole request. The send fails once in transport and once
-// on a rate limit, and each of its three requests holds the payload_json part
-// and the file.
+// send carries the whole request. The send fails once on a refused dial and
+// once on a rate limit, and each of its three requests holds the payload_json
+// part and the file.
 func TestIntegrationSendRetriesFiles(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		client, hook := newWebhook(t,
-			reply{err: timeoutError{}},
+			reply{err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}},
 			reply{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"0"}}},
 			noContent,
 		)
