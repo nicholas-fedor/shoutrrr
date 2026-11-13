@@ -85,6 +85,10 @@
 //   - Files must be accessible from the running system
 //   - Thread IDs can be obtained via Discord's Developer Mode
 //   - Message content is limited by Discord's API constraints (2000 chars per message)
+//   - With split lines, each line is an embed of up to 4096 characters, and a
+//     longer line is shortened
+//   - Discord limits each file to 20 MiB by default and more on boosted
+//     servers. Shoutrrr leaves that check to Discord and reports its error
 //   - Rate limiting applies as per Discord's webhook limits with automatic retry handling
 //   - The service respects the Retry-After header and the body's retry_after,
 //     and backs off exponentially when neither gives a wait
