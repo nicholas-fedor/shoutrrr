@@ -15,6 +15,8 @@
 //   - Timestamp support in embeds
 //   - Rate limiting that waits for the Retry-After header or the body's
 //     retry_after, with exponential backoff when neither gives a wait
+//   - Delivery that Discord confirms with the webhook's wait parameter, and
+//     errors that name the reason and code Discord gives
 //
 // # URL Format
 //

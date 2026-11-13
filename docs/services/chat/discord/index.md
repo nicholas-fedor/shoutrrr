@@ -107,6 +107,12 @@ Shoutrrr supports attaching files to your Discord messages when using the Go lib
 !!! note ""
     File attachments require the webhook to have appropriate permissions, and files must be accessible from the system running Shoutrrr. File attachments are not supported in the CLI.
 
+## Delivery and Errors
+
+Shoutrrr reports a send as successful only after Discord confirms that it saved the message, which Shoutrrr requests through the webhook's `wait` parameter.
+If Discord rejects a message, the error includes the HTTP status along with the reason and code from Discord's [JSON Error Codes](https://discord.com/developers/docs/topics/opcodes-and-status-codes#json-json-error-codes) table.
+For example, a deleted webhook fails with `404 Not Found: Unknown Webhook (code 10015)`.
+
 --8<-- "docs/services/chat/discord/config.md"
 
 ## Creating a webhook in Discord

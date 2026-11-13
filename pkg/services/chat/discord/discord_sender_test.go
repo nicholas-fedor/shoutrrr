@@ -29,6 +29,16 @@ type mockTemporaryError struct{}
 // mockTimeoutError is a [net.Error] that reports itself as a timeout.
 type mockTimeoutError struct{}
 
+// trackedBody is a response body that records whether it was read to its end
+// before it was closed.
+type trackedBody struct {
+	// Reader supplies the body.
+	*strings.Reader
+
+	// drainedAtClose is true when Close found nothing left to read.
+	drainedAtClose bool
+}
+
 // RoundTrip calls f with the request.
 //
 // Parameters:
@@ -76,6 +86,16 @@ func (m *mockTimeoutError) Temporary() bool { return false }
 // Returns:
 //   - bool: true.
 func (m *mockTimeoutError) Timeout() bool { return true }
+
+// Close records whether the body was read to its end first.
+//
+// Returns:
+//   - error: always nil.
+func (b *trackedBody) Close() error {
+	b.drainedAtClose = b.Len() == 0
+
+	return nil
+}
 
 // statusResponse returns a response with the given status, headers, and an
 // empty body.
@@ -310,6 +330,95 @@ func TestSendWithRetryResults(t *testing.T) {
 			if tt.wantText != "" {
 				assert.Contains(t, err.Error(), tt.wantText)
 			}
+		})
+	}
+}
+
+// TestSendWithRetryReadsReply verifies that a successful reply's body, the
+// message Discord created, is read to its end before it is closed, so the
+// connection can carry the next batch.
+func TestSendWithRetryReadsReply(t *testing.T) {
+	t.Parallel()
+
+	body := &trackedBody{Reader: strings.NewReader(`{"id":"1","content":"Test message"}`), drainedAtClose: false}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Status:     "200 OK",
+		Body:       body,
+	}, nil).Once()
+
+	require.NoError(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, mocks.NewMockSleeper(t)))
+
+	assert.True(t, body.drainedAtClose, "the body is read to its end before it is closed")
+}
+
+// TestSendWithRetryReadsRetriedReply verifies that a rate-limited or failed
+// reply's body is read to its end and closed before the wait, so the retry
+// can reuse the connection instead of holding it through the wait.
+func TestSendWithRetryReadsRetriedReply(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the retried statuses with a body each.
+	tests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "rate limited", status: http.StatusTooManyRequests, body: `{"message":"You are being rate limited.","retry_after":0.5,"global":false}`},
+		{name: "server error", status: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := &trackedBody{Reader: strings.NewReader(tt.body), drainedAtClose: false}
+			client := mocks.NewMockHTTPClient(t)
+			client.EXPECT().Do(mock.Anything).Return(&http.Response{
+				StatusCode: tt.status,
+				Status:     http.StatusText(tt.status),
+				Header:     http.Header{},
+				Body:       body,
+			}, nil).Once()
+			client.EXPECT().Do(mock.Anything).Return(statusResponse(http.StatusNoContent, nil), nil).Once()
+
+			sleeper := mocks.NewMockSleeper(t)
+			sleeper.EXPECT().Sleep(mock.Anything).Run(func(time.Duration) {
+				assert.True(t, body.drainedAtClose, "the body is read to its end and closed before the wait")
+			}).Return().Once()
+
+			require.NoError(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper))
+		})
+	}
+}
+
+// TestErrorBodyReason verifies that Discord's error message is quoted on one
+// line, with characters that are not printable replaced, and cut to 200
+// characters.
+func TestErrorBodyReason(t *testing.T) {
+	t.Parallel()
+
+	// tests lists messages with the reason each gives.
+	tests := []struct {
+		name    string
+		message string
+		want    string
+	}{
+		{name: "plain", message: "Unknown Webhook", want: "Unknown Webhook"},
+		{name: "empty", message: "", want: ""},
+		{name: "only spaces and control characters", message: " \n\t\x07 ", want: ""},
+		{name: "line breaks and tabs", message: "Invalid\r\nForm\tBody\n", want: "Invalid Form Body"},
+		{name: "bidirectional override", message: "Unknown\u202eWebhook", want: "Unknown Webhook"},
+		{name: "at the limit", message: strings.Repeat("a", 200), want: strings.Repeat("a", 200)},
+		{name: "over the limit", message: strings.Repeat("é", 201), want: strings.Repeat("é", 194) + " [...]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, errorBody{RetryAfter: nil, Code: nil, Message: tt.message}.reason())
 		})
 	}
 }
