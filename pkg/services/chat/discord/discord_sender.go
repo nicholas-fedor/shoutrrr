@@ -765,8 +765,9 @@ func statusError(res *http.Response) error {
 // errors it names to found, up to five.
 //
 // An object's _errors member lists the errors at path, and each other member
-// is the next segment of the path. A value that is not an object, and an
-// _errors member that is not a list of objects with a code, add nothing.
+// is the next segment of the path. A value that is not an object adds
+// nothing, and neither does an _errors member that is not a list. In a list,
+// an entry that is not an object with a code is skipped.
 //
 // Parameters:
 //   - dec: the decoder, positioned before the value.
@@ -808,13 +809,15 @@ func walkFieldErrors(dec *jsontext.Decoder, path string, found *[]string) bool {
 			return false
 		}
 
-		var entries []fieldError
+		var entries []jsontext.Value
 		if json.Unmarshal(list, &entries, jsonopts.Default) != nil {
 			continue
 		}
 
-		for _, entry := range entries {
-			if entry.Code == "" || len(*found) == maxFieldErrors {
+		// Each entry decodes on its own, so a malformed one skips only itself.
+		for _, raw := range entries {
+			var entry fieldError
+			if json.Unmarshal(raw, &entry, jsonopts.Default) != nil || entry.Code == "" || len(*found) == maxFieldErrors {
 				continue
 			}
 

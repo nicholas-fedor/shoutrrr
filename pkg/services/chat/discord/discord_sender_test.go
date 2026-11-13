@@ -494,6 +494,11 @@ func TestErrorBodyReasonFields(t *testing.T) {
 			want: invalid + ": a: A",
 		},
 		{
+			name: "malformed entries among valid ones",
+			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": [{"code": 5}, {"code": "BASE_TYPE_REQUIRED"}, "x", {"code": "BASE_TYPE_MAX_LENGTH"}]}}}`,
+			want: invalid + ": content: BASE_TYPE_REQUIRED, content: BASE_TYPE_MAX_LENGTH",
+		},
+		{
 			name: "entry without a code",
 			body: `{"code": 50035, "message": "Invalid Form Body", "errors": {"content": {"_errors": [{"message": "Must be 2000 or fewer in length."}, {"code": "BASE_TYPE_MAX_LENGTH"}]}}}`,
 			want: invalid + ": content: BASE_TYPE_MAX_LENGTH",
