@@ -3577,25 +3577,31 @@
   Default: <code>Shoutrrr notification</code></p>
 </li>
 <li>
-<p><strong>useheader</strong> - Enable header-based authentication
-  Default: ❌ <code>No</code></p>
+<p><strong>useheader</strong> - Send the token in the X-Gotify-Key header instead of the URL query
+  Default: ✔ <code>Yes</code></p>
 </li>
 </ul>
 <h2 id="api_endpoint">API Endpoint<a class="headerlink" href="#api_endpoint" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr sends notifications to Gotify using the REST API endpoint <code>POST /message</code>.
-The request includes the notification data as JSON in the request body and uses either URL query parameters or HTTP headers for authentication.</p>
+The request includes the notification data as JSON in the request body.
+It sends the token in the <code>X-Gotify-Key</code> header, or in the <code>token</code> query parameter when <code>useheader</code> is <code>no</code>.</p>
 <h2 id="configuration_parameters">Configuration Parameters<a class="headerlink" href="#configuration_parameters" title="Permanent link">&para;</a></h2>
 <h3 id="token_requirements">Token Requirements<a class="headerlink" href="#token_requirements" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Tokens are generated within the Gotify web interface when creating applications.</p>
 </div>
-<p>Gotify 3.0 and later issue application tokens that start with <code>gtfya.</code> followed by at least 43 characters.
+<p>Shoutrrr sends with an application token.
+Gotify 3.0 and later issue application tokens that start with <code>gtfya.</code> followed by at least 43 characters.
 Tokens from earlier Gotify versions are exactly 15 characters long and start with the letter 'A'.
-They can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.</p>
+They can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.
+Gotify 3 still accepts these earlier tokens.</p>
+<p>Client tokens, which start with <code>gtfyc.</code> or with the letter 'C', cannot be used.
+Gotify accepts a message sent with a client token only when it names an application ID, which Shoutrrr does not send.</p>
 <div class="admonition warning">
 <p class="admonition-title">Token Validation</p>
-<p>Shoutrrr rejects a URL whose token is missing or in neither format, with the error <code>invalid gotify token</code>. Always verify your token format matches Gotify's requirements.</p>
+<p>Shoutrrr rejects a URL whose token is missing or is not an application token, with the error <code>invalid gotify token</code>.
+For a client token, the error adds <code>client tokens need an application ID, so use an application token</code>.</p>
 </div>
 <h3 id="extras_field_support">Extras Field Support<a class="headerlink" href="#extras_field_support" title="Permanent link">&para;</a></h3>
 <p>The <code>extras</code> parameter allows you to include additional metadata in the notification payload sent to Gotify. This is passed as a JSON object and can be used for features like actions, images, or custom data that Gotify supports.</p>
@@ -3696,17 +3702,22 @@ When neither the URL nor the send params set a priority, the level picks one fro
 Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts <code>date</code> in URLs and params for compatibility but does not send it, and logs a warning the first time it is set.</p>
 </div>
 <h3 id="use_header_authentication">Use Header Authentication<a class="headerlink" href="#use_header_authentication" title="Permanent link">&para;</a></h3>
-<p>By default, the Gotify token is sent as a query parameter in the URL (<code>?token=...</code>). The <code>useheader</code> parameter set to <code>yes</code> removes the token from the URL entirely and sends it in the <code>X-Gotify-Key</code> HTTP header instead, which provides better security since:</p>
-<ul>
-<li>Headers are less likely to be logged in server access logs</li>
-<li>Query parameters may appear in browser history or be exposed in URLs</li>
-<li>Headers are encrypted in HTTPS requests</li>
-</ul>
+<p>By default, Shoutrrr sends the Gotify token in the <code>X-Gotify-Key</code> HTTP header, as Gotify's documentation shows.
+The request URL carries no token.
+A redirect to another host, or from HTTPS to HTTP, fails the send, so the header does not reach another server.
+A program that supplies its own HTTP client uses that client's redirect policy instead.
+Server and proxy access logs record request URLs, so a token in the URL can end up in them.</p>
+<p>Setting the <code>useheader</code> parameter to <code>no</code> sends the token as a query parameter in the request URL (<code>?token=...</code>) instead.</p>
 <div class="admonition example">
-<p class="admonition-title">Using header authentication</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?useheader=yes
+<p class="admonition-title">Sending the token in the query</p>
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?useheader=no
 </code></pre></div>
-<p>This sends the token in the <code>X-Gotify-Key</code> header, with no token appearing in the URL.</p>
+<p>This sends the token in the request URL, as <code>/message?token=TOKEN</code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A program that builds a <code>gotify.Config</code> in Go sets <code>UseHeader</code> to <code>true</code> to send the token in the header.
+A config that leaves it <code>false</code> sends the token in the query, and its URL says <code>useheader=No</code>.</p>
 </div>
 <h2 id="input_validation">Input Validation<a class="headerlink" href="#input_validation" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr validates input parameters before sending notifications to Gotify to ensure data integrity and prevent common errors.</p>
@@ -3740,7 +3751,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 </div>
 <div class="admonition example">
 <p class="admonition-title">With all parameters</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?title=System+Alert&amp;priority=5&amp;disabletls=yes&amp;useheader=yes&amp;extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/TOKEN?title=System+Alert&amp;priority=5&amp;disabletls=yes&amp;extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
 </code></pre></div>
 </div>
 <div class="admonition example">
@@ -3766,7 +3777,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <h2 id="security_considerations">Security Considerations<a class="headerlink" href="#security_considerations" title="Permanent link">&para;</a></h2>
 <h3 id="authentication_security">Authentication Security<a class="headerlink" href="#authentication_security" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Use header authentication</strong> (<code>useheader=yes</code>) whenever possible to avoid exposing tokens in URLs</li>
+<li><strong>Keep header authentication on</strong> (the default), so tokens stay out of request URLs</li>
 <li>Store URLs containing tokens securely and avoid sharing them in logs or version control</li>
 <li>Rotate tokens regularly through the Gotify web interface</li>
 </ul>
@@ -3803,6 +3814,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <p><strong>Possible causes:</strong></p>
 <ul>
 <li>Incorrect token format (a <code>gtfya.</code> token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)</li>
+<li>A client token instead of an application token</li>
 <li>Token has been revoked or expired</li>
 <li>Wrong token for the application</li>
 </ul>
@@ -3909,7 +3921,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 05:23:34 UTC"><span class="timeago" datetime="2026-11-10T05:23:34+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 05:23:34 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 08:20:03 UTC"><span class="timeago" datetime="2026-11-13T08:20:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 08:20:03 UTC">2026-11-13</span>
   </span>
 
     
