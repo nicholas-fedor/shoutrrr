@@ -1291,7 +1291,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="File Attachments">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delivery_and_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delivery and Errors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Delivery and Errors">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2928,7 +2939,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="File Attachments">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delivery_and_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delivery and Errors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Delivery and Errors">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3070,6 +3092,10 @@ An item still over 6000 characters on its own loses fields from the end, then ha
 <div class="admonition note">
 <p>File attachments require the webhook to have appropriate permissions, and files must be accessible from the system running Shoutrrr. File attachments are not supported in the CLI.</p>
 </div>
+<h2 id="delivery_and_errors">Delivery and Errors<a class="headerlink" href="#delivery_and_errors" title="Permanent link">&para;</a></h2>
+<p>Shoutrrr reports a send as successful only after Discord confirms that it saved the message, which Shoutrrr requests through the webhook's <code>wait</code> parameter.
+If Discord rejects a message, the error includes the HTTP status along with the reason and code from Discord's <a href="https://discord.com/developers/docs/topics/opcodes-and-status-codes#json-json-error-codes">JSON Error Codes</a> table.
+For example, a deleted webhook fails with <code>404 Not Found: Unknown Webhook (code 10015)</code>.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Token</strong> (<strong>Required</strong>)
@@ -3183,7 +3209,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 13, 2026 13:40:58 UTC"><span class="timeago" datetime="2026-11-13T13:40:58+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 13:40:58 UTC">2026-11-13</span>
   </span>
 
     
