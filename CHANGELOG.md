@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep split lines whole up to Discord's embed limits by @nicholas-fedor in [#2192](https://github.com/nicholas-fedor/shoutrrr/pull/2192)
 - Name the invalid fields in form body errors by @nicholas-fedor in [#2190](https://github.com/nicholas-fedor/shoutrrr/pull/2190)
 - Confirm delivery and report Discord's error reason by @nicholas-fedor in [#2188](https://github.com/nicholas-fedor/shoutrrr/pull/2188)
 - Leave token request redirects to the sending client by @nicholas-fedor in [#2186](https://github.com/nicholas-fedor/shoutrrr/pull/2186)
