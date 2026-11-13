@@ -510,10 +510,12 @@ func handleServerError(
 // once.
 //
 // It also reports whether the request may have created a message. Discord
-// creates none for a response it answers with an error status, which is also
-// why rate limits and server errors can be retried, and none for a request
-// that failed before it was sent or at the dial. Any other transport failure
-// may have come after Discord received the request.
+// creates none for a rate limit, for an error status below 500, for a request
+// that failed before it was sent or at the dial, and for a 502, which Discord
+// documents as no gateway being available to process the request. Any other
+// server error may follow a saved message, as may a transport failure after
+// the dial. Server errors are still retried, as Discord's own libraries do,
+// so in rare cases a retry posts the message twice.
 //
 // Parameters:
 //   - ctx: bounds the requests and the waits between them.
@@ -526,7 +528,8 @@ func handleServerError(
 //
 // Returns:
 //   - bool: whether the request may have created a message. It is true on
-//     success and after a transport failure that was not a failed dial.
+//     success, after a transport failure that was not a failed dial, and
+//     after any attempt got a server error other than 502.
 //   - error: nil on success. An error matching [ErrMaxRetries] when the
 //     retries or the 5 minutes run out. An error wrapping [ErrRateLimited]
 //     when a retry wait would end past the 5 minutes or the context's
@@ -547,10 +550,14 @@ func sendWithRetry(
 		return false, fmt.Errorf("preparing request: %w", err)
 	}
 
+	// mayHaveCreated becomes true once an attempt gets a server error that
+	// may follow a saved message, and every later failure reports it.
+	mayHaveCreated := false
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Check if we've exceeded the maximum retry timeout
 		if time.Since(startTime) > maxRetryTimeout {
-			return false, fmt.Errorf(
+			return mayHaveCreated, fmt.Errorf(
 				"max retry timeout exceeded after %v: %w",
 				maxRetryTimeout,
 				ErrMaxRetries,
@@ -559,7 +566,7 @@ func sendWithRetry(
 
 		if attempt > 0 {
 			if req, err = retryRequest(ctx, req); err != nil {
-				return false, err
+				return mayHaveCreated, err
 			}
 		}
 
@@ -567,7 +574,7 @@ func sendWithRetry(
 		res, err := executeWithTransportRetry(ctx, httpClient, req, sleeper)
 		if err != nil {
 			// A failed dial never sent the request.
-			return !isTransientError(err), err
+			return mayHaveCreated || !isTransientError(err), err
 		}
 
 		if res == nil {
@@ -577,15 +584,19 @@ func sendWithRetry(
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
-				return false, err
+				return mayHaveCreated, err
 			}
 
 			continue
 		}
 
+		if res.StatusCode >= serverErrorStatusCode && res.StatusCode != http.StatusBadGateway {
+			mayHaveCreated = true
+		}
+
 		// Handle server errors
 		if err := handleServerError(ctx, res, attempt, startTime, sleeper); err != nil {
-			return false, err
+			return mayHaveCreated, err
 		}
 
 		if res.StatusCode >= serverErrorStatusCode {
@@ -593,7 +604,7 @@ func sendWithRetry(
 		}
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
-			return false, statusError(res)
+			return mayHaveCreated, statusError(res)
 		}
 
 		// The body holds the message Discord created. A reply that cannot be
@@ -607,7 +618,7 @@ func sendWithRetry(
 		return true, nil
 	}
 
-	return false, ErrMaxRetries
+	return mayHaveCreated, ErrMaxRetries
 }
 
 // waitWithTimeout waits for the specified duration with timeout and context
