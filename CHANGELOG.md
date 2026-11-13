@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a mentions key that adds pings and allows only them by @nicholas-fedor in [#2196](https://github.com/nicholas-fedor/shoutrrr/pull/2196)
 - Support display names in sender and recipient addresses by @nicholas-fedor in [#2170](https://github.com/nicholas-fedor/shoutrrr/pull/2170)
 
 ### Fixed
