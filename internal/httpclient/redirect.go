@@ -20,7 +20,8 @@ var (
 	errTooManyRedirects = errors.New("too many redirects")
 )
 
-// checkRedirect is the redirect policy of the default clients.
+// checkRedirect is the redirect policy of the default clients and of the
+// clients that [NewClient] builds.
 //
 // A redirect is followed only when it stays on the first request's host name
 // and does not go from HTTPS to HTTP. A redirect from HTTP to HTTPS on the

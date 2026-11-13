@@ -9,9 +9,11 @@
 // service that keeps an exported client field for compatibility sends through
 // [Holder.Prefer].
 //
-// The default clients refuse a redirect that could carry a service's
-// credentials to another host or over plain HTTP, with [ErrRedirectRefused].
-// An injected client keeps its owner's redirect policy.
+// The default clients refuse a redirect to another host or from HTTPS to HTTP
+// with [ErrRedirectRefused]. Such a redirect could carry a service's
+// credentials elsewhere. [NewClient] builds a client with the same policy for
+// code that does not send through a Holder. An injected client keeps its
+// owner's redirect policy.
 //
 // [BoundContext] bounds a send whose context has no deadline, such as a direct
 // Send call without the router. [RetryAfter] reads the wait that a
