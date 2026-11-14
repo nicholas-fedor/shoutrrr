@@ -65,8 +65,8 @@ const (
 	// is the one sent again after the homeserver rejects a stored token and
 	// the send logs in again.
 	loginRequests = 3
-	// requestsPerRoom is the number of requests a send makes for a configured room:
-	// joining it by alias and sending the message.
+	// requestsPerRoom is the number of requests a send makes for each
+	// configured room. The room is joined, then the message is sent.
 	requestsPerRoom = 2
 	// minRequestsPerSend is the number of requests a send makes without
 	// configured rooms: the joined rooms lookup and one message.

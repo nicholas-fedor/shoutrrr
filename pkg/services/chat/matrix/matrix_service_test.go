@@ -42,11 +42,11 @@ type fakeHomeserver struct {
 	// header, which the login endpoint does not take.
 	authorizedLogins atomic.Int32
 	// rejectBelow, when not zero, makes the homeserver reject as unknown each
-	// message sent with a token from a login numbered below it, or with a
-	// token no login issued. It stands for a token that another login to the
-	// same device replaced, or that was revoked.
+	// request other than a login sent with a token from a login numbered
+	// below it, or with a token no login issued. It stands for a token that
+	// another login to the same device replaced, or that was revoked.
 	rejectBelow atomic.Int32
-	// releaseRejections, when set, holds each rejection of a message until it
+	// releaseRejections, when set, holds each rejection of a token until it
 	// is closed.
 	releaseRejections chan struct{}
 	// flowsStarted, when set, receives a value as each login flows request arrives.
@@ -55,9 +55,10 @@ type fakeHomeserver struct {
 	releaseFlows chan struct{}
 	// mu guards tokens, hosts, loginAccounts, schemes, and deadlines.
 	mu sync.Mutex
-	// tokens records the Authorization header of each message sent.
+	// tokens records the Authorization header of each request other than a
+	// login.
 	tokens []string
-	// hosts records the URL host of each message sent.
+	// hosts records the URL host of each request other than a login.
 	hosts []string
 	// loginAccounts records the host, user, and password of each password
 	// login, separated by spaces.
@@ -77,7 +78,8 @@ const (
 )
 
 // Do answers a Matrix API request: login flows, password login, the joined
-// rooms lookup, and message sends.
+// rooms lookup, room joins, and message sends. Every request other than a
+// login has its token checked, as on a homeserver.
 //
 // Parameters:
 //   - req: the request.
@@ -104,6 +106,23 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	if req.Method == http.MethodGet && req.URL.Path == apiLogin && f.releaseFlows != nil {
 		if err := hold(req.Context(), f.flowsStarted, f.releaseFlows); err != nil {
 			return nil, err
+		}
+	}
+
+	if req.URL.Path != apiLogin {
+		f.mu.Lock()
+		f.tokens = append(f.tokens, req.Header.Get("Authorization"))
+		f.hosts = append(f.hosts, req.URL.Host)
+		f.mu.Unlock()
+
+		if f.rejects(req.Header.Get("Authorization")) {
+			if f.releaseRejections != nil {
+				if err := hold(req.Context(), nil, f.releaseRejections); err != nil {
+					return nil, err
+				}
+			}
+
+			return homeserverResponse(unknownToken.status, unknownToken.body), nil
 		}
 	}
 
@@ -135,22 +154,14 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	case req.Method == http.MethodGet && req.URL.Path == apiJoinedRooms:
 		return homeserverResponse(http.StatusOK,
 			`{"joined_rooms":["!a:example.com","!b:example.com"]}`), nil
-	case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/send/"):
-		f.mu.Lock()
-		f.tokens = append(f.tokens, req.Header.Get("Authorization"))
-		f.hosts = append(f.hosts, req.URL.Host)
-		f.mu.Unlock()
-
-		if f.rejects(req.Header.Get("Authorization")) {
-			if f.releaseRejections != nil {
-				if err := hold(req.Context(), nil, f.releaseRejections); err != nil {
-					return nil, err
-				}
-			}
-
-			return homeserverResponse(unknownToken.status, unknownToken.body), nil
+	case req.Method == http.MethodPost && strings.HasPrefix(req.URL.Path, apiRoomJoin):
+		room, err := json.Marshal(apiResRoom{RoomID: strings.TrimPrefix(req.URL.Path, apiRoomJoin)})
+		if err != nil {
+			return nil, err
 		}
 
+		return homeserverResponse(http.StatusOK, string(room)), nil
+	case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/send/"):
 		return homeserverResponse(http.StatusOK, `{"event_id":"$event"}`), nil
 	default:
 		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
@@ -169,13 +180,13 @@ func (f *fakeHomeserver) loggedInAccounts() []string {
 	return append([]string(nil), f.loginAccounts...)
 }
 
-// rejects reports whether the homeserver rejects a message sent with the
+// rejects reports whether the homeserver rejects a request sent with the
 // Authorization header authorization. Once a test names the first login
 // whose tokens it accepts, it rejects the tokens of earlier logins and tokens
 // no login issued.
 //
 // Parameters:
-//   - authorization: the Authorization header of the message.
+//   - authorization: the Authorization header of the request.
 //
 // Returns:
 //   - bool: whether the token is unknown to the homeserver.
@@ -216,7 +227,7 @@ func (f *fakeHomeserver) requestSchemes() []string {
 	return schemes
 }
 
-// sentHosts returns the URL host of each message sent so far.
+// sentHosts returns the URL host of each request other than a login so far.
 //
 // Returns:
 //   - []string: the hosts, in order.
@@ -227,7 +238,8 @@ func (f *fakeHomeserver) sentHosts() []string {
 	return append([]string(nil), f.hosts...)
 }
 
-// sentTokens returns the Authorization header of each message sent so far.
+// sentTokens returns the Authorization header of each request other than a
+// login so far.
 //
 // Returns:
 //   - []string: the headers, in order.
@@ -406,8 +418,9 @@ func TestFirstSendLogsIn(t *testing.T) {
 	require.NoError(t, service.Send("first", nil))
 	require.NoError(t, service.Send("second", nil))
 
+	// Each send joins its room and sends the message.
 	assert.Equal(t, int32(1), server.logins.Load())
-	assert.Equal(t, []string{"Bearer access-1", "Bearer access-1"}, server.sentTokens())
+	assert.Equal(t, slices.Repeat([]string{"Bearer access-1"}, 4), server.sentTokens())
 }
 
 // TestConcurrentSendsLogInOnce verifies that concurrent first sends share a
@@ -465,7 +478,7 @@ func TestLoginWithoutTokenIsRetried(t *testing.T) {
 	require.ErrorIs(t, service.Send("first", nil), ErrLoginReplyWithoutToken)
 	require.NoError(t, service.Send("second", nil))
 	assert.Equal(t, int32(2), server.logins.Load())
-	assert.Equal(t, []string{"Bearer access-2"}, server.sentTokens())
+	assert.Equal(t, []string{"Bearer access-2", "Bearer access-2"}, server.sentTokens())
 }
 
 // TestLoginWaitEndsWithContext verifies that a send waiting for another send's
@@ -494,9 +507,10 @@ func TestLoginWaitEndsWithContext(t *testing.T) {
 }
 
 // TestRejectedTokenLogsInAgain verifies that a send whose stored token the
-// homeserver rejects as unknown logs in again and sends the message with the
-// new token, as after another process logs in to the same device. The login
-// carries no token, and later sends reuse the new one.
+// homeserver rejects as unknown logs in again and sends the rejected request
+// again with the new token, as after another process logs in to the same
+// device. The rejected request is the room's join. The login carries no
+// token, and later sends reuse the new one.
 func TestRejectedTokenLogsInAgain(t *testing.T) {
 	t.Parallel()
 
@@ -513,7 +527,7 @@ func TestRejectedTokenLogsInAgain(t *testing.T) {
 
 	assert.Equal(t, int32(2), server.logins.Load())
 	assert.Equal(t,
-		[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2", "Bearer access-2"},
+		append(slices.Repeat([]string{"Bearer access-1"}, 3), slices.Repeat([]string{"Bearer access-2"}, 4)...),
 		server.sentTokens())
 	assert.Zero(t, server.authorizedLogins.Load(), "logins carry no access token")
 }
@@ -551,7 +565,7 @@ func TestConcurrentRejectedSendsLogInOnce(t *testing.T) {
 
 		assert.Equal(t, int32(2), server.logins.Load())
 		assert.Equal(t,
-			append(slices.Repeat([]string{"Bearer access-1"}, sends+1), slices.Repeat([]string{"Bearer access-2"}, sends)...),
+			append(slices.Repeat([]string{"Bearer access-1"}, sends+2), slices.Repeat([]string{"Bearer access-2"}, 2*sends)...),
 			server.sentTokens())
 	})
 }
@@ -615,7 +629,7 @@ func TestFailedReloginDropsSession(t *testing.T) {
 
 	require.NoError(t, service.Send("third", nil))
 	assert.Equal(t,
-		[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2"},
+		[]string{"Bearer access-1", "Bearer access-1", "Bearer access-1", "Bearer access-2", "Bearer access-2"},
 		server.sentTokens())
 }
 
@@ -654,7 +668,7 @@ func TestRenewalOutOfRoomTimeIsRetried(t *testing.T) {
 		assert.NotContains(t, err.Error(), "!b:example.com")
 		assert.Equal(t, int32(2), server.logins.Load())
 		assert.Equal(t,
-			[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2"},
+			[]string{"Bearer access-1", "Bearer access-1", "Bearer access-1", "Bearer access-2", "Bearer access-2"},
 			server.sentTokens())
 	})
 }
@@ -687,7 +701,7 @@ func TestAccessTokenSkipsLogin(t *testing.T) {
 
 	require.NoError(t, service.Send("message", nil))
 	assert.Zero(t, server.logins.Load())
-	assert.Equal(t, []string{"Bearer token"}, server.sentTokens())
+	assert.Equal(t, []string{"Bearer token", "Bearer token"}, server.sentTokens())
 }
 
 // TestSessionFollowsConfig verifies that a send authenticates for the account
@@ -711,8 +725,9 @@ func TestSessionFollowsConfig(t *testing.T) {
 		service.Config = &config
 
 		require.NoError(t, service.Send("second", nil))
-		assert.Equal(t, []string{"matrix.example.com", "other.example.com"}, server.sentHosts())
-		assert.Equal(t, []string{"Bearer token", "Bearer other-token"}, server.sentTokens())
+		// Each send joins its room and sends the message.
+		assert.Equal(t, []string{"matrix.example.com", "matrix.example.com", "other.example.com", "other.example.com"}, server.sentHosts())
+		assert.Equal(t, []string{"Bearer token", "Bearer token", "Bearer other-token", "Bearer other-token"}, server.sentTokens())
 	})
 
 	// changes lists config changes that name another account, each of which
@@ -755,8 +770,9 @@ func TestSessionFollowsConfig(t *testing.T) {
 			require.NoError(t, service.Send("second", nil))
 			assert.Equal(t, int32(2), server.logins.Load())
 			assert.Equal(t, []string{"matrix.example.com user SECRETpassword", tt.wantAccount}, server.loggedInAccounts())
-			assert.Equal(t, []string{"matrix.example.com", tt.wantHost}, server.sentHosts())
-			assert.Equal(t, []string{"Bearer access-1", "Bearer access-2"}, server.sentTokens())
+			// Each send joins its room and sends the message.
+			assert.Equal(t, []string{"matrix.example.com", "matrix.example.com", tt.wantHost, tt.wantHost}, server.sentHosts())
+			assert.Equal(t, []string{"Bearer access-1", "Bearer access-1", "Bearer access-2", "Bearer access-2"}, server.sentTokens())
 		})
 	}
 }
@@ -841,22 +857,24 @@ func TestServiceTimeout(t *testing.T) {
 // TestSendShares verifies that each room's requests may use an equal share of
 // the time left, so a room that does not answer cannot use up the other's
 // time. The first of two rooms gets half of the time, and the last gets the
-// rest. For joined rooms, the time is what is left after the lookup.
+// rest. A configured room's join and message share its time. For joined rooms,
+// the time is what is left after the lookup.
 func TestSendShares(t *testing.T) {
 	t.Parallel()
 
-	// tests lists URLs with two rooms, with the number of requests before the
-	// room sends.
+	// tests lists URLs with two rooms, with the deadline of each request as
+	// the budget divided by a divisor, measured from the start of the send.
 	tests := []struct {
-		name   string
-		rawURL string
-		before int
+		name     string
+		rawURL   string
+		divisors []time.Duration
 	}{
 		{
-			name:   "configured rooms",
-			rawURL: "matrix://:token@matrix.example.com/?rooms=!a:example.com,!b:example.com",
+			name:     "configured rooms",
+			rawURL:   "matrix://:token@matrix.example.com/?rooms=!a:example.com,!b:example.com",
+			divisors: []time.Duration{2, 2, 1, 1},
 		},
-		{name: "joined rooms", rawURL: "matrix://:token@matrix.example.com/", before: 1},
+		{name: "joined rooms", rawURL: "matrix://:token@matrix.example.com/", divisors: []time.Duration{1, 2, 1}},
 	}
 
 	for _, tt := range tests {
@@ -873,19 +891,21 @@ func TestSendShares(t *testing.T) {
 
 				require.NoError(t, service.SendContext(t.Context(), "message", nil))
 
-				deadlines := server.requestDeadlines()
-				require.Len(t, deadlines, tt.before+2)
-				assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
-					deadlines[tt.before:])
+				want := make([]time.Time, 0, len(tt.divisors))
+				for _, divisor := range tt.divisors {
+					want = append(want, start.Add(budget/divisor))
+				}
+
+				assert.Equal(t, want, server.requestDeadlines())
 			})
 		})
 	}
 }
 
-// TestSendBudget verifies that every request of a send, the login flows
-// lookup, the login, and the message, carries the budget that ServiceTimeout
-// reports when the caller sets no deadline, and the caller's deadline
-// otherwise.
+// TestSendBudget verifies that every request of a send carries the budget
+// that ServiceTimeout reports when the caller sets no deadline, and the
+// caller's deadline otherwise. A send's requests are the login flows lookup,
+// the login, the room's join, and the message.
 func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
@@ -921,7 +941,7 @@ func TestSendBudget(t *testing.T) {
 				}
 
 				require.NoError(t, service.SendContext(ctx, "message", nil))
-				assert.Equal(t, []time.Time{want, want, want}, server.requestDeadlines())
+				assert.Equal(t, []time.Time{want, want, want, want}, server.requestDeadlines())
 			})
 		})
 	}
@@ -929,8 +949,8 @@ func TestSendBudget(t *testing.T) {
 
 // TestSendBudgetFromParams verifies that rooms set by params set the send's
 // budget, though the service URL names one room. The login requests carry the
-// budget for two rooms. The first room's message gets half of it, and the
-// last room's message keeps the rest.
+// budget for two rooms. The first room's join and message get half of it, and
+// the last room's join and message keep the rest.
 func TestSendBudgetFromParams(t *testing.T) {
 	t.Parallel()
 
@@ -945,7 +965,7 @@ func TestSendBudgetFromParams(t *testing.T) {
 
 		require.NoError(t, service.Send("message", &params))
 		assert.Equal(t,
-			[]time.Time{start.Add(budget), start.Add(budget), start.Add(budget / 2), start.Add(budget)},
+			[]time.Time{start.Add(budget), start.Add(budget), start.Add(budget / 2), start.Add(budget / 2), start.Add(budget), start.Add(budget)},
 			server.requestDeadlines())
 	})
 }
@@ -1016,15 +1036,16 @@ func TestSendAppliesDisableTLSParam(t *testing.T) {
 
 			require.NoError(t, service.Send("first", &tt.params))
 
-			// The login flows lookup, the login, and the message.
-			assert.Equal(t, []string{tt.wantScheme, tt.wantScheme, tt.wantScheme}, server.requestSchemes())
+			// The login flows lookup, the login, the room's join, and the message.
+			assert.Equal(t, []string{tt.wantScheme, tt.wantScheme, tt.wantScheme, tt.wantScheme}, server.requestSchemes())
 			assert.Equal(t, tt.wantWarning, strings.Contains(logs.String(), "WARN sending without TLS"))
 
 			require.NoError(t, service.Send("second", nil))
 
-			assert.Equal(t, []string{tt.laterScheme}, server.requestSchemes())
+			assert.Equal(t, []string{tt.laterScheme, tt.laterScheme}, server.requestSchemes())
 			assert.Equal(t, int32(1), server.logins.Load())
-			assert.Equal(t, []string{"Bearer access-1", "Bearer access-1"}, server.sentTokens())
+			// Two sends, each with the room's join and the message.
+			assert.Equal(t, slices.Repeat([]string{"Bearer access-1"}, 4), server.sentTokens())
 		})
 	}
 }
@@ -1091,7 +1112,8 @@ func TestSendSkipTLSVerify(t *testing.T) {
 
 		require.NoError(t, service.Send("first", &types.Params{"skiptlsverify": "yes"}))
 		require.Error(t, service.Send("second", nil))
-		assert.Equal(t, []string{"Bearer access-1"}, homeserver.sentTokens())
+		// The first send's join and message.
+		assert.Equal(t, []string{"Bearer access-1", "Bearer access-1"}, homeserver.sentTokens())
 	})
 }
 

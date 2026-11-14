@@ -293,7 +293,8 @@ func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 //
 // Returns:
 //   - string: the room ID.
-//   - error: the request error or the API's error.
+//   - error: the request error, the API's error, or [ErrInvalidRoomID] for a
+//     reply whose room ID lacks the ! sigil.
 func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	resRoom := apiResRoom{}
 
@@ -306,6 +307,10 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	)
 	if err != nil {
 		return "", err
+	}
+
+	if !strings.HasPrefix(resRoom.RoomID, roomIDSigil) {
+		return "", ErrInvalidRoomID
 	}
 
 	return resRoom.RoomID, nil
@@ -572,8 +577,9 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 // sendToExplicitRooms sends a message to explicitly specified rooms, and keeps
 // sending after a room fails. Once ctx ends, it sends to no more rooms.
 //
-// A room that starts with ! is a room ID and is sent to as is. Any other room,
-// such as an alias, is joined first to get its ID.
+// Each room, an alias or a room ID, is joined first, which accepts an invite
+// to it and gives its room ID. A join of a room the account has already joined
+// changes nothing.
 //
 // Parameters:
 //   - ctx: bounds the requests.
@@ -596,21 +602,17 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			// Rooms identify the recipients, so the records leave them out.
 			c.logger.Debug(ctx, "sending message")
 
-			if !strings.HasPrefix(room, roomIDSigil) {
-				roomID, err := c.joinRoom(ctx, room)
-				if err != nil {
-					return fmt.Errorf("error joining room %v: %w", room, err)
-				}
-
-				if room != roomID {
-					c.logger.Debug(ctx, "room alias resolved")
-				}
-
-				room = roomID
+			roomID, err := c.joinRoom(ctx, room)
+			if err != nil {
+				return fmt.Errorf("error joining room %v: %w", room, err)
 			}
 
-			if err := c.sendMessageToRoom(ctx, message, room); err != nil {
-				return fmt.Errorf("failed to send message to room '%v': %w", room, err)
+			if room != roomID {
+				c.logger.Debug(ctx, "room alias resolved")
+			}
+
+			if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
+				return fmt.Errorf("failed to send message to room '%v': %w", roomID, err)
 			}
 
 			return nil
