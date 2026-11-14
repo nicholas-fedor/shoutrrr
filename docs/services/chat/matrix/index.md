@@ -29,13 +29,42 @@ The Matrix service supports two authentication methods:
 If no `USER` is specified, the `PASSWORD` is treated as an authentication token.
 This allows you to use a pre-generated access token from your Matrix server, which is useful for CI/CD pipelines or when you don't want to store your password.
 Simply omit `USER` and provide your access token as `PASSWORD`.
+When the homeserver rejects that token, the send fails, since there is no password to log in with.
 
 ### Password Login
 
 If a `USER` and `PASSWORD` are both supplied, the service will attempt to authenticate using the `m.login.password` flow (if supported by your server).
+
+#### Login Sessions
+
 The first send logs in.
 Later sends reuse that login while the homeserver, user, and password stay the same.
-When code changes the service's config to another homeserver or account, the next send logs in again, so an access token only goes to the homeserver that issued it.
+When code changes the service's config to another homeserver or account, the next send logs in again.
+An access token therefore only goes to the homeserver that issued it.
+
+Each login names the same device, derived from the user and homeserver.
+Repeated logins therefore do not add devices to the account.
+
+#### Rejected Tokens
+
+The homeserver rejects a stored access token as unknown in these cases:
+
+- The token expired.
+- An admin revoked the token.
+- Another login to the same device replaced the token.
+
+The send then handles the rejection as follows.
+
+| Situation | What the send does |
+| --- | --- |
+| The stored token is rejected | Logs in again once and sends the request again with the new token |
+| That login fails | Fails its later rooms with the login's error, without sending them |
+| That login runs out of its room's share of the send's time | Logs in again for the next room |
+
+!!! Warning "Sharing an Account"
+    The Matrix spec has a login to an existing device revoke the device's earlier tokens, and homeservers such as Dendrite and conduwuit do so.
+    Two programs that log in to one account on such a homeserver then take turns logging in again, which costs a login each time.
+    Give each program its own account, or use an access token, to avoid that.
 
 ## Matrix API v3 Compliance
 

@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"maps"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +38,17 @@ type fakeHomeserver struct {
 	failFlows atomic.Bool
 	// omitToken makes the next login reply leave out the access token.
 	omitToken atomic.Bool
+	// authorizedLogins counts password logins that carried an Authorization
+	// header, which the login endpoint does not take.
+	authorizedLogins atomic.Int32
+	// rejectBelow, when not zero, makes the homeserver reject as unknown each
+	// message sent with a token from a login numbered below it, or with a
+	// token no login issued. It stands for a token that another login to the
+	// same device replaced, or that was revoked.
+	rejectBelow atomic.Int32
+	// releaseRejections, when set, holds each rejection of a message until it
+	// is closed.
+	releaseRejections chan struct{}
 	// flowsStarted, when set, receives a value as each login flows request arrives.
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
@@ -71,7 +85,7 @@ const (
 // Returns:
 //   - *http.Response: the homeserver's response.
 //   - error: the request context's error when it ends while a login flows
-//     request is held, and nil otherwise.
+//     request or a rejection is held, and nil otherwise.
 func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	var body []byte
 
@@ -88,17 +102,8 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	f.mu.Unlock()
 
 	if req.Method == http.MethodGet && req.URL.Path == apiLogin && f.releaseFlows != nil {
-		// The notification is best effort, so a repeated request cannot block on a
-		// full channel, and the hold ends early if the request is canceled.
-		select {
-		case f.flowsStarted <- struct{}{}:
-		default:
-		}
-
-		select {
-		case <-f.releaseFlows:
-		case <-req.Context().Done():
-			return nil, req.Context().Err()
+		if err := hold(req.Context(), f.flowsStarted, f.releaseFlows); err != nil {
+			return nil, err
 		}
 	}
 
@@ -108,6 +113,10 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	case req.Method == http.MethodGet && req.URL.Path == apiLogin:
 		return homeserverResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
 	case req.Method == http.MethodPost && req.URL.Path == apiLogin:
+		if req.Header.Get("Authorization") != "" {
+			f.authorizedLogins.Add(1)
+		}
+
 		var login apiReqLogin
 		if err := json.Unmarshal(body, &login); err == nil && login.Identifier.User != "" {
 			f.mu.Lock()
@@ -132,6 +141,16 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		f.hosts = append(f.hosts, req.URL.Host)
 		f.mu.Unlock()
 
+		if f.rejects(req.Header.Get("Authorization")) {
+			if f.releaseRejections != nil {
+				if err := hold(req.Context(), nil, f.releaseRejections); err != nil {
+					return nil, err
+				}
+			}
+
+			return homeserverResponse(unknownToken.status, unknownToken.body), nil
+		}
+
 		return homeserverResponse(http.StatusOK, `{"event_id":"$event"}`), nil
 	default:
 		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
@@ -148,6 +167,27 @@ func (f *fakeHomeserver) loggedInAccounts() []string {
 	defer f.mu.Unlock()
 
 	return append([]string(nil), f.loginAccounts...)
+}
+
+// rejects reports whether the homeserver rejects a message sent with the
+// Authorization header authorization. Once a test names the first login
+// whose tokens it accepts, it rejects the tokens of earlier logins and tokens
+// no login issued.
+//
+// Parameters:
+//   - authorization: the Authorization header of the message.
+//
+// Returns:
+//   - bool: whether the token is unknown to the homeserver.
+func (f *fakeHomeserver) rejects(authorization string) bool {
+	below := f.rejectBelow.Load()
+	if below == 0 {
+		return false
+	}
+
+	login, err := strconv.Atoi(strings.TrimPrefix(authorization, "Bearer access-"))
+
+	return err != nil || int32(login) < below
 }
 
 // requestDeadlines returns the deadline of each request's context so far.
@@ -212,6 +252,32 @@ func homeserverResponse(status int, body string) *http.Response {
 		Status:     http.StatusText(status),
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+// hold blocks a request of the fake homeserver until release is closed.
+//
+// The notification on started is best effort, so a repeated request never
+// blocks on a full channel. The hold ends early when ctx ends.
+//
+// Parameters:
+//   - ctx: the request's context.
+//   - started: receives a value as the hold starts, while it has room, or nil.
+//   - release: holds the request until it is closed.
+//
+// Returns:
+//   - error: ctx's error when it ends during the hold, or nil.
+func hold(ctx context.Context, started, release chan struct{}) error {
+	select {
+	case started <- struct{}{}:
+	default:
+	}
+
+	select {
+	case <-release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -427,6 +493,172 @@ func TestLoginWaitEndsWithContext(t *testing.T) {
 	assert.Equal(t, int32(1), server.logins.Load())
 }
 
+// TestRejectedTokenLogsInAgain verifies that a send whose stored token the
+// homeserver rejects as unknown logs in again and sends the message with the
+// new token, as after another process logs in to the same device. The login
+// carries no token, and later sends reuse the new one.
+func TestRejectedTokenLogsInAgain(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	require.NoError(t, service.Send("first", nil))
+
+	server.rejectBelow.Store(2)
+
+	require.NoError(t, service.Send("second", nil))
+	require.NoError(t, service.Send("third", nil))
+
+	assert.Equal(t, int32(2), server.logins.Load())
+	assert.Equal(t,
+		[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2", "Bearer access-2"},
+		server.sentTokens())
+	assert.Zero(t, server.authorizedLogins.Load(), "logins carry no access token")
+}
+
+// TestConcurrentRejectedSendsLogInOnce verifies that concurrent sends whose
+// stored token is rejected share one new login. The rejections are held
+// until every send has sent the rejected token, so every send logs in again
+// at once. A send that waited for the gate takes the token the first one
+// stored.
+func TestConcurrentRejectedSendsLogInOnce(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const sends = 8
+
+		server := &fakeHomeserver{}
+		service, _ := newHomeserverService(t, server)
+		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+		require.NoError(t, service.Send("first", nil))
+
+		server.rejectBelow.Store(2)
+		server.releaseRejections = make(chan struct{})
+
+		var wg sync.WaitGroup
+		for range sends {
+			wg.Go(func() {
+				assert.NoError(t, service.Send("concurrent", nil))
+			})
+		}
+
+		// Every send now waits on its rejection.
+		synctest.Wait()
+		close(server.releaseRejections)
+		wg.Wait()
+
+		assert.Equal(t, int32(2), server.logins.Load())
+		assert.Equal(t,
+			append(slices.Repeat([]string{"Bearer access-1"}, sends+1), slices.Repeat([]string{"Bearer access-2"}, sends)...),
+			server.sentTokens())
+	})
+}
+
+// TestRejectedTokenLogsInOncePerSend verifies that a send logs in again at
+// most once, even when the token its own first login stored is rejected.
+// When the homeserver also rejects the new token, the send fails with its
+// error.
+func TestRejectedTokenLogsInOncePerSend(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	server.rejectBelow.Store(math.MaxInt32)
+
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	err := service.Send("message", nil)
+
+	assert.Equal(t, errCodeUnknownToken, requireAPIError(t, err).Code)
+	assert.Equal(t, int32(2), server.logins.Load())
+}
+
+// TestRejectedAccessTokenFails verifies that a configured access token the
+// homeserver rejects fails the send without a login, since the service has no
+// password to log in with.
+func TestRejectedAccessTokenFails(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	server.rejectBelow.Store(1)
+
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL), nil))
+
+	err := service.Send("message", nil)
+
+	assert.Equal(t, errCodeUnknownToken, requireAPIError(t, err).Code)
+	assert.Zero(t, server.logins.Load())
+}
+
+// TestFailedReloginDropsSession verifies that a failed login after a rejected
+// token fails the send without the password. The send's later rooms fail
+// with the login's error without being sent. The next send logs in at once
+// instead of trying the rejected token again.
+func TestFailedReloginDropsSession(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+	require.NoError(t, service.Send("first", nil))
+
+	server.rejectBelow.Store(2)
+	server.failFlows.Store(true)
+
+	err := service.Send("second", &types.Params{"rooms": "!a:example.com,!b:example.com"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "access token rejected")
+	assert.NotContains(t, err.Error(), "SECRETpassword")
+
+	require.NoError(t, service.Send("third", nil))
+	assert.Equal(t,
+		[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2"},
+		server.sentTokens())
+}
+
+// TestRenewalOutOfRoomTimeIsRetried verifies that a login after a rejected
+// token that runs out of its room's share of the send fails only that room.
+// The next room, with its own share, logs in again before it sends, so it
+// never sends the rejected token, and sends with the new token.
+func TestRenewalOutOfRoomTimeIsRetried(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		server := &fakeHomeserver{}
+		service, _ := newHomeserverService(t, server)
+		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+		require.NoError(t, service.Send("first", nil))
+
+		server.rejectBelow.Store(2)
+		server.flowsStarted = make(chan struct{}, 1)
+		server.releaseFlows = make(chan struct{})
+
+		done := make(chan error, 1)
+
+		go func() {
+			done <- service.Send("second", &types.Params{"rooms": "!a:example.com,!b:example.com"})
+		}()
+
+		// The first room's login waits until its share runs out. The second
+		// room's login goes through.
+		<-server.flowsStarted
+		<-server.flowsStarted
+		close(server.releaseFlows)
+
+		err := <-done
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Contains(t, err.Error(), "!a:example.com")
+		assert.NotContains(t, err.Error(), "!b:example.com")
+		assert.Equal(t, int32(2), server.logins.Load())
+		assert.Equal(t,
+			[]string{"Bearer access-1", "Bearer access-1", "Bearer access-2"},
+			server.sentTokens())
+	})
+}
+
 // TestFailedInitializeDropsSession verifies that reinitializing with an
 // invalid URL leaves the service unable to send, instead of sending with the
 // earlier session's access token and a partly read config.
@@ -575,9 +807,9 @@ func TestServiceTimeout(t *testing.T) {
 		params *types.Params
 		want   int
 	}{
-		{name: "configured room", rawURL: passwordURL, want: 4},
-		{name: "rooms from params", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com,!c:example.com"}, want: 8},
-		{name: "configured room when a param is invalid", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com", "bogus": "value"}, want: 4},
+		{name: "configured room", rawURL: passwordURL, want: 5},
+		{name: "rooms from params", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com,!c:example.com"}, want: 9},
+		{name: "configured room when a param is invalid", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com", "bogus": "value"}, want: 5},
 		{name: "joined rooms without configured rooms", rawURL: "matrix://:token@matrix.example.com/", want: 2},
 		{name: "before initialization", want: 2},
 	}
@@ -602,7 +834,7 @@ func TestServiceTimeout(t *testing.T) {
 		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
 		service.Config.Rooms = []string{"", "!ops:example.com", ""}
 
-		assert.Equal(t, 4*defaultHTTPTimeout, service.ServiceTimeout(nil))
+		assert.Equal(t, 5*defaultHTTPTimeout, service.ServiceTimeout(nil))
 	})
 }
 

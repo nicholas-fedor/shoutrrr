@@ -48,11 +48,41 @@ type client struct {
 	httpClient types.HTTPClient
 	// accessToken authenticates the requests after login, or is empty before.
 	accessToken string
+	// renewal, when set, logs the client in again after the homeserver
+	// rejects its token.
+	//
+	// The client clears it before it logs in, so the login's own requests
+	// never start another. It is set again only when the login failed because
+	// its context ended, and the next request then logs in before it is sent.
+	// So a send logs in again once, or once more for each later room after a
+	// room's time ran out.
+	renewal loginRenewal
+	// loginErr, when set, is the error of a renewal that failed for another
+	// reason than its context ending.
+	//
+	// Every later request of the send returns it without being sent.
+	loginErr error
 	// baseURL is the homeserver's base URL, its scheme and host, which every
 	// request path follows.
 	baseURL string
 	// host is the homeserver host, with an optional port.
 	host string
+}
+
+// loginRenewal is the login a send's client runs again after the homeserver
+// rejects its token.
+//
+// The service holds the login gate and the stored token, so the renewal goes
+// through it.
+type loginRenewal struct {
+	// service runs the login, or is nil when the client cannot log in again,
+	// as with an access token from the URL.
+	service *Service
+	// config is the send's config, which names the account.
+	config *Config
+	// rejected, when set, is the token the homeserver rejected, which a login
+	// cut short by its context has not replaced yet.
+	rejected string
 }
 
 // DefaultHTTPClient is an HTTP client whose requests time out after
@@ -151,9 +181,13 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// apiDo sends a request to the Matrix API and decodes its JSON response. A
-// rate-limited request is sent again, up to three times, after the wait the
-// homeserver asks for, when that wait fits before ctx's deadline.
+// apiDo sends a request to the Matrix API and decodes its JSON response.
+//
+// A rate-limited request is sent again, up to three times, after the wait the
+// homeserver asks for, when that wait fits before ctx's deadline. A request
+// whose access token the homeserver rejects as unknown is sent again once
+// with a new token, when the client can log in again. After that login fails,
+// the client's requests fail with its error without being sent.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request and the waits.
@@ -166,11 +200,22 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 // Returns:
 //   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
 //     for an error status without one, the rate limit's error joined with
-//     ctx's error when ctx ends during a wait, or the marshaling, request,
-//     read, or decoding error. Reading
-//     stops at [httpbody.MaxSize]. An error status is reported from the bytes
-//     read, and an oversized success body wraps [httpbody.ErrTooLarge].
+//     ctx's error when ctx ends during a wait, the error of logging in again
+//     (returned by later requests too, unless ctx ended the login), or the
+//     marshaling, request, read, or decoding error. Reading stops at
+//     [httpbody.MaxSize]. An error status is reported from the bytes read,
+//     and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
+	if c.loginErr != nil {
+		return c.loginErr
+	}
+
+	if c.renewal.rejected != "" {
+		if err := c.renew(ctx, c.renewal.rejected); err != nil {
+			return err
+		}
+	}
+
 	var body []byte
 
 	switch request := request.(type) {
@@ -187,7 +232,23 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 
 	retryAfter, err := c.send(ctx, method, path, body, response)
 
-	for retries := 0; retries < maxRateLimitRetries && retryFits(ctx, retryAfter); retries++ {
+	for retries := 0; ; {
+		if c.renewal.service != nil && isUnknownToken(err) {
+			if err := c.renew(ctx, c.accessToken); err != nil {
+				return err
+			}
+
+			retryAfter, err = c.send(ctx, method, path, body, response)
+
+			continue
+		}
+
+		if retries == maxRateLimitRetries || !retryFits(ctx, retryAfter) {
+			return err
+		}
+
+		retries++
+
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "rate limited, waiting to retry", slog.Duration(logging.KeyWait, retryAfter))
 
 		timer := time.NewTimer(retryAfter)
@@ -202,8 +263,6 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 
 		retryAfter, err = c.send(ctx, method, path, body, response)
 	}
-
-	return err
 }
 
 // getJoinedRooms retrieves the list of rooms the client has joined.
@@ -254,7 +313,9 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 
 // login authenticates the client using a username and password.
 //
-// It asks the homeserver for its login flows and uses the password flow.
+// It asks the homeserver for its login flows and uses the password flow. The
+// login endpoint takes no access token, so the client drops its token first,
+// and a failed login leaves it without one.
 //
 // Parameters:
 //   - ctx: bounds the requests.
@@ -265,6 +326,8 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 //   - error: the error of the flows request or the password login, or
 //     [ErrUnsupportedLoginFlows] when the homeserver offers no password flow.
 func (c *client) login(ctx context.Context, user, password string) error {
+	c.accessToken = ""
+
 	resLogin := apiResLoginFlows{}
 	if err := c.apiDo(ctx, http.MethodGet, apiLogin, nil, &resLogin); err != nil {
 		return fmt.Errorf("failed to get login flows: %w", err)
@@ -330,6 +393,43 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 		slog.String(logging.KeyHomeserver, response.HomeServer), slog.String(logging.KeyDevice, response.DeviceID))
 
 	return nil
+}
+
+// renew logs the client in again in place of a token the homeserver rejected.
+//
+// The renewal is cleared while the login runs, so the login's requests never
+// start another. A login that ctx cut short leaves the renewal pending for the
+// next request, since such a failure says nothing about the homeserver. Any
+// other failure is kept, and every later request returns it without being
+// sent.
+//
+// Parameters:
+//   - ctx: cancellation for waiting on and running the login.
+//   - rejected: the token the homeserver rejected.
+//
+// Returns:
+//   - error: the login failure, or nil when the client holds a new token.
+func (c *client) renew(ctx context.Context, rejected string) error {
+	renewal := c.renewal
+	c.renewal = loginRenewal{service: nil, config: nil, rejected: ""}
+
+	c.logger.Debug(ctx, "access token rejected, logging in again")
+
+	err := renewal.service.logIn(ctx, c, renewal.config, rejected)
+	if err == nil {
+		return nil
+	}
+
+	err = fmt.Errorf("access token rejected: %w", err)
+
+	if ctx.Err() != nil {
+		renewal.rejected = rejected
+		c.renewal = renewal
+	} else {
+		c.loginErr = err
+	}
+
+	return err
 }
 
 // send makes one request to the Matrix API and decodes its JSON response.
@@ -700,6 +800,22 @@ func retryWait(header http.Header, resError *apiResError) time.Duration {
 	}
 
 	return noRetry
+}
+
+// isUnknownToken reports whether err is the homeserver's answer that it does
+// not recognize the request's access token. The homeserver answers so for a
+// token that expired or was revoked, and for one that another login to the
+// same device replaced.
+//
+// Parameters:
+//   - err: the error of a request.
+//
+// Returns:
+//   - bool: whether err is a Matrix error with code M_UNKNOWN_TOKEN.
+func isUnknownToken(err error) bool {
+	resError, ok := errors.AsType[*apiResError](err)
+
+	return ok && resError.Code == errCodeUnknownToken
 }
 
 // newClient creates a Matrix API client for one send.

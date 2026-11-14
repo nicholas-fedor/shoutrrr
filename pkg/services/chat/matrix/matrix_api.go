@@ -121,6 +121,10 @@ const (
 	// idTypeUser is the Matrix identifier type for username-based authentication.
 	idTypeUser identifierType = "m.id.user"
 
+	// errCodeUnknownToken is the error code of a request whose access token
+	// the homeserver does not recognize.
+	errCodeUnknownToken = "M_UNKNOWN_TOKEN"
+
 	// roomIDSigil starts every Matrix room ID.
 	roomIDSigil = "!"
 	// aliasSigil starts every Matrix room alias.
