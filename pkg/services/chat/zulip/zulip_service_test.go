@@ -968,7 +968,10 @@ func TestSendDefaultClient(t *testing.T) {
 }
 
 // TestDefaultHTTPClientDo verifies that the default client performs a
-// request, and wraps a failed request without the URL's credentials.
+// request, and wraps a failed request without the URL's credentials. The
+// failed request goes to a server that closes each connection without an
+// answer. It keeps its port open, so no other test can take the port and
+// answer instead.
 func TestDefaultHTTPClientDo(t *testing.T) {
 	t.Parallel()
 
@@ -1000,9 +1003,18 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
 
-	server.Close()
+	closing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	t.Cleanup(closing.Close)
 
-	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost, serverURL.String(), http.NoBody)
+	closingURL := *serverURL
+	closingURL.Host = parseTestURL(t, closing.URL).Host
+
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost, closingURL.String(), http.NoBody)
 	require.NoError(t, err)
 
 	resp, err = client.Do(req)

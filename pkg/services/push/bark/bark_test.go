@@ -768,13 +768,21 @@ func TestSendDefaultClient(t *testing.T) {
 
 // TestDefaultHTTPClientDo verifies that the default client sends a request,
 // redacts the request URL from a transport error and keeps the error
-// matchable as a *url.Error, and works as a zero value.
+// matchable as a *url.Error, and works as a zero value. The transport error
+// comes from a server that closes each connection without an answer. It keeps
+// its port open, so no other test can take the port and answer instead.
 func TestDefaultHTTPClientDo(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.NotFoundHandler())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	t.Cleanup(server.Close)
+
 	serverURL := server.URL
-	server.Close()
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, serverURL+"/SECRETpath/push", http.NoBody)
 	require.NoError(t, err)
