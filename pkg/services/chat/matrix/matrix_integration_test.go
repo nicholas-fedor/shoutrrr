@@ -47,18 +47,23 @@ type apiReply struct {
 }
 
 // homeserver is a fake Matrix homeserver on a loopback [httptest.Server]. It
-// offers the password login flow, accepts only testUser with testPassword,
-// requires a known access token for every other endpoint, resolves a room alias
-// #name:server to the room ID !name:server, and records every request.
+// offers the password login flow and accepts only testUser with testPassword.
+// Every other endpoint requires a known access token. It records every
+// request. A join of the room alias #name:server joins the room ID
+// !name:server, and a join of a room ID joins that room. Like a homeserver, it
+// refuses a message to a room the account has not joined with M_FORBIDDEN.
 type homeserver struct {
 	// overrides maps a route, the method and recorded path joined by a space, to
 	// the reply that replaces the default one.
 	overrides map[string]apiReply
+	// joined holds the IDs of the rooms the account has joined. It starts with
+	// joinedRoomA and joinedRoomB.
+	joined map[string]bool
 	// held receives a value when a held request arrives.
 	held chan struct{}
 	// server is the loopback HTTP server.
 	server *httptest.Server
-	// mu guards requests.
+	// mu guards requests and joined.
 	mu sync.Mutex
 	// requests holds the received requests in order.
 	requests []apiRequest
@@ -177,7 +182,7 @@ func (h *homeserver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 // Returns:
 //   - apiReply: the reply.
-func (*homeserver) defaultReply(req *apiRequest, fields map[string]any) apiReply {
+func (h *homeserver) defaultReply(req *apiRequest, fields map[string]any) apiReply {
 	if req.path == loginPath {
 		if req.method == http.MethodGet {
 			return apiReply{statusCode: http.StatusOK, body: `{"flows":[{"type":"m.login.password"}]}`}
@@ -202,18 +207,41 @@ func (*homeserver) defaultReply(req *apiRequest, fields map[string]any) apiReply
 	case req.method == http.MethodGet && req.path == joinedRoomsPath:
 		return apiReply{statusCode: http.StatusOK, body: `{"joined_rooms":["` + joinedRoomA + `","` + joinedRoomB + `"]}`}
 	case req.method == http.MethodPost && strings.HasPrefix(req.path, joinPathPrefix):
-		alias, err := url.PathUnescape(strings.TrimPrefix(req.path, joinPathPrefix))
-		if err != nil || !strings.HasPrefix(alias, "#") {
-			return apiReply{statusCode: http.StatusNotFound, body: `{"errcode":"M_NOT_FOUND","error":"Room alias not found"}`}
+		// The client escapes the room, so the homeserver unescapes it.
+		room, err := url.PathUnescape(strings.TrimPrefix(req.path, joinPathPrefix))
+		if err != nil {
+			return apiReply{statusCode: http.StatusNotFound, body: `{"errcode":"M_NOT_FOUND","error":"Room not found"}`}
 		}
 
-		body, err := json.Marshal(map[string]string{"room_id": "!" + strings.TrimPrefix(alias, "#")})
+		if alias, ok := strings.CutPrefix(room, "#"); ok {
+			room = "!" + alias
+		}
+
+		body, err := json.Marshal(map[string]string{"room_id": room})
 		if err != nil {
 			return apiReply{statusCode: http.StatusInternalServerError, body: `{"errcode":"M_UNKNOWN","error":"Internal error"}`}
 		}
 
+		h.mu.Lock()
+		h.joined[room] = true
+		h.mu.Unlock()
+
 		return apiReply{statusCode: http.StatusOK, body: string(body)}
 	case req.method == http.MethodPut && strings.HasPrefix(req.path, roomsPathPrefix) && strings.HasSuffix(req.path, sendPathSuffix):
+		// The client escapes the room, so the homeserver unescapes it.
+		room, err := url.PathUnescape(strings.TrimSuffix(strings.TrimPrefix(req.path, roomsPathPrefix), sendPathSuffix))
+		if err != nil {
+			return apiReply{statusCode: http.StatusNotFound, body: `{"errcode":"M_NOT_FOUND","error":"Room not found"}`}
+		}
+
+		h.mu.Lock()
+		joined := h.joined[room]
+		h.mu.Unlock()
+
+		if !joined {
+			return apiReply{statusCode: http.StatusForbidden, body: `{"errcode":"M_FORBIDDEN","error":"User @user:example.com not in room"}`}
+		}
+
 		return apiReply{statusCode: http.StatusOK, body: `{"event_id":"$event"}`}
 	default:
 		return apiReply{statusCode: http.StatusNotFound, body: `{"errcode":"M_UNRECOGNIZED","error":"Unrecognized request"}`}
@@ -242,7 +270,7 @@ func (h *homeserver) received() []apiRequest {
 func newHomeserver(t *testing.T, overrides map[string]apiReply) *homeserver {
 	t.Helper()
 
-	h := &homeserver{overrides: overrides, held: make(chan struct{}, 1)}
+	h := &homeserver{overrides: overrides, joined: map[string]bool{joinedRoomA: true, joinedRoomB: true}, held: make(chan struct{}, 1)}
 	h.server = httptest.NewServer(h)
 	t.Cleanup(h.server.Close)
 
@@ -263,7 +291,7 @@ func writeReply(w http.ResponseWriter, reply apiReply) {
 // joinPath returns the escaped path that joins room.
 //
 // Parameters:
-//   - room: the room alias.
+//   - room: the room alias or ID.
 //
 // Returns:
 //   - string: the path, with the room escaped as one segment.
@@ -370,7 +398,7 @@ func assertRequests(t *testing.T, want, got []apiRequest) {
 
 // TestIntegrationSend verifies the requests a service initialized from a URL
 // makes for a send: a password login on the first send for a user, the access
-// token otherwise, a join for each room alias before its message, a lookup of
+// token otherwise, a join for each room before its message, a lookup of
 // the joined rooms when no room is configured, and the title from the URL or
 // params on its own paragraph.
 func TestIntegrationSend(t *testing.T) {
@@ -407,7 +435,7 @@ func TestIntegrationSend(t *testing.T) {
 			},
 		},
 		{
-			name:     "access token and room ID",
+			name:     "access token and room ID not joined yet",
 			userInfo: ":" + accessToken,
 			query:    "&rooms=!ops:example.com",
 			message:  "Hello",
@@ -415,6 +443,7 @@ func TestIntegrationSend(t *testing.T) {
 				t.Helper()
 
 				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("!ops:example.com"), auth: "Bearer " + accessToken, body: `{}`},
 					{method: http.MethodPut, path: sendPath("!ops:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
 				}
 			},
@@ -445,6 +474,7 @@ func TestIntegrationSend(t *testing.T) {
 				return []apiRequest{
 					{method: http.MethodPost, path: joinPath("#deploys:example.com"), auth: "Bearer " + accessToken, body: `{}`},
 					{method: http.MethodPut, path: sendPath("!deploys:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Deploy\n\nFinished")},
+					{method: http.MethodPost, path: joinPath("!alerts:example.com"), auth: "Bearer " + accessToken, body: `{}`},
 					{method: http.MethodPut, path: sendPath("!alerts:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "Deploy\n\nFinished")},
 				}
 			},
@@ -486,6 +516,7 @@ func TestIntegrationSend(t *testing.T) {
 				t.Helper()
 
 				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("!ops/../../admin"), auth: "Bearer " + accessToken, body: `{}`},
 					{method: http.MethodPut, path: sendPath("!ops/../../admin"), auth: "Bearer " + accessToken, body: messageBody(t, "Hello")},
 				}
 			},
@@ -514,12 +545,15 @@ func TestIntegrationSend(t *testing.T) {
 			want: func(t *testing.T) []apiRequest {
 				t.Helper()
 
-				return []apiRequest{{
-					method: http.MethodPut,
-					path:   sendPath("!ops:example.com"),
-					auth:   "Bearer " + accessToken,
-					body:   messageBody(t, "<p>**bold**</p> & \"quotes\" `code`\nПривет 🌍\t{\"key\": 1}"),
-				}}
+				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("!ops:example.com"), auth: "Bearer " + accessToken, body: `{}`},
+					{
+						method: http.MethodPut,
+						path:   sendPath("!ops:example.com"),
+						auth:   "Bearer " + accessToken,
+						body:   messageBody(t, "<p>**bold**</p> & \"quotes\" `code`\nПривет 🌍\t{\"key\": 1}"),
+					},
+				}
 			},
 		},
 		{
@@ -530,6 +564,7 @@ func TestIntegrationSend(t *testing.T) {
 				t.Helper()
 
 				return []apiRequest{
+					{method: http.MethodPost, path: joinPath("!ops:example.com"), auth: "Bearer " + accessToken, body: `{}`},
 					{method: http.MethodPut, path: sendPath("!ops:example.com"), auth: "Bearer " + accessToken, body: messageBody(t, "")},
 				}
 			},
@@ -625,7 +660,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 				},
 			},
 			wantText:     []string{"failed to send message to room '!ops:example.com'", "You are not in this room"},
-			wantRequests: 1,
+			wantRequests: 2,
 		},
 		{
 			// The homeserver asks for a minute, which would end after the
@@ -641,7 +676,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 				},
 			},
 			wantText:     []string{"Too many requests"},
-			wantRequests: 1,
+			wantRequests: 2,
 		},
 		{
 			name:         "first of two rooms fails",
@@ -651,7 +686,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 			wantErr:      matrix.ErrUnexpectedStatus,
 			wantText:     []string{"sending message: ", "failed to send message to room '!a:example.com'"},
 			notWantText:  []string{"'!b:example.com'"},
-			wantRequests: 2,
+			wantRequests: 4,
 		},
 		{
 			name:     "both of two rooms fail",
@@ -667,7 +702,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 				"failed to send message to room '!a:example.com'",
 				"failed to send message to room '!b:example.com'",
 			},
-			wantRequests: 2,
+			wantRequests: 4,
 		},
 		{
 			name:         "joined room IDs without the sigil",
@@ -685,7 +720,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 				http.MethodPost + " " + joinPath("#ops:example.com"): {statusCode: http.StatusOK, body: `{"room_id":".."}`},
 			},
 			wantErr:      matrix.ErrInvalidRoomID,
-			wantText:     []string{"failed to send message to room '..'"},
+			wantText:     []string{"error joining room #ops:example.com"},
 			wantRequests: 1,
 		},
 		{
@@ -809,7 +844,7 @@ func TestIntegrationSetHTTPClient(t *testing.T) {
 				t.Helper()
 
 				client := mocks.NewMockHTTPClient(t)
-				client.EXPECT().Do(mock.Anything).RunAndReturn(counting.Do).Once()
+				client.EXPECT().Do(mock.Anything).RunAndReturn(counting.Do).Times(2)
 				service.SetHTTPClient(client)
 			},
 			wantUsed: true,
@@ -851,10 +886,11 @@ func TestIntegrationSetHTTPClient(t *testing.T) {
 
 			require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
 
-			assert.Len(t, server.received(), 1)
+			// The room's join and the message.
+			assert.Len(t, server.received(), 2)
 
 			if tt.wantUsed {
-				assert.Equal(t, int32(1), used.Load())
+				assert.Equal(t, int32(2), used.Load())
 			} else {
 				assert.Zero(t, used.Load())
 			}

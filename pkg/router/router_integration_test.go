@@ -465,6 +465,8 @@ var fixtures = []fixture{
 		scheme:  "matrix",
 		url:     "matrix://:SECRETmatrixTOKEN@matrix.example.invalid/?rooms=!ops:example.invalid",
 		secrets: []string{"SECRETmatrixTOKEN"},
+		// The join reads room_id and the message reads event_id.
+		body: `{"room_id":"!ops:example.invalid","event_id":"$contract"}`,
 	},
 	{
 		scheme:  "mattermost",

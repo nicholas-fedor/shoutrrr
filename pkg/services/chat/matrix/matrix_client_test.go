@@ -840,6 +840,16 @@ func TestJoinRoom(t *testing.T) {
 		assert.Empty(t, roomID)
 	})
 
+	t.Run("reply without a room ID", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(`{}`))
+		roomID, err := c.joinRoom(t.Context(), "#test:matrix.example.com")
+
+		require.ErrorIs(t, err, ErrInvalidRoomID)
+		assert.Empty(t, roomID)
+	})
+
 	t.Run("escaped alias", func(t *testing.T) {
 		t.Parallel()
 
@@ -1037,9 +1047,9 @@ func TestSendMessageToRoom(t *testing.T) {
 	})
 }
 
-// TestSendToExplicitRooms verifies that aliases are joined before sending, room
-// IDs are sent to directly, empty rooms are rejected without requests, and one
-// error is reported for each failed room.
+// TestSendToExplicitRooms verifies that aliases and room IDs are joined before
+// sending. Empty rooms are rejected without requests. One error is reported
+// for each failed room.
 func TestSendToExplicitRooms(t *testing.T) {
 	t.Parallel()
 
@@ -1059,8 +1069,7 @@ func TestSendToExplicitRooms(t *testing.T) {
 		{name: "join fails", rooms: []string{"#room:matrix.example.com"}, replies: []reply{failed("mock error")}, wantErrs: 1, wantRequests: 1},
 		{name: "join and send", rooms: []string{"#room:matrix.example.com"}, replies: []reply{joined, sent}, wantRequests: 2},
 		{name: "send fails after join", rooms: []string{"#room:matrix.example.com"}, replies: []reply{joined, failed("send error")}, wantErrs: 1, wantRequests: 2},
-		{name: "room ID skips join", rooms: []string{"!roomid:matrix.example.com"}, replies: []reply{sent}, wantRequests: 1},
-		{name: "alias and room ID", rooms: []string{"#room:matrix.example.com", "!otherroom:matrix.example.com"}, replies: []reply{joined, sent, sent}, wantRequests: 3},
+		{name: "alias and room ID", rooms: []string{"#room:matrix.example.com", "!roomid:matrix.example.com"}, replies: []reply{joined, sent, joined, sent}, wantRequests: 4},
 		{name: "empty room", rooms: []string{""}, wantErrs: 1, wantErr: ErrEmptyRoom},
 		{
 			name:         "one of two rooms fails",

@@ -133,7 +133,9 @@ If `rooms` are *not* specified, the service will send the message to all the roo
 When the user has joined no room, the send fails.
 
 Otherwise, the service will only send the message to the specified rooms.
-If the user is *not* in any of those rooms, but has been invited to any of those rooms, it will automatically accept that invite.
+Each send joins every listed room before its message, whether the room is given by alias or by room ID.
+So if the user has been invited to a listed room, the send accepts that invite.
+Joining a room the user has already joined changes nothing.
 
 !!! Warning "Room Joining"
     The service will __not__ join any rooms unless they are explicitly specified in `rooms`.
@@ -141,8 +143,8 @@ If the user is *not* in any of those rooms, but has been invited to any of those
 
 ### Room Lookup
 
-Rooms specified in `rooms` will be treated as room IDs if they start with a `!` and used directly to identify rooms.
-If they have no such prefix (or use a *correctly escaped* `#`) they will instead be treated as aliases, and a directory lookup will be used to resolve their corresponding IDs.
+Rooms specified in `rooms` will be treated as room IDs if they start with a `!`.
+If they have no such prefix (or use a *correctly escaped* `#`) they will instead be treated as aliases, and joining an alias gives its room ID.
 
 __Auto-prepending__: For convenience, rooms that don't start with `#` or `!` will automatically have `#` prepended.
 This applies to rooms from the URL and from send params alike.
