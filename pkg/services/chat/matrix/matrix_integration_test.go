@@ -93,6 +93,8 @@ const (
 	loginPath = "/_matrix/client/v3/login"
 	// joinedRoomsPath is the joined rooms endpoint.
 	joinedRoomsPath = "/_matrix/client/v3/joined_rooms"
+	// versionsPath is the endpoint that lists the specification versions.
+	versionsPath = "/_matrix/client/versions"
 	// joinPathPrefix is the join endpoint without the room.
 	joinPathPrefix = "/_matrix/client/v3/join/"
 	// roomsPathPrefix is the rooms endpoint without the room.
@@ -621,6 +623,29 @@ func TestIntegrationSendErrors(t *testing.T) {
 			wantErr:      matrix.ErrUnsupportedLoginFlows,
 			wantText:     []string{"m.login.sso"},
 			wantRequests: 1,
+		},
+		{
+			name:     "homeserver with only the OAuth 2.0 login API",
+			userInfo: testUser + ":" + escapedPassword,
+			query:    "&rooms=!ops:example.com",
+			overrides: map[string]apiReply{
+				http.MethodGet + " " + loginPath:    {statusCode: http.StatusNotFound, body: `{"errcode":"M_UNRECOGNIZED","error":"Unrecognized request"}`},
+				http.MethodGet + " " + versionsPath: {statusCode: http.StatusOK, body: `{"versions":["v1.15"]}`},
+			},
+			wantErr:      matrix.ErrUnsupportedLoginFlows,
+			wantText:     []string{"use an access token", "Unrecognized request"},
+			wantRequests: 2,
+		},
+		{
+			// A URL naming the federation port reaches a server that answers
+			// every client API request with M_UNRECOGNIZED.
+			name:         "server that is not a client API",
+			userInfo:     testUser + ":" + escapedPassword,
+			query:        "&rooms=!ops:example.com",
+			overrides:    map[string]apiReply{http.MethodGet + " " + loginPath: {statusCode: http.StatusNotFound, body: `{"errcode":"M_UNRECOGNIZED","error":"Unrecognized request"}`}},
+			wantText:     []string{"failed to get login flows", "Unrecognized request"},
+			notWantText:  []string{"use an access token"},
+			wantRequests: 2,
 		},
 		{
 			name:         "unknown access token",

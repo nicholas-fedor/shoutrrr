@@ -1,5 +1,7 @@
 package matrix
 
+import "errors"
+
 // Type definitions for Matrix API message types.
 type (
 	// messageType represents the type of a Matrix message.
@@ -62,6 +64,13 @@ type apiResJoinedRooms struct {
 	Rooms []string `json:"joined_rooms"`
 }
 
+// apiResVersions represents the response listing the specification versions
+// the homeserver supports.
+type apiResVersions struct {
+	// Versions lists the supported versions, such as v1.15.
+	Versions []string `json:"versions"`
+}
+
 // apiResEvent represents the response from sending a message event.
 type apiResEvent struct {
 	// EventID is the ID of the sent message event.
@@ -110,6 +119,9 @@ const (
 	apiSendMessage = "/send/m.room.message/"
 	// apiJoinedRooms is the joined rooms endpoint path.
 	apiJoinedRooms = "/_matrix/client/v3/joined_rooms"
+	// apiVersions is the endpoint that lists the specification versions the
+	// homeserver supports. It takes no access token.
+	apiVersions = "/_matrix/client/versions"
 
 	// contentType is the JSON encoding the API takes.
 	contentType = "application/json"
@@ -122,8 +134,14 @@ const (
 	idTypeUser identifierType = "m.id.user"
 
 	// errCodeUnknownToken is the error code of a request whose access token
-	// the homeserver does not recognize.
+	// the homeserver does not recognize. The homeserver answers so for a token
+	// that expired or was revoked, and for one that another login to the same
+	// device replaced.
 	errCodeUnknownToken = "M_UNKNOWN_TOKEN"
+	// errCodeUnrecognized is the error code of a request for an endpoint the
+	// homeserver does not support. A homeserver that offers only the OAuth 2.0
+	// login API answers the login flows request so.
+	errCodeUnrecognized = "M_UNRECOGNIZED"
 
 	// roomIDSigil starts every Matrix room ID.
 	roomIDSigil = "!"
@@ -137,4 +155,19 @@ const (
 //   - string: the message.
 func (e *apiResError) Error() string {
 	return e.Message
+}
+
+// hasErrorCode reports whether err is the homeserver's error with the Matrix
+// error code code.
+//
+// Parameters:
+//   - err: the error of a request.
+//   - code: the Matrix error code, such as M_UNKNOWN_TOKEN.
+//
+// Returns:
+//   - bool: whether err is a Matrix error with that code.
+func hasErrorCode(err error, code string) bool {
+	resError, ok := errors.AsType[*apiResError](err)
+
+	return ok && resError.Code == code
 }
