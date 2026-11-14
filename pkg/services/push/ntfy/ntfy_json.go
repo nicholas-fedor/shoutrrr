@@ -13,6 +13,17 @@ type apiResponseError struct {
 	Code int64 `json:"code"`
 }
 
+// publishRequest is the JSON body of a publish to a server's root, which
+// names the topic in the body instead of the request path.
+type publishRequest struct {
+	// Topic is the topic name.
+	Topic string `json:"topic"`
+	// Message is the message text.
+	Message string `json:"message"`
+	// Markdown reports whether the message is formatted as Markdown.
+	Markdown bool `json:"markdown,omitzero"`
+}
+
 // Error returns the server's message with its code and documentation link.
 //
 // Returns:

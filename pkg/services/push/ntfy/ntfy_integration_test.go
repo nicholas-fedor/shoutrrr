@@ -231,6 +231,57 @@ func TestIntegrationSend(t *testing.T) {
 	}
 }
 
+// TestIntegrationSendBasePath verifies that a send through a base path posts
+// JSON that names the topic to the base path itself, with the other ntfy
+// headers as they are.
+func TestIntegrationSendBasePath(t *testing.T) {
+	t.Parallel()
+
+	// tests lists base paths and sends. Each request goes to the base path with
+	// a JSON Content-Type, and markdown marks a body that sets markdown.
+	tests := []struct {
+		params      *types.Params
+		name        string
+		basePath    string
+		query       string
+		extraHeader []string
+		markdown    bool
+	}{
+		{name: "one segment", basePath: "ntfy"},
+		{name: "two segments", basePath: "proxy/ntfy"},
+		{
+			name:        "param",
+			basePath:    "ntfy",
+			params:      &types.Params{"title": "Alert"},
+			extraHeader: []string{"Title", "Alert"},
+		},
+		{name: "markdown", basePath: "ntfy", query: "&markdown=yes", markdown: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL, received := newFakeNtfy(t, http.StatusOK, publishedBody)
+			serviceURL = strings.Replace(serviceURL, "/"+testTopic, "/"+tt.basePath+"/"+testTopic, 1) + tt.query
+
+			require.NoError(t, newTestService(t, serviceURL).Send("Hello", tt.params))
+
+			wantBody := `{"topic":"` + testTopic + `","message":"Hello"}`
+			if tt.markdown {
+				wantBody = `{"topic":"` + testTopic + `","message":"Hello","markdown":true}`
+			}
+
+			requests := received()
+			require.Len(t, requests, 1)
+			assert.Equal(t, http.MethodPost, requests[0].method)
+			assert.Equal(t, "/"+tt.basePath+"/", requests[0].path)
+			assert.Equal(t, wantHeader(append([]string{"Content-Type", "application/json"}, tt.extraHeader...)...), requests[0].header)
+			assert.JSONEq(t, wantBody, requests[0].body)
+		})
+	}
+}
+
 // TestIntegrationSendParamsApplyToOneSend verifies that params, including an
 // access token, apply only to the send they are passed to: a later send
 // without params carries none of their headers, and the stored config keeps

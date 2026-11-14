@@ -387,13 +387,6 @@ func TestSend(t *testing.T) {
 			wantURL:    "http://ntfy.example.com:8080/" + testTopic,
 			wantHeader: requestHeader(),
 		},
-		{
-			name:       "nested topic",
-			rawURL:     "ntfy://ntfy.example.com/ntfy/" + testTopic,
-			message:    "Hello",
-			wantURL:    "https://ntfy.example.com/ntfy/" + testTopic,
-			wantHeader: requestHeader(),
-		},
 	}
 
 	for _, tt := range tests {
