@@ -3200,8 +3200,14 @@
 This allows you to use a pre-generated access token from your Matrix server, which is useful for CI/CD pipelines or when you don't want to store your password.
 Simply omit <code>USER</code> and provide your access token as <code>PASSWORD</code>.
 When the homeserver rejects that token, the send fails, since there is no password to log in with.</p>
+<p>On a homeserver that uses <a href="https://element-hq.github.io/matrix-authentication-service/reference/cli/manage.html">Matrix Authentication Service</a>, an admin can issue an access token that does not expire.
+Run <code>mas-cli manage issue-compatibility-token USERNAME</code>, where <code>USERNAME</code> is the account's user name.
+On another homeserver, ask its admin how to get an access token for the account.</p>
 <h3 id="password_login">Password Login<a class="headerlink" href="#password_login" title="Permanent link">&para;</a></h3>
-<p>If a <code>USER</code> and <code>PASSWORD</code> are both supplied, the service will attempt to authenticate using the <code>m.login.password</code> flow (if supported by your server).</p>
+<p>If a <code>USER</code> and <code>PASSWORD</code> are both supplied, the service will attempt to authenticate using the <code>m.login.password</code> flow.</p>
+<p>Some homeservers offer no password login, such as one that signs users in only through single sign-on.
+A send with a password then fails with an error that says so.
+Use <a href="#token-based_login_default">token-based login</a> with such a homeserver.</p>
 <h4 id="login_sessions">Login Sessions<a class="headerlink" href="#login_sessions" title="Permanent link">&para;</a></h4>
 <p>The first send logs in.
 Later sends reuse that login while the homeserver, user, and password stay the same.
@@ -3383,7 +3389,7 @@ The first send that skips certificate verification through Shoutrrr's own client
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 14, 2026 13:15:41 UTC"><span class="timeago" datetime="2026-11-14T13:15:41+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 14, 2026 13:15:41 UTC">2026-11-14</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 14, 2026 14:34:29 UTC"><span class="timeago" datetime="2026-11-14T14:34:29+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 14, 2026 14:34:29 UTC">2026-11-14</span>
   </span>
 
     
