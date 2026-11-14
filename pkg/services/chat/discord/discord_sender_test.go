@@ -1104,17 +1104,28 @@ func TestIsTransientError(t *testing.T) {
 func TestIsTransientErrorConnections(t *testing.T) {
 	t.Parallel()
 
+	// The dial goes to a port whose listener was closed. Another test can take
+	// the freed port before the dial and accept it, so the dial is tried on a
+	// new port each time it connects, up to 10 times.
 	t.Run("refused dial", func(t *testing.T) {
 		t.Parallel()
 
-		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-		require.NoError(t, err)
+		var err error
 
-		addr := listener.Addr().String()
-		require.NoError(t, listener.Close())
+		for range 10 {
+			listener, listenErr := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+			require.NoError(t, listenErr)
 
-		conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
-		if conn != nil {
+			addr := listener.Addr().String()
+			require.NoError(t, listener.Close())
+
+			var conn net.Conn
+
+			conn, err = (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
+			if err != nil {
+				break
+			}
+
 			_ = conn.Close()
 		}
 
