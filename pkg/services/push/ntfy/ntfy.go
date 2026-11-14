@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -202,7 +203,8 @@ func (s *Service) newAPIClient(ctx context.Context, config *Config) jsonclient.C
 	return jsonclient.NewContextClient(s.sendClient(ctx, config))
 }
 
-// sendAPI sends a notification to the ntfy API.
+// sendAPI sends a notification to the ntfy API. A topic behind a base path is
+// published as JSON to the base path, with the topic in the body.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -213,15 +215,28 @@ func (s *Service) newAPIClient(ctx context.Context, config *Config) jsonclient.C
 //   - error: the ntfy API error or the request error.
 func (s *Service) sendAPI(ctx context.Context, config *Config, message string) error {
 	response := apiResponseError{}
-	request := message
 
 	client := s.newAPIClient(ctx, config)
 
 	// Prepare request headers
 	headers := client.Headers()
-	if config.Markdown {
+
+	// Shoutrrr cannot tell whether a proxy strips the base path. Posted to the
+	// base path and topic, a message would reach a server hosted at the root
+	// as a topic and a sequence ID, and ntfy would publish it to the wrong
+	// topic. So a topic behind a base path is published as JSON to the base
+	// path itself, which a stripping proxy forwards to ntfy's root and a
+	// server hosted at the root answers with "page not found". The client
+	// already sends a JSON Content-Type.
+	apiPath, request := config.Topic, any(message)
+
+	switch basePath, topic := path.Split(config.Topic); {
+	case basePath != "":
+		apiPath = basePath
+		request = publishRequest{Topic: topic, Message: message, Markdown: config.Markdown}
+	case config.Markdown:
 		headers.Set("Content-Type", "text/markdown")
-	} else {
+	default:
 		headers.Set("Content-Type", "text/plain; charset=utf-8")
 	}
 
@@ -256,7 +271,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	}
 
 	// Send the HTTP request
-	if err := client.PostContext(ctx, config.GetAPIURL(), request, &response); err != nil {
+	if err := client.PostContext(ctx, config.apiURL(apiPath), request, &response); err != nil {
 		// Attempt to parse structured error response from API
 		if client.ErrorResponse(err, &response) {
 			return &response

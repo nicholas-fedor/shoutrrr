@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -19,7 +20,8 @@ type Config struct {
 	// Host is the ntfy server host, with an optional port.
 	Host string `default:"ntfy.sh" desc:"Server hostname and port" url:"host"`
 	// Topic is the topic to publish to, written as the path of the service
-	// URL.
+	// URL. Segments before the last one are the server's base path, such as
+	// for a server behind a reverse proxy.
 	Topic string `desc:"Target topic name" required:"" url:"path"`
 	// Password is the password for HTTP Basic authentication.
 	Password string `desc:"Auth password" optional:"" sensitive:"true" url:"password"`
@@ -116,25 +118,9 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 // otherwise.
 //
 // Returns:
-//   - string: the publish URL for the topic.
+//   - string: the URL of the topic, after its base path when the config has one.
 func (c *Config) GetAPIURL() string {
-	path := c.Topic
-	if !strings.HasPrefix(c.Topic, "/") {
-		path = "/" + path
-	}
-
-	scheme := schemeHTTPS
-	if c.DisableTLS || strings.EqualFold(c.Scheme, schemeHTTP) {
-		scheme = schemeHTTP
-	}
-
-	apiURL := url.URL{
-		Scheme: scheme,
-		Host:   c.serverHost(),
-		Path:   path,
-	}
-
-	return apiURL.String()
+	return c.apiURL(c.Topic)
 }
 
 // GetURL returns a URL representation of the Config's current field values.
@@ -175,6 +161,29 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
+// apiURL returns the server URL with a path, using HTTP when TLS is disabled or
+// the deprecated scheme is http, and HTTPS otherwise.
+//
+// Parameters:
+//   - urlPath: the URL path, with or without its first slash.
+//
+// Returns:
+//   - string: the URL.
+func (c *Config) apiURL(urlPath string) string {
+	scheme := schemeHTTPS
+	if c.DisableTLS || strings.EqualFold(c.Scheme, schemeHTTP) {
+		scheme = schemeHTTP
+	}
+
+	apiURL := url.URL{
+		Scheme: scheme,
+		Host:   c.serverHost(),
+		Path:   urlPath, // String adds the slash after the host when urlPath has none.
+	}
+
+	return apiURL.String()
+}
+
 // applyScheme checks the deprecated Scheme and turns TLS off when it is http,
 // so DisableTLS alone decides the protocol. An empty Scheme counts as https.
 //
@@ -200,16 +209,16 @@ func (c *Config) applyScheme() error {
 // Returns:
 //   - *url.URL: the service URL, with the topic as its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	path := c.Topic
+	topicPath := c.Topic
 	if !strings.HasPrefix(c.Topic, "/") {
-		path = "/" + path
+		topicPath = "/" + topicPath
 	}
 
 	result := &url.URL{
 		Host:       c.Host,
 		Scheme:     Scheme,
 		ForceQuery: true,
-		Path:       path,
+		Path:       topicPath,
 		RawQuery:   format.BuildQuery(resolver),
 	}
 	if c.Username != "" {
@@ -384,17 +393,18 @@ func hasQueryKey(query url.Values, key string) bool {
 //     An error wrapping [util.ErrInvalidPathSegment] for a base path with a
 //     "." or ".." segment. Otherwise nil.
 func validateTopicPath(topicPath string) error {
-	slash := strings.LastIndexByte(topicPath, '/')
-	if !topicNamePattern.MatchString(topicPath[slash+1:]) {
+	dir, name := path.Split(topicPath)
+	if !topicNamePattern.MatchString(name) {
 		return ErrInvalidTopic
 	}
 
-	if slash < 0 {
+	if dir == "" {
 		return nil
 	}
 
+	base := dir[:len(dir)-1]
+
 	// A leading, trailing, or doubled slash leaves an empty segment.
-	base := topicPath[:slash]
 	if base == "" || base[0] == '/' || base[len(base)-1] == '/' || strings.Contains(base, "//") {
 		return ErrInvalidTopic
 	}

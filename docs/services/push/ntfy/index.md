@@ -24,9 +24,38 @@ A URL without a host, such as `ntfy:///TOPIC`, uses `ntfy.sh`.
     ntfy://ntfy.example.com:8080/TOPIC
     ```
 
+### Topics
+
 Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy [requires](https://docs.ntfy.sh/publish/#picking-a-topic).
-For a server behind a reverse proxy, put its base path before the topic, as in `ntfy://example.com/ntfy/TOPIC`.
+
+### Reverse Proxies
+
+For a server behind a reverse proxy, put its base path before the topic.
 The base path cannot hold a `.` or `..` segment.
+
+!!! example "Server behind a reverse proxy"
+    ```uri
+    ntfy://example.com/ntfy/TOPIC
+    ```
+
+Shoutrrr publishes such a message as [JSON](https://docs.ntfy.sh/publish/#publish-as-json) to the base path itself, here `https://example.com/ntfy/`.
+The proxy must forward that path to the ntfy server's root.
+ntfy then reads the topic from the JSON body.
+
+!!! note "Why Shoutrrr does not post to the topic"
+    Shoutrrr cannot tell whether a proxy strips the base path.
+    On a server hosted at the root, ntfy would read `/ntfy/TOPIC` as the topic `ntfy` with a [sequence ID](https://docs.ntfy.sh/publish/#updating-deleting-notifications), and publish to the wrong topic.
+    A request to the base path itself fails there with a "page not found" error instead.
+
+A message over ntfy's message size limit, 4096 bytes by default, is handled as follows.
+
+| URL | Request body | Message over the limit |
+| --- | --- | --- |
+| Without a base path | Plain text | Sent as an attachment when the server allows [attachments](https://docs.ntfy.sh/config/#attachments), else rejected |
+| With a base path | JSON | Rejected when the JSON body, after escaping, is over twice the limit. A shorter body is handled as plain text is |
+
+### Authentication
+
 If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
 
 !!! note
