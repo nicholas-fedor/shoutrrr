@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Join rooms given by ID so an invite to them is accepted by @nicholas-fedor in [#2206](https://github.com/nicholas-fedor/shoutrrr/pull/2206)
 - Log in again when the homeserver rejects a stored token by @nicholas-fedor in [#2204](https://github.com/nicholas-fedor/shoutrrr/pull/2204)
 - Report server errors that may follow a saved message by @nicholas-fedor in [#2200](https://github.com/nicholas-fedor/shoutrrr/pull/2200)
 - Retry only failed dials of a webhook POST by @nicholas-fedor in [#2194](https://github.com/nicholas-fedor/shoutrrr/pull/2194)
