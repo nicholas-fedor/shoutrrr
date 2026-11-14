@@ -54,27 +54,27 @@
 //
 // ## Basic notification
 //
-//	url := "ntfy://mytopic"
+//	url := "ntfy://ntfy.sh/mytopic"
 //	err := shoutrrr.Send(url, "Hello from Shoutrrr!")
 //
 // ## Notification with title and high priority
 //
-//	url := "ntfy://mytopic?title=Alert&priority=high"
+//	url := "ntfy://ntfy.sh/mytopic?title=Alert&priority=high"
 //	err := shoutrrr.Send(url, "System is down!")
 //
 // ## Notification with tags and actions
 //
-//	url := "ntfy://mytopic?tags=warning,server&actions=view,%20View%20logs,%20https://logs.example.com"
+//	url := "ntfy://ntfy.sh/mytopic?tags=warning,server&actions=view,%20View%20logs,%20https://logs.example.com"
 //	err := shoutrrr.Send(url, "Server error occurred")
 //
 // ## Notification with attachment
 //
-//	url := "ntfy://mytopic?title=Backup&attach=https://files.example.com/backup.zip&filename=backup.zip"
+//	url := "ntfy://ntfy.sh/mytopic?title=Backup&attach=https://files.example.com/backup.zip&filename=backup.zip"
 //	err := shoutrrr.Send(url, "Backup completed successfully")
 //
 // ## Delayed notification
 //
-//	url := "ntfy://mytopic?delay=1h"
+//	url := "ntfy://ntfy.sh/mytopic?delay=1h"
 //	err := shoutrrr.Send(url, "Reminder: Meeting in 1 hour")
 //
 // ## Notification with authentication
@@ -87,41 +87,51 @@
 //	url := "ntfy://ntfy.example.com/mytopic?token=tk_mytoken"
 //	err := shoutrrr.Send(url, "Authenticated notification")
 //
+// ## Server behind a reverse proxy
+//
+// Path segments before the topic are the server's base path. Such a send
+// publishes JSON that names the topic to the base path, here
+// https://example.com/ntfy/. The proxy must forward that path to the ntfy
+// server's root.
+//
+//	url := "ntfy://example.com/ntfy/mytopic"
+//	err := shoutrrr.Send(url, "Notification through a proxy")
+//
 // # Common Use Cases
 //
 // ## System Monitoring Alerts
 //
 // Send alerts from monitoring systems like Nagios, Prometheus, or Zabbix:
 //
-//	url := "ntfy://alerts?priority=high&tags=warning,server"
+//	url := "ntfy://ntfy.sh/alerts?priority=high&tags=warning,server"
 //	err := shoutrrr.Send(url, "Disk space critical: 95% used")
 //
 // ## CI/CD Pipeline Notifications
 //
 // Notify about build status from Jenkins, GitHub Actions, or GitLab CI:
 //
-//	url := "ntfy://builds?tags=success,github&title=Build%20Successful"
+//	url := "ntfy://ntfy.sh/builds?tags=success,github&title=Build%20Successful"
 //	err := shoutrrr.Send(url, "Build #123 passed")
 //
 // ## Home Automation
 //
 // Integrate with home automation systems like Home Assistant:
 //
-//	url := "ntfy://home?tags=home,security&priority=urgent"
+//	url := "ntfy://ntfy.sh/home?tags=home,security&priority=urgent"
 //	err := shoutrrr.Send(url, "Motion detected at front door")
 //
 // ## Backup Completion Notifications
 //
 // Notify when backups complete:
 //
-//	url := "ntfy://backups?tags=backup,done&title=Backup%20Complete"
+//	url := "ntfy://ntfy.sh/backups?tags=backup,done&title=Backup%20Complete"
 //	err := shoutrrr.Send(url, "Daily backup finished successfully")
 //
 // ## Scheduled Reminders
 //
 // Send delayed notifications for reminders:
 //
-//	url := "ntfy://reminders?delay=9am&title=Morning%20Reminder"
+//	url := "ntfy://ntfy.sh/reminders?delay=9am&title=Morning%20Reminder"
 //	err := shoutrrr.Send(url, "Don't forget the team meeting!")
 //
 // # Error Handling
