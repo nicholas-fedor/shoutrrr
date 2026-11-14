@@ -62,8 +62,17 @@ type scriptedHTTPClient struct {
 // errorReadCloser is a response body whose reads fail.
 type errorReadCloser struct{}
 
-// errUnexpectedRequest answers a request after the scripted replies run out.
-var errUnexpectedRequest = errors.New("unexpected request")
+// Test replies and errors shared by the client and service tests.
+var (
+	// errUnexpectedRequest answers a request after the scripted replies run out.
+	errUnexpectedRequest = errors.New("unexpected request")
+	// unknownToken is the reply of a homeserver that does not recognize the
+	// request's access token.
+	unknownToken = reply{
+		status: http.StatusUnauthorized,
+		body:   `{"errcode":"` + errCodeUnknownToken + `","error":"Unrecognized access token","soft_logout":false}`,
+	}
+)
 
 // Do answers req with the next scripted reply. A request whose context has
 // ended uses up its reply and returns the context's error.
@@ -312,9 +321,7 @@ func TestAPIRequestFailures(t *testing.T) {
 				}
 
 				if tt.wantMessage != "" {
-					apiErr, isAPIErr := errors.AsType[*apiResError](err)
-					require.True(t, isAPIErr, "the error should be the Matrix API error")
-					assert.Equal(t, tt.wantMessage, apiErr.Message)
+					assert.Equal(t, tt.wantMessage, requireAPIError(t, err).Message)
 				}
 			})
 		}
@@ -394,6 +401,138 @@ func TestAPIDo(t *testing.T) {
 		assert.Empty(t, httpClient.requests[0].Header.Get("Content-Type"))
 		assert.Empty(t, httpClient.bodies[0])
 	})
+}
+
+// requireAPIError returns the Matrix API error err holds, failing the test
+// when it holds none.
+//
+// Parameters:
+//   - t: the test.
+//   - err: the error.
+//
+// Returns:
+//   - *apiResError: the Matrix API error.
+func requireAPIError(t *testing.T, err error) *apiResError {
+	t.Helper()
+
+	resError, ok := errors.AsType[*apiResError](err)
+	require.True(t, ok, "the error %v holds the Matrix API error", err)
+
+	return resError
+}
+
+// TestAPIDoLogsInAgain verifies that a request whose access token the
+// homeserver rejects as unknown is sent again once with the token of a new
+// login, whose requests carry no token. The client logs in again only for
+// that error code, only when it can, and at most once. After that login
+// fails, later requests fail with its error without being sent. A renewal
+// left pending by an earlier room logs in before the request is sent.
+func TestAPIDoLogsInAgain(t *testing.T) {
+	t.Parallel()
+
+	flows := ok(`{"flows":[{"type":"m.login.password"}]}`)
+	login := ok(`{"access_token":"new"}`)
+	forbidden := reply{status: http.StatusForbidden, body: `{"errcode":"M_FORBIDDEN","error":"Forbidden"}`}
+
+	// tests lists the replies, whether the client can log in again, whether
+	// a renewal is pending, and the outcome to expect.
+	tests := []struct {
+		name       string
+		wantCode   string
+		wantText   string
+		replies    []reply
+		wantTokens []string
+		canRenew   bool
+		pending    bool
+	}{
+		{
+			name:       "new token",
+			replies:    []reply{unknownToken, flows, login, ok(`{"joined_rooms":[]}`)},
+			canRenew:   true,
+			wantTokens: []string{"Bearer old", "", "", "Bearer new"},
+		},
+		{
+			name:       "no login to renew",
+			replies:    []reply{unknownToken},
+			wantTokens: []string{"Bearer old"},
+			wantCode:   errCodeUnknownToken,
+		},
+		{
+			name:       "another error",
+			replies:    []reply{forbidden},
+			canRenew:   true,
+			wantTokens: []string{"Bearer old"},
+			wantCode:   "M_FORBIDDEN",
+		},
+		{
+			name:       "new token rejected too",
+			replies:    []reply{unknownToken, flows, login, unknownToken},
+			canRenew:   true,
+			wantTokens: []string{"Bearer old", "", "", "Bearer new"},
+			wantCode:   errCodeUnknownToken,
+		},
+		{
+			name:       "failed login",
+			replies:    []reply{unknownToken, failed("connection refused")},
+			canRenew:   true,
+			wantTokens: []string{"Bearer old", ""},
+			wantText:   "access token rejected",
+		},
+		{
+			name:       "pending renewal",
+			replies:    []reply{flows, login, ok(`{"joined_rooms":[]}`)},
+			canRenew:   true,
+			pending:    true,
+			wantTokens: []string{"", "", "Bearer new"},
+		},
+		{
+			name:       "pending renewal fails",
+			replies:    []reply{failed("connection refused")},
+			canRenew:   true,
+			pending:    true,
+			wantTokens: []string{""},
+			wantText:   "access token rejected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, httpClient := newScriptedClient(t, tt.replies...)
+			c.accessToken = "old"
+
+			if tt.canRenew {
+				service := &Service{}
+				require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+				c.renewal = loginRenewal{service: service, config: service.Config, rejected: ""}
+
+				if tt.pending {
+					c.renewal.rejected = c.accessToken
+				}
+			}
+
+			err := c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResJoinedRooms{})
+
+			switch {
+			case tt.wantText != "":
+				require.ErrorContains(t, err, tt.wantText)
+				require.ErrorIs(t, c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResJoinedRooms{}), err,
+					"a later request fails with the login's error without being sent")
+			case tt.wantCode != "":
+				assert.Equal(t, tt.wantCode, requireAPIError(t, err).Code)
+			default:
+				require.NoError(t, err)
+			}
+
+			tokens := make([]string, 0, len(httpClient.requests))
+			for _, req := range httpClient.requests {
+				tokens = append(tokens, req.Header.Get("Authorization"))
+			}
+
+			assert.Equal(t, tt.wantTokens, tokens)
+		})
+	}
 }
 
 // rateLimited returns a 429 reply in the Matrix error format. A non-empty
@@ -502,8 +641,7 @@ func TestAPIDoFailsRateLimitAtOnce(t *testing.T) {
 
 				err := c.apiDo(ctx, http.MethodGet, apiJoinedRooms, nil, &apiResRoom{})
 
-				_, isAPIErr := errors.AsType[*apiResError](err)
-				assert.True(t, isAPIErr, "error %v is not the Matrix error", err)
+				requireAPIError(t, err)
 				assert.Equal(t, 1, httpClient.requestCount())
 				assert.Zero(t, time.Since(start))
 			})
@@ -530,8 +668,7 @@ func TestAPIDoRateLimitBounds(t *testing.T) {
 			err := c.apiDo(ctx, http.MethodGet, apiJoinedRooms, nil, &apiResRoom{})
 			require.ErrorIs(t, err, context.Canceled)
 
-			_, isAPIErr := errors.AsType[*apiResError](err)
-			assert.True(t, isAPIErr, "error %v does not carry the Matrix error", err)
+			requireAPIError(t, err)
 			assert.Equal(t, 1, httpClient.requestCount())
 			assert.Equal(t, time.Second, time.Since(start))
 		})
@@ -545,8 +682,7 @@ func TestAPIDoRateLimitBounds(t *testing.T) {
 			c, httpClient := newScriptedClient(t,
 				rateLimited("1"), rateLimited("1"), rateLimited("1"), rateLimited("1"))
 
-			_, isAPIErr := errors.AsType[*apiResError](c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResRoom{}))
-			assert.True(t, isAPIErr)
+			requireAPIError(t, c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResRoom{}))
 			assert.Equal(t, 4, httpClient.requestCount())
 			assert.Equal(t, 3*time.Second, time.Since(start))
 		})

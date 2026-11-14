@@ -58,9 +58,13 @@ const Scheme = "matrix"
 
 // Request counts used to budget a send.
 const (
-	// loginRequests is the number of requests a password login makes: the login
-	// flows lookup and the login itself.
-	loginRequests = 2
+	// loginRequests is the number of requests a password send is budgeted
+	// for logging in.
+	//
+	// A login asks for the login flows and then logs in. The third request
+	// is the one sent again after the homeserver rejects a stored token and
+	// the send logs in again.
+	loginRequests = 3
 	// requestsPerRoom is the number of requests a send makes for a configured room:
 	// joining it by alias and sending the message.
 	requestsPerRoom = 2
@@ -228,13 +232,16 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.SendContext(ctx, message, params)
 }
 
-// ServiceTimeout reports the send budget of Matrix. A send makes its requests
-// in turn, and the budget allows 10 seconds for each. A password login takes
-// two requests when a user is configured. Each configured room then takes a
-// join and a message. Without configured rooms, the send looks up the joined
-// rooms and is budgeted for one message. Sends to many joined rooms therefore
-// need configured rooms or a longer router timeout. Waits for rate limits count toward the
-// budget, so a request is retried only while the budget has room for the wait.
+// ServiceTimeout reports the send budget of Matrix.
+//
+// A send makes its requests in turn, and the budget allows 10 seconds for each.
+// When a user is configured, the budget adds three requests for logging in and
+// for a request sent again after the homeserver rejects a stored token. Each
+// configured room then takes a join and a message. Without configured rooms,
+// the send looks up the joined rooms and is budgeted for one message. Sends to
+// many joined rooms therefore need configured rooms or a longer router timeout.
+// Waits for rate limits count toward the budget, so a request is retried only
+// while the budget has room for the wait.
 //
 // Parameters:
 //   - params: per-send parameters, which may set the rooms.
@@ -258,8 +265,10 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service, which the API client
-// then sends through. A nil client, including a nil *http.Client, restores the
-// default client. An access token from an earlier login stays valid.
+// then sends through.
+//
+// A nil client, including a nil *http.Client, restores the default client.
+// An access token from an earlier login stays valid.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
@@ -267,13 +276,16 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient.Set(client)
 }
 
-// ensureLogin gives api the access token for the send. Without a user, the
-// config's password is the access token. With a user, the send reuses the
-// token of an earlier login for the same homeserver, user, and password.
-// Otherwise it logs in through api. So a token never goes to a homeserver or
-// account other than the one it was issued for. A failed login is retried on
-// the next send. A send that waits for another send's login stops waiting when
-// ctx ends.
+// ensureLogin gives api the access token for the send.
+//
+// Without a user, the config's password is the access token. With a user, the
+// send reuses the token of an earlier login for the same homeserver, user, and
+// password. Otherwise it logs in through api. So a token never goes to a
+// homeserver or account other than the one it was issued for. A failed login is
+// retried on the next send. With a user, api also logs in again once when the
+// homeserver rejects its token, as it does after another login to the same
+// device. A send that waits for another send's login stops waiting when ctx
+// ends.
 //
 // Parameters:
 //   - ctx: cancellation for waiting on and running the login.
@@ -290,16 +302,37 @@ func (s *Service) ensureLogin(ctx context.Context, api *client, config *Config) 
 		return nil
 	}
 
-	key := config.loginKey()
-
 	// A send for the account of the latest login reuses its token without
 	// waiting for the gate.
-	if token, ok := s.sessionToken(key); ok {
+	if token, ok := s.sessionToken(config.loginKey()); ok {
 		api.accessToken = token
-
-		return nil
+	} else if err := s.logIn(ctx, api, config, ""); err != nil {
+		return err
 	}
 
+	// The renewal is set after the first login, so that login cannot start
+	// it while it holds the gate.
+	api.renewal = loginRenewal{service: s, config: config, rejected: ""}
+
+	return nil
+}
+
+// logIn gives api a token from a password login, one login at a time.
+//
+// A send that waited for the gate uses the token another send's login stored
+// meanwhile, unless that is the rejected token.
+//
+// Parameters:
+//   - ctx: cancellation for waiting on and running the login.
+//   - api: the API client of the send, which the login uses too.
+//   - config: the config of the send, which names the homeserver and the
+//     credentials.
+//   - rejected: the token the homeserver rejected, or empty for the send's
+//     first login.
+//
+// Returns:
+//   - error: the login failure or ctx's error, or nil when api holds a token.
+func (s *Service) logIn(ctx context.Context, api *client, config *Config, rejected string) error {
 	select {
 	case s.loginGate <- struct{}{}:
 	case <-ctx.Done():
@@ -308,12 +341,21 @@ func (s *Service) ensureLogin(ctx context.Context, api *client, config *Config) 
 
 	defer func() { <-s.loginGate }()
 
+	key := config.loginKey()
+
 	// Another send may have logged in to the same account while this one
 	// waited for the gate.
-	if token, ok := s.sessionToken(key); ok {
+	token, stored := s.sessionToken(key)
+	if stored && token != rejected {
 		api.accessToken = token
 
 		return nil
+	}
+
+	// A stored token the homeserver rejected is not reused, even when this
+	// login fails.
+	if stored {
+		s.session.Store(nil)
 	}
 
 	if err := api.login(ctx, config.User, config.Password); err != nil {

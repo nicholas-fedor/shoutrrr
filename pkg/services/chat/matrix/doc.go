@@ -28,6 +28,10 @@
 //
 //	matrix://user:password@matrix.example.com
 //
+// Repeated logins reuse one device, derived from the user and host. When the
+// homeserver rejects the stored token as unknown, as after another login to
+// that device, the send logs in again once.
+//
 // Token Authentication:
 // When no username is provided, the password field is treated as an access token:
 //
