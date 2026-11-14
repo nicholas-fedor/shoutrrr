@@ -877,9 +877,10 @@ func TestLoginLog(t *testing.T) {
 	assert.NotContains(t, output.String(), "myt")
 }
 
-// TestLogin verifies that login reports a failed flows request, and reports
-// unsupported flows when the homeserver offers no password flow. It logs in
-// through the password flow when the homeserver offers one.
+// TestLogin verifies that login reports a failed flows request. It reports
+// unsupported flows when the homeserver offers no password flow, or when it
+// answers the flows request with M_UNRECOGNIZED and still lists its versions.
+// It logs in through the password flow when the homeserver offers one.
 func TestLogin(t *testing.T) {
 	t.Parallel()
 
@@ -893,18 +894,74 @@ func TestLogin(t *testing.T) {
 		assert.Contains(t, err.Error(), "login flows")
 	})
 
-	t.Run("unsupported flows", func(t *testing.T) {
+	// A homeserver that signs users in only through single sign-on offers
+	// these flows. The error names them and points to an access token.
+	t.Run("single sign-on only", func(t *testing.T) {
 		t.Parallel()
 
-		c, _ := newScriptedClient(t, ok(`{"flows":[{"type":"m.login.unknown"}]}`))
-		require.ErrorIs(t, c.login(t.Context(), "user", "password"), ErrUnsupportedLoginFlows)
+		c, _ := newScriptedClient(t, ok(`{"flows":[{"type":"m.login.sso"},{"type":"m.login.token"}]}`))
+		err := c.login(t.Context(), "user", "password")
+
+		require.ErrorIs(t, err, ErrUnsupportedLoginFlows)
+		assert.EqualError(t, err,
+			"homeserver offers no password login, so use an access token: its login flows are m.login.sso, m.login.token")
 	})
 
-	t.Run("token flow only", func(t *testing.T) {
+	// unrecognized is a server's answer to a request for an endpoint it does
+	// not serve.
+	unrecognized := reply{
+		status: http.StatusNotFound,
+		body:   `{"errcode":"` + errCodeUnrecognized + `","error":"Unrecognized request"}`,
+	}
+
+	// A homeserver that offers only the OAuth 2.0 login API answers the flows
+	// request with M_UNRECOGNIZED, as the spec advises, and lists its
+	// versions.
+	t.Run("OAuth 2.0 only", func(t *testing.T) {
 		t.Parallel()
 
-		c, _ := newScriptedClient(t, ok(`{"flows":[{"type":"m.login.token"}]}`))
-		require.ErrorIs(t, c.login(t.Context(), "user", "password"), ErrUnsupportedLoginFlows)
+		c, httpClient := newScriptedClient(t, unrecognized, ok(`{"versions":["v1.15"]}`))
+		err := c.login(t.Context(), "user", "password")
+
+		require.ErrorIs(t, err, ErrUnsupportedLoginFlows)
+		assert.Equal(t, errCodeUnrecognized, requireAPIError(t, err).Code)
+		require.Len(t, httpClient.requests, 2)
+		assert.Equal(t, apiVersions, httpClient.requests[1].URL.Path)
+	})
+
+	// A server that is not a homeserver's client API, such as its federation
+	// port, answers both requests with M_UNRECOGNIZED. The error then names the
+	// failed flows request instead of suggesting an access token.
+	t.Run("not a client API", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, unrecognized, unrecognized)
+		err := c.login(t.Context(), "user", "password")
+
+		require.NotErrorIs(t, err, ErrUnsupportedLoginFlows)
+		assert.Contains(t, err.Error(), "failed to get login flows")
+	})
+
+	// A versions reply that lists no versions, such as a proxy's empty JSON
+	// object, does not show a homeserver either.
+	t.Run("versions reply without versions", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, unrecognized, ok(`{}`))
+		err := c.login(t.Context(), "user", "password")
+
+		require.NotErrorIs(t, err, ErrUnsupportedLoginFlows)
+		assert.Contains(t, err.Error(), "failed to get login flows")
+	})
+
+	t.Run("no flows", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(`{"flows":[]}`))
+		err := c.login(t.Context(), "user", "password")
+
+		require.ErrorIs(t, err, ErrUnsupportedLoginFlows)
+		assert.EqualError(t, err, "homeserver offers no password login, so use an access token: its login flows are none")
 	})
 
 	t.Run("password flow", func(t *testing.T) {

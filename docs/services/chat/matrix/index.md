@@ -31,9 +31,17 @@ This allows you to use a pre-generated access token from your Matrix server, whi
 Simply omit `USER` and provide your access token as `PASSWORD`.
 When the homeserver rejects that token, the send fails, since there is no password to log in with.
 
+On a homeserver that uses [Matrix Authentication Service](https://element-hq.github.io/matrix-authentication-service/reference/cli/manage.html), an admin can issue an access token that does not expire.
+Run `mas-cli manage issue-compatibility-token USERNAME`, where `USERNAME` is the account's user name.
+On another homeserver, ask its admin how to get an access token for the account.
+
 ### Password Login
 
-If a `USER` and `PASSWORD` are both supplied, the service will attempt to authenticate using the `m.login.password` flow (if supported by your server).
+If a `USER` and `PASSWORD` are both supplied, the service will attempt to authenticate using the `m.login.password` flow.
+
+Some homeservers offer no password login, such as one that signs users in only through single sign-on.
+A send with a password then fails with an error that says so.
+Use [token-based login](#token-based_login_default) with such a homeserver.
 
 #### Login Sessions
 

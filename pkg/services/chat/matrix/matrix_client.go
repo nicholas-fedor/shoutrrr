@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -233,7 +234,7 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 	retryAfter, err := c.send(ctx, method, path, body, response)
 
 	for retries := 0; ; {
-		if c.renewal.service != nil && isUnknownToken(err) {
+		if c.renewal.service != nil && hasErrorCode(err, errCodeUnknownToken) {
 			if err := c.renew(ctx, c.accessToken); err != nil {
 				return err
 			}
@@ -329,12 +330,23 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 //
 // Returns:
 //   - error: the error of the flows request or the password login, or
-//     [ErrUnsupportedLoginFlows] when the homeserver offers no password flow.
+//     [ErrUnsupportedLoginFlows] when the homeserver offers no password flow
+//     or does not support the login flows request.
 func (c *client) login(ctx context.Context, user, password string) error {
 	c.accessToken = ""
 
 	resLogin := apiResLoginFlows{}
 	if err := c.apiDo(ctx, http.MethodGet, apiLogin, nil, &resLogin); err != nil {
+		// A homeserver without the legacy login API answers M_UNRECOGNIZED,
+		// but so does a server that is not a homeserver's client API, such as
+		// its federation port. Only a homeserver answers the versions lookup.
+		var resVersions apiResVersions
+		if hasErrorCode(err, errCodeUnrecognized) &&
+			c.apiDo(ctx, http.MethodGet, apiVersions, nil, &resVersions) == nil &&
+			len(resVersions.Versions) > 0 {
+			return fmt.Errorf("%w: %w", ErrUnsupportedLoginFlows, err)
+		}
+
 		return fmt.Errorf("failed to get login flows: %w", err)
 	}
 
@@ -348,9 +360,9 @@ func (c *client) login(ctx context.Context, user, password string) error {
 	}
 
 	return fmt.Errorf(
-		"%w: %v",
+		"%w: its login flows are %s",
 		ErrUnsupportedLoginFlows,
-		strings.Join(flows, ", "),
+		cmp.Or(strings.Join(flows, ", "), "none"),
 	)
 }
 
@@ -802,22 +814,6 @@ func retryWait(header http.Header, resError *apiResError) time.Duration {
 	}
 
 	return noRetry
-}
-
-// isUnknownToken reports whether err is the homeserver's answer that it does
-// not recognize the request's access token. The homeserver answers so for a
-// token that expired or was revoked, and for one that another login to the
-// same device replaced.
-//
-// Parameters:
-//   - err: the error of a request.
-//
-// Returns:
-//   - bool: whether err is a Matrix error with code M_UNKNOWN_TOKEN.
-func isUnknownToken(err error) bool {
-	resError, ok := errors.AsType[*apiResError](err)
-
-	return ok && resError.Code == errCodeUnknownToken
 }
 
 // newClient creates a Matrix API client for one send.

@@ -30,9 +30,12 @@ var (
 	// successful login reply.
 	ErrLoginReplyWithoutToken = errors.New("login reply has no access token")
 
-	// ErrUnsupportedLoginFlows is returned when none of the login flows
-	// supported by the server are compatible with this client.
-	ErrUnsupportedLoginFlows = errors.New("none of the server login flows are supported")
+	// ErrUnsupportedLoginFlows is returned when a send with a user and
+	// password finds that the homeserver offers no password login, such as one
+	// that signs users in only through single sign-on or only through the
+	// OAuth 2.0 login API. A service URL with an access token in place of the
+	// password sends without logging in.
+	ErrUnsupportedLoginFlows = errors.New("homeserver offers no password login, so use an access token")
 
 	// ErrUnexpectedStatus is returned when the Matrix API returns an HTTP
 	// status code that was not expected by the client.

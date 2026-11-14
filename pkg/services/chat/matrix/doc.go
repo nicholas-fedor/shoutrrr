@@ -144,7 +144,7 @@
 //   - ErrMissingCredentials: No password or access token provided
 //   - ErrClientNotInitialized: No homeserver to send to
 //   - ErrNoJoinedRooms: No rooms configured and none joined
-//   - ErrUnsupportedLoginFlows: Server doesn't support password login
+//   - ErrUnsupportedLoginFlows: The homeserver offers no password login
 //   - ErrLoginReplyWithoutToken: A login reply held no access token
 //   - ErrInvalidRoomID: A room ID from the homeserver does not start with !
 //   - ErrUnexpectedStatus: Unexpected HTTP response from server
