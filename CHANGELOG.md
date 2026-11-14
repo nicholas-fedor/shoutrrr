@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stop sending a badge of 0 with every push by @nicholas-fedor in [#2176](https://github.com/nicholas-fedor/shoutrrr/pull/2176)
 - Fail pushes that the Join API refuses by @nicholas-fedor in [#2172](https://github.com/nicholas-fedor/shoutrrr/pull/2172)
 
+### Tests
+
+- Stop tests from dialing a port another test can reuse by @nicholas-fedor in [#2210](https://github.com/nicholas-fedor/shoutrrr/pull/2210)
+
 ### Chores
 
 - Update binwiederhier/ntfy:latest docker digest to 771309a by @renovate[bot] in [#2202](https://github.com/nicholas-fedor/shoutrrr/pull/2202)
