@@ -1844,6 +1844,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Getting Started">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Topics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reverse_proxies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse Proxies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2806,6 +2845,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Getting Started">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Topics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reverse_proxies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse Proxies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2998,10 +3076,49 @@ A URL without a host, such as <code>ntfy:///TOPIC</code>, uses <code>ntfy.sh</co
 <div class="highlight"><pre><span></span><code>ntfy://ntfy.example.com:8080/TOPIC
 </code></pre></div>
 </div>
-<p>Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy <a href="https://docs.ntfy.sh/publish/#picking-a-topic">requires</a>.
-For a server behind a reverse proxy, put its base path before the topic, as in <code>ntfy://example.com/ntfy/TOPIC</code>.
-The base path cannot hold a <code>.</code> or <code>..</code> segment.
-If your ntfy server requires authentication, put a username and password in the URL, or pass an <a href="https://docs.ntfy.sh/publish/#access-tokens">access token</a> with the <code>token</code> query parameter.</p>
+<h3 id="topics">Topics<a class="headerlink" href="#topics" title="Permanent link">&para;</a></h3>
+<p>Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy <a href="https://docs.ntfy.sh/publish/#picking-a-topic">requires</a>.</p>
+<h3 id="reverse_proxies">Reverse Proxies<a class="headerlink" href="#reverse_proxies" title="Permanent link">&para;</a></h3>
+<p>For a server behind a reverse proxy, put its base path before the topic.
+The base path cannot hold a <code>.</code> or <code>..</code> segment.</p>
+<div class="admonition example">
+<p class="admonition-title">Server behind a reverse proxy</p>
+<div class="highlight"><pre><span></span><code>ntfy://example.com/ntfy/TOPIC
+</code></pre></div>
+</div>
+<p>Shoutrrr publishes such a message as <a href="https://docs.ntfy.sh/publish/#publish-as-json">JSON</a> to the base path itself, here <code>https://example.com/ntfy/</code>.
+The proxy must forward that path to the ntfy server's root.
+ntfy then reads the topic from the JSON body.</p>
+<div class="admonition note">
+<p class="admonition-title">Why Shoutrrr does not post to the topic</p>
+<p>Shoutrrr cannot tell whether a proxy strips the base path.
+On a server hosted at the root, ntfy would read <code>/ntfy/TOPIC</code> as the topic <code>ntfy</code> with a <a href="https://docs.ntfy.sh/publish/#updating-deleting-notifications">sequence ID</a>, and publish to the wrong topic.
+A request to the base path itself fails there with a "page not found" error instead.</p>
+</div>
+<p>A message over ntfy's message size limit, 4096 bytes by default, is handled as follows.</p>
+<table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Request body</th>
+<th>Message over the limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Without a base path</td>
+<td>Plain text</td>
+<td>Sent as an attachment when the server allows <a href="https://docs.ntfy.sh/config/#attachments">attachments</a>, else rejected</td>
+</tr>
+<tr>
+<td>With a base path</td>
+<td>JSON</td>
+<td>Rejected when the JSON body, after escaping, is over twice the limit. A shorter body is handled as plain text is</td>
+</tr>
+</tbody>
+</table>
+<h3 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h3>
+<p>If your ntfy server requires authentication, put a username and password in the URL, or pass an <a href="https://docs.ntfy.sh/publish/#access-tokens">access token</a> with the <code>token</code> query parameter.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Shoutrrr sends the token as <code>Authorization: Bearer ACCESS_TOKEN</code>. If you set both a token and a username or password, the token wins and Shoutrrr skips Basic auth.</p>
@@ -3144,7 +3261,7 @@ Both still work and log a warning the first time they are used. A <code>scheme</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 14, 2026 22:39:10 UTC"><span class="timeago" datetime="2026-11-14T22:39:10+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 14, 2026 22:39:10 UTC">2026-11-14</span>
   </span>
 
     
