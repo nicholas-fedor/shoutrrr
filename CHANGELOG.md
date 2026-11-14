@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 771309a by @renovate[bot] in [#2202](https://github.com/nicholas-fedor/shoutrrr/pull/2202)
 - Update dependency backrefs to v8.3 by @renovate[bot] in [#2174](https://github.com/nicholas-fedor/shoutrrr/pull/2174)
 
 ## [0.24.0] - 2026-11-11
