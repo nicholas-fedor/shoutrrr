@@ -40,14 +40,16 @@ type Client interface {
 	//   - error: an [Error] for a status outside 200 to 299 or invalid JSON,
 	//     or the request error.
 	Post(url string, request, response any) error
-	// Headers returns the headers set on every request. Changing them changes
-	// the requests that follow.
+	// Headers returns the headers set on every request, each with all of its
+	// values. Changing them changes the requests that follow.
 	//
 	// Returns:
 	//   - http.Header: the headers.
 	Headers() http.Header
-	// ErrorResponse reports whether err is an [Error] whose body decodes as
-	// JSON into response.
+	// ErrorResponse reports whether err is an [Error] for a status of 400 or
+	// more whose body decodes as JSON into response. Only an error status
+	// carries the server's error. The body of any other status, such as a
+	// redirect the HTTP client did not follow, is left undecoded.
 	//
 	// Parameters:
 	//   - err: the error of a request.
@@ -260,16 +262,18 @@ func Post(url string, request, response any) error {
 	return nil
 }
 
-// ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
+// ErrorResponse checks if an error is a JSON error for an error status and
+// unmarshals its body into the response.
 //
 // Parameters:
 //   - err: the error of a request.
 //   - response: the value the error's body is decoded into.
 //
 // Returns:
-//   - bool: whether err is an [Error] whose body decoded into response.
+//   - bool: whether err is an [Error] for a status of 400 or more whose body
+//     decoded into response.
 func (c *client) ErrorResponse(err error, response any) bool {
-	if errMsg, ok := errors.AsType[Error](err); ok {
+	if errMsg, ok := errors.AsType[Error](err); ok && errMsg.StatusCode >= http.StatusBadRequest {
 		return json.Unmarshal([]byte(errMsg.Body), response, jsonopts.Default) == nil
 	}
 
@@ -306,9 +310,8 @@ func (c *client) GetContext(ctx context.Context, url string, response any) error
 		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
 	}
 
-	for key, val := range c.headers {
-		req.Header.Set(key, val[0])
-	}
+	// A copy, so a request never shares its header values with the client.
+	req.Header = c.headers.Clone()
 
 	res, err := c.http.Client().Do(req)
 	if err != nil {
@@ -379,9 +382,8 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 		return fmt.Errorf("creating POST request: %w", redact.URLError(err))
 	}
 
-	for key, val := range c.headers {
-		req.Header.Set(key, val[0])
-	}
+	// A copy, so a request never shares its header values with the client.
+	req.Header = c.headers.Clone()
 
 	res, err := c.http.Client().Do(req)
 	if err != nil {

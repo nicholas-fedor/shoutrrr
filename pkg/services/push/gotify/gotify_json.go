@@ -31,26 +31,6 @@ type MessageRequest struct {
 	omitPriority bool
 }
 
-// messageResponse represents the successful response from the Gotify API.
-// This struct captures the server's confirmation of message acceptance,
-// including the assigned ID and metadata about the created notification.
-type messageResponse struct {
-	// Extras echoes the extras sent with the message.
-	Extras map[string]any `json:"extras"`
-	// Message echoes the message text.
-	Message string `json:"message"`
-	// Title echoes the message title.
-	Title string `json:"title"`
-	// Date is the ISO 8601 time the server created the message.
-	Date string `json:"date"`
-	// Priority is the message's priority.
-	Priority int `json:"priority"`
-	// ID is the message's identifier.
-	ID uint64 `json:"id"`
-	// AppID is the identifier of the application that sent the message.
-	AppID uint64 `json:"appid"`
-}
-
 // responseError represents an error response from the Gotify API.
 // This struct captures structured error information returned by the server
 // when a request fails, providing detailed error context.

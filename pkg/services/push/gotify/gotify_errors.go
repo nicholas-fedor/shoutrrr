@@ -25,28 +25,10 @@ var (
 	ErrExtrasParseFailed = errors.New("failed to parse extras JSON from URL query")
 )
 
-// HTTP/Communication errors.
+// Send errors.
 var (
-	// ErrUnexpectedStatus indicates an unexpected HTTP response status.
-	ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
-
 	// ErrSendFailed indicates failure to send notification to Gotify.
 	ErrSendFailed = errors.New("failed to send notification to Gotify")
-
-	// ErrMarshalRequest indicates failure to marshal request.
-	ErrMarshalRequest = errors.New("failed to marshal request")
-
-	// ErrCreateRequest indicates failure to create HTTP request.
-	ErrCreateRequest = errors.New("failed to create HTTP request")
-
-	// ErrSendRequest indicates failure to send HTTP request.
-	ErrSendRequest = errors.New("failed to send HTTP request")
-
-	// ErrReadResponse indicates failure to read HTTP response.
-	ErrReadResponse = errors.New("failed to read HTTP response")
-
-	// ErrParseResponse indicates failure to parse HTTP response.
-	ErrParseResponse = errors.New("failed to parse HTTP response")
 )
 
 // Configuration errors.

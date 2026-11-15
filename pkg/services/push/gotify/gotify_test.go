@@ -180,7 +180,6 @@ func TestInitialize(t *testing.T) {
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)
-	assert.IsType(t, &DefaultSender{}, service.sender)
 	assert.IsType(t, &http.Client{}, service.client.Client())
 
 	err := (&Service{}).Initialize(parseTestURL(t, testServiceURL+"?extras=%7Binvalid"), log.New(t.Output(), "", 0))

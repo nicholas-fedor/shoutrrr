@@ -1,7 +1,6 @@
 package gotify
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -19,79 +18,87 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// headerAuth is the header that sends the token in a request.
-var headerAuth = http.Header{"X-Gotify-Key": {testToken}}
-
-// testRequest is the message request the sender tests send.
+// testRequest is the message request the send tests post.
 var testRequest = &MessageRequest{Message: "Hello", Title: "Backup", Priority: 5}
 
-// TestSendRequestContext verifies the request the sender makes: a JSON POST
-// to the URL with the given headers, and that a created message is a
-// success.
-func TestSendRequestContext(t *testing.T) {
+// TestSendRequest verifies the request a send makes: a JSON POST to the URL,
+// with the token in the X-Gotify-Key header only under header
+// authentication, and that a created message is a success.
+func TestSendRequest(t *testing.T) {
 	t.Parallel()
 
-	// tests lists headers with the X-Gotify-Key header each should send.
+	// tests lists service URLs with the headers each request should carry.
 	tests := []struct {
-		headers http.Header
-		name    string
-		wantKey string
+		wantHeader http.Header
+		name       string
+		serviceURL string
 	}{
-		{name: "token in the query"},
-		{name: "token in a header", headers: headerAuth, wantKey: testToken},
+		{
+			name:       "token in a header",
+			serviceURL: testServiceURL,
+			wantHeader: http.Header{"Content-Type": {"application/json"}, "X-Gotify-Key": {testToken}},
+		},
+		{
+			name:       "token in the query",
+			serviceURL: testServiceURL + "?useheader=no",
+			wantHeader: http.Header{"Content-Type": {"application/json"}},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, captured := newRecordingClient(t, sent)
+			service := newTestService(t, tt.serviceURL)
 
-			require.NoError(t, (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, testRequest, tt.headers))
+			var got *http.Request
 
-			requests := captured()
-			require.Len(t, requests, 1)
-			assert.Equal(t, http.MethodPost, requests[0].method)
-			assert.Equal(t, testEndpoint, requests[0].url)
-			assert.Equal(t, "application/json", requests[0].contentType)
-			assert.Equal(t, tt.wantKey, requests[0].gotifyKey)
-			assert.JSONEq(t, `{"message":"Hello","title":"Backup","priority":5}`, requests[0].body)
+			client := typesmocks.NewMockHTTPClient(t)
+			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				got = req
+
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(sentBody))}, nil
+			}).Once()
+
+			require.NoError(t, service.sendRequest(t.Context(), client, service.Config, testEndpoint, testRequest))
+
+			body, err := io.ReadAll(got.Body)
+			require.NoError(t, err)
+			assert.Equal(t, http.MethodPost, got.Method)
+			assert.Equal(t, testEndpoint, got.URL.String())
+			assert.Equal(t, tt.wantHeader, got.Header)
+			assert.JSONEq(t, `{"message":"Hello","title":"Backup","priority":5}`, string(body))
 		})
 	}
 }
 
-// TestSendRequest verifies that SendRequest sends like SendRequestContext.
-func TestSendRequest(t *testing.T) {
-	t.Parallel()
-
-	client, captured := newRecordingClient(t, sent)
-
-	require.NoError(t, (&DefaultSender{}).SendRequest(client, testEndpoint, testRequest, nil))
-	assert.Len(t, captured(), 1)
-}
-
-// TestSendRequestErrorResponses verifies the error for each failed response,
-// with the token in the query and in a header: the server's error, labeled as
-// a client or server error by status, when the body has one, the status
-// otherwise, and a parse error for a success body that is not JSON. A body
-// over [httpbody.MaxSize] still yields the server's error, and fails a success
-// status as too large. The service adds [ErrSendFailed], so the sender's errors
-// leave it out.
+// TestSendRequestErrorResponses verifies the error for each failed response.
+// The server's error comes back labeled as a client or server error by status
+// when the body of an error status has one. Any other status outside 200 to
+// 299, a redirect included, gives [jsonclient.ErrUnexpectedStatus], and a
+// success body that is not JSON gives the decoding error. A body over
+// [httpbody.MaxSize] still yields the server's error, and fails a success
+// status as too large. Every error wraps [ErrSendFailed].
 func TestSendRequestErrorResponses(t *testing.T) {
 	t.Parallel()
 
-	// tests lists responses and headers with the error each should produce.
+	// tests lists responses with the error each should produce, after the
+	// ErrSendFailed text.
 	tests := []struct {
 		wantErr   error
-		headers   http.Header
 		name      string
-		response  cannedResponse
 		wantError string
+		response  cannedResponse
 	}{
 		{
-			name:      "error response",
+			name:      "client error response",
 			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
 			wantError: "client error (401): server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api",
+		},
+		{
+			name:      "bad request response",
+			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{"error":"Bad Request","errorCode":400,"errorDescription":"Field 'message' is required"}`},
+			wantError: "client error (400): server responded with Bad Request (400): Field 'message' is required",
 		},
 		{
 			name:      "server error response",
@@ -99,7 +106,13 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			wantError: "server error (500): server responded with Internal Server Error (500): database is locked",
 		},
 		{
-			name:      "status without an error body",
+			name:      "client status without an error body",
+			response:  cannedResponse{statusCode: http.StatusNotFound, body: "404 page not found"},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 404 Not Found",
+		},
+		{
+			name:      "server status without an error body",
 			response:  cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
 			wantErr:   jsonclient.ErrUnexpectedStatus,
 			wantError: "got unexpected HTTP status: 502 Bad Gateway",
@@ -112,7 +125,13 @@ func TestSendRequestErrorResponses(t *testing.T) {
 		},
 		{
 			name:      "redirect with a success body",
-			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: `{"id":1}`},
+			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: sentBody},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 307 Temporary Redirect",
+		},
+		{
+			name:      "redirect with an error body",
+			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: unauthorizedBody},
 			wantErr:   jsonclient.ErrUnexpectedStatus,
 			wantError: "got unexpected HTTP status: 307 Temporary Redirect",
 		},
@@ -122,60 +141,7 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			wantError: "jsontext: invalid character 'O' at start of value",
 		},
 		{
-			name:      "client error response with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
-			wantError: "client error (401): server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api",
-		},
-		{
-			name:      "bad request response with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{"error":"Bad Request","errorCode":400,"errorDescription":"Field 'message' is required"}`},
-			wantError: "client error (400): server responded with Bad Request (400): Field 'message' is required",
-		},
-		{
-			name:      "server error response with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusInternalServerError, body: `{"error":"Internal Server Error","errorCode":500,"errorDescription":"database is locked"}`},
-			wantError: "server error (500): server responded with Internal Server Error (500): database is locked",
-		},
-		{
-			name:      "client status without an error body with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusNotFound, body: "404 page not found"},
-			wantErr:   ErrUnexpectedStatus,
-			wantError: "got unexpected HTTP status: 404 Not Found",
-		},
-		{
-			name:      "server status without an error body with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusServiceUnavailable},
-			wantErr:   ErrUnexpectedStatus,
-			wantError: "got unexpected HTTP status: 503 Service Unavailable",
-		},
-		{
-			name:      "JSON body without an error with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{}`},
-			wantErr:   ErrUnexpectedStatus,
-			wantError: "got unexpected HTTP status: 400 Bad Request",
-		},
-		{
-			name:      "redirect with a success body with the token in a header",
-			headers:   headerAuth,
-			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: `{"id":1}`},
-			wantErr:   ErrUnexpectedStatus,
-			wantError: "got unexpected HTTP status: 307 Temporary Redirect",
-		},
-		{
-			name:     "success body not JSON with the token in a header",
-			headers:  headerAuth,
-			response: cannedResponse{statusCode: http.StatusOK, body: "OK"},
-			wantErr:  ErrParseResponse,
-		},
-		{
-			name:    "oversized server error response with the token in a header",
-			headers: headerAuth,
+			name: "oversized server error response",
 			response: cannedResponse{
 				statusCode: http.StatusInternalServerError,
 				body:       `{"error":"Internal Server Error","errorCode":500,"errorDescription":"database is locked"}` + strings.Repeat(" ", httpbody.MaxSize),
@@ -183,9 +149,8 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			wantError: "server error (500): server responded with Internal Server Error (500): database is locked",
 		},
 		{
-			name:     "oversized success body with the token in a header",
-			headers:  headerAuth,
-			response: cannedResponse{statusCode: http.StatusOK, body: `{"id":1}` + strings.Repeat(" ", httpbody.MaxSize)},
+			name:     "oversized success body",
+			response: cannedResponse{statusCode: http.StatusOK, body: sentBody + strings.Repeat(" ", httpbody.MaxSize)},
 			wantErr:  httpbody.ErrTooLarge,
 		},
 	}
@@ -194,112 +159,91 @@ func TestSendRequestErrorResponses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			service := newTestService(t, testServiceURL)
 			client, _ := newRecordingClient(t, tt.response)
 
-			err := (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, testRequest, tt.headers)
+			err := service.sendRequest(t.Context(), client, service.Config, testEndpoint, testRequest)
 
-			require.Error(t, err)
-			require.NotErrorIs(t, err, ErrSendFailed)
+			require.ErrorIs(t, err, ErrSendFailed)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			}
 
 			if tt.wantError != "" {
-				assert.EqualError(t, err, tt.wantError)
+				assert.EqualError(t, err, ErrSendFailed.Error()+": "+tt.wantError)
 			}
 		})
 	}
 }
 
-// TestSendRequestFailures verifies that a transport error, a request that
-// cannot be built, a body that cannot be read, and a request that cannot be
-// encoded fail the send, without the token in the error.
+// TestSendRequestFailures verifies that each of these failures fails the send
+// with [ErrSendFailed]:
+//   - a transport error
+//   - a request that cannot be built
+//   - a request that cannot be encoded
+//   - a body that cannot be read
+//
+// The error of a transport failure or an unbuildable request leaves out the
+// token.
 func TestSendRequestFailures(t *testing.T) {
 	t.Parallel()
 
-	for _, headers := range []http.Header{nil, headerAuth} {
-		t.Run("transport error "+headers.Get("X-Gotify-Key"), func(t *testing.T) {
-			t.Parallel()
-
-			client, _ := newRecordingClient(t, cannedResponse{err: errTransport})
-
-			err := (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, testRequest, headers)
-
-			require.ErrorIs(t, err, errTransport)
-			assert.NotContains(t, err.Error(), testToken)
-		})
-
-		t.Run("unparsable URL "+headers.Get("X-Gotify-Key"), func(t *testing.T) {
-			t.Parallel()
-
-			// The mock has no expectations, so a request fails the test.
-			client := typesmocks.NewMockHTTPClient(t)
-
-			err := (&DefaultSender{}).SendRequestContext(t.Context(), client, "https://bad host/message?token="+testToken, testRequest, headers)
-
-			_, isURLErr := errors.AsType[*url.Error](err)
-			require.True(t, isURLErr, "error %v is not a *url.Error", err)
-			assert.NotContains(t, err.Error(), testToken)
-		})
-
-		t.Run("request not JSON "+headers.Get("X-Gotify-Key"), func(t *testing.T) {
-			t.Parallel()
-
-			// The mock has no expectations, so a request fails the test.
-			client := typesmocks.NewMockHTTPClient(t)
-			request := &MessageRequest{Message: "Hello", Extras: map[string]any{"channel": make(chan int)}}
-
-			require.Error(t, (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, request, headers))
-		})
-	}
-
-	t.Run("sentinel errors with the token in a header", func(t *testing.T) {
+	t.Run("transport error", func(t *testing.T) {
 		t.Parallel()
 
+		service := newTestService(t, testServiceURL)
 		client, _ := newRecordingClient(t, cannedResponse{err: errTransport})
-		request := &MessageRequest{Message: "Hello", Extras: map[string]any{"channel": make(chan int)}}
-		sender := &DefaultSender{}
 
-		require.ErrorIs(t, sender.SendRequestContext(t.Context(), client, testEndpoint, testRequest, headerAuth), ErrSendRequest)
-		require.ErrorIs(t, sender.SendRequestContext(t.Context(), client, testEndpoint, request, headerAuth), ErrMarshalRequest)
-		require.ErrorIs(t, sender.SendRequestContext(t.Context(), client, "https://bad host/message", testRequest, headerAuth), ErrCreateRequest)
+		err := service.sendRequest(t.Context(), client, service.Config, testEndpoint, testRequest)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), testToken)
 	})
 
-	t.Run("body read error with the token in a header", func(t *testing.T) {
+	t.Run("unparsable URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL+"?useheader=no")
+		// The mock has no expectations, so a request fails the test.
+		client := typesmocks.NewMockHTTPClient(t)
+
+		err := service.sendRequest(t.Context(), client, service.Config, "https://bad host/message?token="+testToken, testRequest)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+
+		_, isURLErr := errors.AsType[*url.Error](err)
+		require.True(t, isURLErr, "error %v is not a *url.Error", err)
+		assert.NotContains(t, err.Error(), testToken)
+	})
+
+	t.Run("request not JSON", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		client := typesmocks.NewMockHTTPClient(t)
+		request := &MessageRequest{Message: "Hello", Extras: map[string]any{"channel": make(chan int)}}
+
+		require.ErrorIs(t, service.sendRequest(t.Context(), client, service.Config, testEndpoint, request), ErrSendFailed)
+	})
+
+	t.Run("body read error", func(t *testing.T) {
 		t.Parallel()
 
 		errRead := errors.New("connection reset")
 
+		service := newTestService(t, testServiceURL)
 		client := typesmocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).Return(&http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(iotest.ErrReader(errRead)),
 		}, nil).Once()
 
-		err := (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, testRequest, headerAuth)
+		err := service.sendRequest(t.Context(), client, service.Config, testEndpoint, testRequest)
 
-		require.ErrorIs(t, err, ErrReadResponse)
+		require.ErrorIs(t, err, ErrSendFailed)
 		require.ErrorIs(t, err, errRead)
 	})
-}
-
-// TestSendRequestHeaders verifies that the request carries the JSON content
-// type and every value of each given header.
-func TestSendRequestHeaders(t *testing.T) {
-	t.Parallel()
-
-	var got http.Header
-
-	client := typesmocks.NewMockHTTPClient(t)
-	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-		got = req.Header.Clone()
-
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(sentBody))}, nil
-	}).Once()
-
-	headers := http.Header{"X-Gotify-Key": {testToken}, "X-Trace": {"a", "b"}}
-
-	require.NoError(t, (&DefaultSender{}).SendRequestContext(context.Background(), client, testEndpoint, testRequest, headers))
-	assert.Equal(t, http.Header{"Content-Type": {"application/json"}, "X-Gotify-Key": {testToken}, "X-Trace": {"a", "b"}}, got)
 }
