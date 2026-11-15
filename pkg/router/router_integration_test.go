@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -270,6 +271,9 @@ const (
 	// checkEmptyListElements verifies that a list setting with an empty
 	// element reads back and sends as the list without it.
 	checkEmptyListElements = "empty_list_elements"
+	// checkRedirectFails verifies that a send answered with a redirect status
+	// that the client did not follow fails with an error naming the status.
+	checkRedirectFails = "redirect_fails"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -323,6 +327,8 @@ const (
 	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
 	failPathSegmentLeft                         // a config value left its segment of a request path
 	failEmptyElementKept                        // a list with an empty element read back or sent unlike the list without it
+	failRedirectAccepted                        // a send answered with a redirect status succeeded
+	failRedirectUnreported                      // a send answered with a redirect status failed without naming the status
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -749,6 +755,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkSendLikeReadBack, runSendLikeReadBack},
 		{checkPathSegments, runPathSegments},
 		{checkEmptyListElements, runEmptyListElements},
+		{checkRedirectFails, runRedirectFails},
 	}
 
 	for _, check := range checks {
@@ -1811,6 +1818,50 @@ func runUnknownParams(t *testing.T, fx *fixture) failure {
 		if !errors.Is(env.sendErr, format.ErrInvalidConfigKey) &&
 			(env.sendErr == nil || !strings.Contains(env.sendErr.Error(), format.ErrInvalidConfigKey.Error())) {
 			result = fail(failUnknownParamAccepted, "an unknown param did not fail the send: %v", env.sendErr)
+		}
+	})
+
+	return result
+}
+
+// runRedirectFails verifies that an HTTP service fails a send whose requests
+// are answered with 307 Temporary Redirect and the fixture's success body, with
+// an error that names the status. The injected client returns the redirect
+// without following it.
+func runRedirectFails(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind != netHTTP {
+		return failure{}
+	}
+
+	redirected := *fx
+	redirected.status = http.StatusTemporaryRedirect
+
+	var result failure
+
+	// Services that retry a failed request wait between attempts, so the send
+	// runs on synctest's fake clock.
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, &redirected, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		if result = env.send(service, nil); result.kind != failNone {
+			return
+		}
+
+		switch {
+		case env.sendErr == nil:
+			result = fail(failRedirectAccepted, "a send answered with status %d succeeded", redirected.status)
+		case !strings.Contains(env.sendErr.Error(), strconv.Itoa(redirected.status)):
+			result = fail(failRedirectUnreported, "the error does not name status %d: %v", redirected.status, env.sendErr)
+		default:
 		}
 	})
 

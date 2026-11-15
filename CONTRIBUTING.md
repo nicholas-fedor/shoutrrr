@@ -208,6 +208,8 @@ Every service follows the same rules, so services behave alike for users and for
   Its default clients refuse a redirect to another host or from HTTPS to HTTP.
 - Build any other client with `httpclient.NewClient`, such as a generator's.
   It follows the same redirect policy.
+- Count a request as answered only on a 2xx status, or on the success statuses the provider documents.
+  A redirect reaches the service only when the client did not follow it, so the request never reached the provider and the send fails.
 - Restore the default client when `SetHTTPClient` receives nil.
   The holder uses a nil value of another client type as given, and turns a runtime panic from it into `types.ErrNilHTTPClient`.
 - Export no client fields, client interfaces, or client constructors.
@@ -351,6 +353,8 @@ Every service follows the same rules, so services behave alike for users and for
   A field holding only an empty element must also work as an empty field.
   Reading the config's URL back must give the result for the list without the empty element.
   A send must make the same requests, with the same headers and bodies, and return the same error.
+- The `redirect_fails` contract check answers every request of an HTTP service with a 307 and the body of a successful reply.
+  A service passes only when the send fails with an error that names the status.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

@@ -197,8 +197,10 @@ func doSend(ctx context.Context, client jsonclient.ContextClient, config *Config
 	// The reply is the created push. It is decoded only to reject a reply that
 	// is not JSON, such as a page from an intermediate server.
 	if err := client.PostContext(ctx, pushesEndpoint, push, &struct{}{}); err != nil {
+		// Every Pushbullet error has a message. A JSON body without one, such
+		// as the reply a redirect carries, is not the API's error.
 		errorResponse := &ResponseError{}
-		if client.ErrorResponse(err, errorResponse) {
+		if client.ErrorResponse(err, errorResponse) && errorResponse.ErrorData.Message != "" {
 			return fmt.Errorf("API error: %w", errorResponse)
 		}
 

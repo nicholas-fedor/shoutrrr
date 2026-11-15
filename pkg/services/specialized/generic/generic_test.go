@@ -563,35 +563,38 @@ func TestSendSkipTLSVerify(t *testing.T) {
 }
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed for a
-// payload error, an error status, or a transport error without the webhook
-// query, accepts statuses below 400, and stops when the caller's context is
-// canceled.
+// payload error. It fails the same way for a status outside 200 to 299, a
+// redirect included. A transport error fails without the webhook query. A
+// send also stops when the caller's context is canceled.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("error status", func(t *testing.T) {
-		t.Parallel()
+	// statusTests lists statuses outside 2xx by the status line the error
+	// names.
+	statusTests := []struct {
+		name   string
+		status string
+		code   int
+	}{
+		{name: "error status", status: "404 Not Found", code: http.StatusNotFound},
+		{name: "redirect status", status: "307 Temporary Redirect", code: http.StatusTemporaryRedirect},
+	}
 
-		service := newTestService(t, "generic://host.tld/webhook")
-		client, _ := newRespondingClient(t, "404 Not Found", http.StatusNotFound)
-		service.SetHTTPClient(client)
+	for _, tt := range statusTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		err := service.SendContext(t.Context(), "Message", nil)
+			service := newTestService(t, "generic://host.tld/webhook")
+			client, _ := newRespondingClient(t, tt.status, tt.code)
+			service.SetHTTPClient(client)
 
-		require.ErrorIs(t, err, ErrSendFailed)
-		require.ErrorIs(t, err, ErrUnexpectedStatus)
-		assert.Contains(t, err.Error(), "404 Not Found")
-	})
+			err := service.SendContext(t.Context(), "Message", nil)
 
-	t.Run("redirect status", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, "generic://host.tld/webhook")
-		client, _ := newRespondingClient(t, "304 Not Modified", http.StatusNotModified)
-		service.SetHTTPClient(client)
-
-		require.NoError(t, service.SendContext(t.Context(), "Message", nil))
-	})
+			require.ErrorIs(t, err, ErrSendFailed)
+			require.ErrorIs(t, err, ErrUnexpectedStatus)
+			assert.Contains(t, err.Error(), tt.status)
+		})
+	}
 
 	t.Run("payload error", func(t *testing.T) {
 		t.Parallel()

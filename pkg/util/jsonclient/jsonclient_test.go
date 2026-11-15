@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -744,7 +745,7 @@ func TestParseResponse_TooLarge(t *testing.T) {
 
 			require.ErrorIs(t, err, httpbody.ErrTooLarge)
 
-			if status >= HTTPClientErrorThreshold {
+			if status != http.StatusOK {
 				require.ErrorIs(t, err, ErrUnexpectedStatus)
 			} else {
 				require.NotErrorIs(t, err, ErrUnexpectedStatus)
@@ -1068,13 +1069,6 @@ func TestContentType_Constant(t *testing.T) {
 	assert.Equal(t, "application/json", ContentType, "ContentType constant mismatch")
 }
 
-// TestHTTPClientErrorThreshold_Constant tests the HTTPClientErrorThreshold constant.
-func TestHTTPClientErrorThreshold_Constant(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, 400, HTTPClientErrorThreshold, "HTTPClientErrorThreshold constant mismatch")
-}
-
 // TestErrUnexpectedStatus tests the ErrUnexpectedStatus error.
 func TestErrUnexpectedStatus(t *testing.T) {
 	t.Parallel()
@@ -1181,7 +1175,9 @@ func TestClient_Post_DoError(t *testing.T) {
 	assert.ErrorIs(t, err, expectedErr, "Error should wrap the original HTTP error")
 }
 
-// TestParseResponse_StatusCodeBoundary verifies 399 = success, 400 = error.
+// TestParseResponse_StatusCodeBoundary verifies that only a status from 200
+// to 299 decodes the body. Every other status fails with [ErrUnexpectedStatus]
+// and leaves the body undecoded, even when it is valid JSON.
 func TestParseResponse_StatusCodeBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -1190,57 +1186,80 @@ func TestParseResponse_StatusCodeBoundary(t *testing.T) {
 		statusCode int
 		wantErr    bool
 	}{
-		{
-			name:       "status 399 is success",
-			statusCode: 399,
-			wantErr:    false,
-		},
-		{
-			name:       "status 400 is error",
-			statusCode: 400,
-			wantErr:    true,
-		},
+		{name: "informational", statusCode: http.StatusEarlyHints, wantErr: true},
+		{name: "first success", statusCode: http.StatusOK},
+		{name: "last success", statusCode: 299},
+		{name: "first redirect", statusCode: http.StatusMultipleChoices, wantErr: true},
+		{name: "temporary redirect", statusCode: http.StatusTemporaryRedirect, wantErr: true},
+		{name: "last redirect", statusCode: 399, wantErr: true},
+		{name: "client error", statusCode: http.StatusBadRequest, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", ContentType)
-				w.WriteHeader(tt.statusCode)
-				_, err := w.Write([]byte(`{"data": "test"}`))
-				assert.NoError(t, err, "Failed to write response")
-			}))
-			defer server.Close()
-
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, http.NoBody)
-			require.NoError(t, err, "Failed to create request")
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			require.NoError(t, err, "Failed to make request")
-
-			defer func() { _ = resp.Body.Close() }()
+			res := &http.Response{
+				StatusCode: tt.statusCode,
+				Status:     strconv.Itoa(tt.statusCode) + " " + http.StatusText(tt.statusCode),
+				Body:       io.NopCloser(strings.NewReader(`{"data": "test"}`)),
+			}
 
 			var result struct {
 				Data string `json:"data"`
 			}
 
-			err = parseResponse(resp, &result)
+			err := parseResponse(res, &result)
 
-			if tt.wantErr {
-				require.Error(t, err, "parseResponse() should return error for HTTP %d", tt.statusCode)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				assert.Equal(t, "test", result.Data)
 
-				var jsonErr Error
-				require.ErrorAs(t, err, &jsonErr, "Error should be jsonclient.Error")
-				assert.Equal(t, tt.statusCode, jsonErr.StatusCode, "StatusCode mismatch")
-			} else {
-				require.NoError(t, err, "parseResponse() should not return error for HTTP %d", tt.statusCode)
-				assert.Equal(t, "test", result.Data, "Data mismatch")
+				return
 			}
+
+			require.ErrorIs(t, err, ErrUnexpectedStatus)
+
+			jsonErr, ok := errors.AsType[Error](err)
+			require.True(t, ok, "error %v is not a jsonclient.Error", err)
+			assert.Equal(t, tt.statusCode, jsonErr.StatusCode)
+			assert.JSONEq(t, `{"data": "test"}`, jsonErr.Body)
+			assert.Empty(t, result.Data, "a status outside 2xx must not decode the body")
 		})
 	}
+}
+
+// TestClient_UnfollowedRedirect verifies that a request through a client
+// whose CheckRedirect declines redirects with [http.ErrUseLastResponse] fails
+// with [ErrUnexpectedStatus] instead of decoding the redirect's body.
+func TestClient_UnfollowedRedirect(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+
+		w.Header().Set("Location", "/elsewhere")
+		w.Header().Set("Content-Type", ContentType)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+
+	var response struct {
+		OK bool `json:"ok"`
+	}
+
+	err := NewContextClient(client).PostContext(t.Context(), server.URL, map[string]string{}, &response)
+
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
+	assert.False(t, response.OK, "the redirect's body must not be decoded")
+	assert.Equal(t, int32(1), requests.Load(), "the redirect must not be followed")
 }
 
 // TestClient_Get_InvalidURL tests request creation error with malformed URL.

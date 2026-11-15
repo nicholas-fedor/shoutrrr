@@ -131,7 +131,7 @@
 //   - Network connectivity issues
 //   - Invalid server hostname or port
 //   - TLS certificate verification failures (when TLS is enabled)
-//   - HTTP error status codes (4xx/5xx) from the Gotify server
+//   - HTTP status codes outside 2xx from the Gotify server, including a redirect the HTTP client did not follow
 //   - Invalid JSON in extras parameter
 //   - Authentication failures (invalid or expired token)
 //

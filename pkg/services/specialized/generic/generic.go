@@ -50,7 +50,8 @@ const (
 var (
 	// ErrSendFailed indicates a failure to send a notification to the generic webhook.
 	ErrSendFailed = errors.New("failed to send notification to generic webhook")
-	// ErrUnexpectedStatus indicates that the webhook answered with an error status, 400 or above.
+	// ErrUnexpectedStatus indicates that the webhook answered with a status outside 200 to 299,
+	// such as an error status or a redirect that the HTTP client did not follow.
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
 	// ErrTemplateNotLoaded indicates that the configured template is not loaded.
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
@@ -267,7 +268,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - params: the send params, which fill the payload template.
 //
 // Returns:
-//   - error: the payload or request error, or [ErrUnexpectedStatus] for an error status.
+//   - error: the payload or request error, or [ErrUnexpectedStatus] for a status outside 200 to 299.
 func (s *Service) doSend(ctx context.Context, config *Config, params types.Params) error {
 	// Get the webhook URL as string
 	postURL := config.WebhookURL().String()
@@ -316,8 +317,9 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 		s.LogAttrs(ctx, slog.LevelDebug, "response received", slog.String(logging.KeyStatus, res.Status))
 	}
 
-	if res.StatusCode >= http.StatusBadRequest {
-		// Check for error status codes (4xx and 5xx)
+	// A redirect the HTTP client did not follow never reached the webhook,
+	// so only a 2xx status counts as delivered.
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 	}
 

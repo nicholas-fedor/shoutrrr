@@ -201,10 +201,14 @@ func TestSendWebhook(t *testing.T) {
 	}
 }
 
-// TestSendWebhookErrors verifies that a webhook send fails with the error
-// code the webhook returns, the status of an empty error response, the
-// transport error without the webhook secret, or a body read error. An error
-// code in a body over [httpbody.MaxSize] is still reported.
+// TestSendWebhookErrors verifies how a webhook send fails:
+//   - It reports the error code the webhook returns, even in a body over
+//     [httpbody.MaxSize].
+//   - It reports the status of a response other than 200 without one.
+//   - It fails a reply of "ok" with any status but 200.
+//   - It reports the status of a redirect, whatever its body.
+//   - It reports the transport error without the webhook secret.
+//   - It reports a body read error.
 func TestSendWebhookErrors(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +223,16 @@ func TestSendWebhookErrors(t *testing.T) {
 		{name: "error code", status: http.StatusBadRequest, body: "invalid_payload", wantErr: ErrWebhookResponseFailure, wantText: "invalid_payload"},
 		{name: "error code with OK status", status: http.StatusOK, body: "no_text", wantErr: ErrWebhookResponseFailure, wantText: "no_text"},
 		{name: "empty error response", status: http.StatusInternalServerError, body: "", wantErr: ErrWebhookStatusFailure, wantText: "Internal Server Error"},
+		{name: "ok with an error status", status: http.StatusInternalServerError, body: "ok", wantErr: ErrWebhookStatusFailure, wantText: "Internal Server Error"},
+		{name: "ok with a redirect status", status: http.StatusTemporaryRedirect, body: "ok", wantErr: ErrWebhookStatusFailure, wantText: "Temporary Redirect"},
+		{name: "empty redirect response", status: http.StatusFound, body: "", wantErr: ErrWebhookStatusFailure, wantText: "Found"},
+		{
+			name:     "redirect with an HTML page",
+			status:   http.StatusMovedPermanently,
+			body:     "<html><title>301 Moved Permanently</title></html>",
+			wantErr:  ErrWebhookStatusFailure,
+			wantText: "Moved Permanently",
+		},
 		{
 			name:     "oversized error code",
 			status:   http.StatusBadRequest,

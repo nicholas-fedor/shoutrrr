@@ -128,10 +128,11 @@ func (s *DefaultSender) SendRequestContext(
 //   - body: the response body.
 //
 // Returns:
-//   - error: the Gotify error in the body for an error status, or
-//     [ErrUnexpectedStatus] with the status when the body has none, or nil.
+//   - error: nil for a status from 200 to 299. Otherwise the Gotify error in
+//     the body, or [ErrUnexpectedStatus] with the status when the body has
+//     none.
 func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
-	if res.StatusCode < http.StatusBadRequest {
+	if res.StatusCode >= http.StatusOK && res.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
 
@@ -155,9 +156,9 @@ func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) err
 //
 // Returns:
 //   - []byte: the response body.
-//   - error: the marshaling, request, or response error. An error status is
-//     reported before a body larger than [httpbody.MaxSize], which is
-//     [ErrReadResponse] wrapping [httpbody.ErrTooLarge].
+//   - error: the marshaling, request, or response error. A status outside
+//     200 to 299 is reported before a body larger than [httpbody.MaxSize],
+//     which is [ErrReadResponse] wrapping [httpbody.ErrTooLarge].
 func (s *DefaultSender) sendRequestWithHeaders(
 	ctx context.Context,
 	client types.HTTPClient,
@@ -194,7 +195,8 @@ func (s *DefaultSender) sendRequestWithHeaders(
 		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}
 
-	// An error status is reported from the first bytes of an oversized body.
+	// A status outside 2xx is reported from the first bytes of an oversized
+	// body.
 	if statusErr := s.handleResponseError(res, body); statusErr != nil {
 		return nil, statusErr
 	}

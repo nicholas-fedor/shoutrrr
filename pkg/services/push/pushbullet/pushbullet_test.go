@@ -314,6 +314,7 @@ func TestSendResponses(t *testing.T) {
 // TestSendContextErrors verifies how a send fails:
 //   - It reports the API's error message, naming the target.
 //   - It wraps other request errors.
+//   - It fails a redirect with its status, even when the body is JSON.
 //   - It rejects a reply that is not JSON, whatever its status.
 //   - It keeps sending to the targets after a failing one.
 //   - It rejects an unknown param before any request.
@@ -342,6 +343,21 @@ func TestSendContextErrors(t *testing.T) {
 
 		service := newTestService(t, "pushbullet://"+testToken+"/device")
 		client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, jsonclient.ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "failed to push")
+	})
+
+	// A redirect the HTTP client did not follow carries no API error, even
+	// when its body is JSON.
+	t.Run("redirect with a success body", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusTemporaryRedirect, body: createdPush})
 		service.SetHTTPClient(client)
 
 		err := service.SendContext(t.Context(), "Message", nil)

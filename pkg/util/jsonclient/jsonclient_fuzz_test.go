@@ -28,13 +28,13 @@ type fuzzResponse struct {
 	Nested map[string]any `json:"nested"`
 }
 
-// FuzzParseResponse checks that an error status always fails with an [Error]
-// that matches [ErrUnexpectedStatus] and keeps the status and the exact body,
-// without decoding it, and that any other status decodes exactly what
-// [json.Unmarshal] decodes, failing with an [Error] that keeps the status, the
-// body, and the decoding error when it fails. The seed corpus covers valid,
-// malformed, mistyped, and empty bodies with success, redirect, client error,
-// and server error statuses.
+// FuzzParseResponse checks that a status outside 200 to 299 always fails with
+// an [Error] that matches [ErrUnexpectedStatus] and keeps the status and the
+// exact body, without decoding it. A status from 200 to 299 decodes exactly
+// what [json.Unmarshal] decodes, failing with an [Error] that keeps the
+// status, the body, and the decoding error when it fails. The seed corpus
+// covers valid, malformed, mistyped, and empty bodies with informational,
+// success, redirect, client error, and server error statuses.
 func FuzzParseResponse(f *testing.F) {
 	for _, seed := range []struct {
 		body   string
@@ -46,6 +46,8 @@ func FuzzParseResponse(f *testing.F) {
 		{`{"count":"one"}`, http.StatusOK},
 		{`{"name":`, http.StatusOK},
 		{`[1,2,3]`, http.StatusFound},
+		{`{"name":"a"}`, http.StatusTemporaryRedirect},
+		{`{"name":"a"}`, http.StatusContinue},
 		{`{"error":"bad request"}`, http.StatusBadRequest},
 		{`not json`, http.StatusInternalServerError},
 	} {
@@ -67,10 +69,10 @@ func FuzzParseResponse(f *testing.F) {
 
 		err := parseResponse(res, &got)
 
-		if status >= HTTPClientErrorThreshold {
+		if status < http.StatusOK || status >= http.StatusMultipleChoices {
 			requireJSONError(t, err, status, body)
 			require.ErrorIs(t, err, ErrUnexpectedStatus)
-			assert.Zero(t, got, "an error status must not decode the body")
+			assert.Zero(t, got, "a status outside 2xx must not decode the body")
 
 			return
 		}

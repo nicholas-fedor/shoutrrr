@@ -150,7 +150,7 @@
 //   - Network connectivity issues
 //   - Invalid server hostname or port
 //   - TLS certificate verification failures (when HTTPS is used)
-//   - HTTP error status codes (4xx/5xx) from the Bark server
+//   - HTTP status codes outside 2xx from the Bark server, including a redirect the HTTP client did not follow
 //   - Invalid icon URL
 //   - Server-side errors (returned in API response message)
 //
