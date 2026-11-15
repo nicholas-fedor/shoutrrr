@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -715,6 +716,45 @@ func TestSendDefaultClient(t *testing.T) {
 			assert.Equal(t, http.MethodPost, received.method)
 			assert.Equal(t, "/hook", received.url)
 			assert.Equal(t, "Message", received.body)
+		})
+	}
+}
+
+// TestSendDefaultClientRedirects verifies that a send through the default
+// client fails when the webhook answers its POST with a 302 on its own host,
+// since net/http would resend the POST as a GET without the message. A 303
+// points to the webhook's response to the POST, so the send succeeds.
+func TestSendDefaultClientRedirects(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the webhook's redirect status with the error the send gets.
+	tests := []struct {
+		wantErr error
+		name    string
+		status  int
+	}{
+		{name: "302 Found", status: http.StatusFound, wantErr: httpclient.ErrRedirectRefused},
+		{name: "303 See Other", status: http.StatusSeeOther},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.URL.Path == "/hook" {
+					http.Redirect(w, req, "/target", tt.status)
+
+					return
+				}
+
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			t.Cleanup(server.Close)
+
+			service := newTestService(t, "generic://"+server.Listener.Addr().String()+"/hook?disabletls=yes")
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
 		})
 	}
 }

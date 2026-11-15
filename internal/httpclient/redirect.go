@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -27,6 +28,13 @@ var (
 // and does not go from HTTPS to HTTP. A redirect from HTTP to HTTPS on the
 // same host, as servers send to upgrade a connection, is followed.
 //
+// A redirect that changes the request method is refused too, unless it is a
+// 303. [http.Client] resends a POST answered with 301 or 302 as a GET without
+// its body, so the message would never reach the server while the GET's
+// answer looked like a delivery. A 303 points to an indirect response to the
+// original request, such as the output of a POST (RFC 9110, section 15.4.4),
+// so it is followed.
+//
 // A followed redirect can carry a service's credentials elsewhere in three
 // ways. [http.Client] forwards every header of the first request, except
 // Authorization, WWW-Authenticate, and Cookie on a redirect to another domain.
@@ -41,9 +49,9 @@ var (
 //   - via: the requests made so far, oldest first.
 //
 // Returns:
-//   - error: an error wrapping [ErrRedirectRefused] for a redirect to another
-//     host or from HTTPS to HTTP. An error after ten requests, as the default
-//     policy of [http.Client] returns. Otherwise nil.
+//   - error: an error wrapping [ErrRedirectRefused] for a redirect this policy
+//     refuses. An error after ten requests, as the default policy of
+//     [http.Client] returns. Otherwise nil.
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= maxRedirects {
 		return fmt.Errorf("%w: stopped after %d redirects", errTooManyRedirects, maxRedirects)
@@ -53,8 +61,18 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 		return fmt.Errorf("%w: the target is on another host", ErrRedirectRefused)
 	}
 
-	if req.URL.Scheme == "http" && via[len(via)-1].URL.Scheme == "https" {
+	previous := via[len(via)-1]
+
+	if req.URL.Scheme == "http" && previous.URL.Scheme == "https" {
 		return fmt.Errorf("%w: the target uses HTTP after HTTPS", ErrRedirectRefused)
+	}
+
+	// An empty method means GET, which net/http names in full on the next
+	// request.
+	previousMethod := cmp.Or(previous.Method, http.MethodGet)
+
+	if req.Method != previousMethod && req.Response.StatusCode != http.StatusSeeOther {
+		return fmt.Errorf("%w: it would resend the %s request as %s", ErrRedirectRefused, previousMethod, req.Method)
 	}
 
 	return nil
