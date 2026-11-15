@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Give each sender its own client ID by default by @nicholas-fedor in [#2214](https://github.com/nicholas-fedor/shoutrrr/pull/2214)
 - Publish through a base path without naming a sequence ID by @nicholas-fedor in [#2212](https://github.com/nicholas-fedor/shoutrrr/pull/2212)
 - Explain a homeserver that offers no password login by @nicholas-fedor in [#2208](https://github.com/nicholas-fedor/shoutrrr/pull/2208)
 - Join rooms given by ID so an invite to them is accepted by @nicholas-fedor in [#2206](https://github.com/nicholas-fedor/shoutrrr/pull/2206)
