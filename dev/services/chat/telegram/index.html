@@ -3028,7 +3028,8 @@ Replace the <code>t.me/</code> prefix from the link with a <code>@</code>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>A <code>message_thread_id</code> param (<a href="https://core.telegram.org/bots/api#sendmessage">reference</a>) can be added, with the format of <code>$chat_id:$message_thread_id</code>. <a href="https://stackoverflow.com/questions/74773675/how-to-get-topic-id-for-telegram-group-chat/75178418#75178418">More info</a> on how to obtain the <code>message_thread_id</code>.</p>
+<p>A <code>message_thread_id</code> param (<a href="https://core.telegram.org/bots/api#sendmessage">reference</a>) can be added, with the format of <code>$chat_id:$message_thread_id</code>. <a href="https://stackoverflow.com/questions/74773675/how-to-get-topic-id-for-telegram-group-chat/75178418#75178418">More info</a> on how to obtain the <code>message_thread_id</code>.
+A thread ID must be a positive integer, and any other value fails before any request is sent.</p>
 </div>
 <h3 id="chats">Chats<a class="headerlink" href="#chats" title="Permanent link">&para;</a></h3>
 <p>Private channels, Group chats and private chats are identified by <code>Chat ID</code>s. Unfortunatly, they are generally not visible in the
@@ -3052,8 +3053,9 @@ Instead you can use the second method, which is to invite the @shoutrrrbot into 
 A chat that Telegram rejects does not stop the chats after it, and the error lists every chat that failed.</p>
 <p>A message can hold up to 4096 characters, counted as UTF-16 code units the way Telegram measures text.
 Most characters count as one unit, and an emoji or another character outside the Basic Multilingual Plane counts as two.
-A title sent on its own line, as the HTML parse mode or no parse mode sends it, counts toward the limit too.
-A longer message fails before any request is sent.</p>
+A title counts toward the limit too, with the line break after it.
+Without a parse mode, a longer message fails before any request is sent.
+Telegram counts a message written for a parse mode after parsing its markup, so Shoutrrr sends it and leaves the limit to Telegram, which rejects a longer message in each chat.</p>
 <h2 id="optional_parameters">Optional parameters<a class="headerlink" href="#optional_parameters" title="Permanent link">&para;</a></h2>
 <p>You can optionally specify the <strong><code>notification</code></strong>, <strong><code>parseMode</code></strong> and <strong><code>preview</code></strong> parameters in the URL:</p>
 <div class="admonition info">
@@ -3062,14 +3064,17 @@ A longer message fails before any request is sent.</p>
 <p>See <a href="https://core.telegram.org/bots/api#sendmessage">the telegram documentation</a> for more information.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>preview</code> and <code>notification</code> are inverted in regards to their API counterparts (<code>disable_web_page_preview</code> and <code>disable_notification</code>)</p>
+<p><code>preview</code> and <code>notification</code> are inverted in regards to their API counterparts (<code>link_preview_options.is_disabled</code> and <code>disable_notification</code>).
+A send with <code>preview=false</code> carries <code>link_preview_options</code>, which Bot API 7.0 introduced, so a self-hosted Bot API server needs version 7.0 or later to honor it.</p>
 </div>
 <h3 id="parse_mode_and_title">Parse Mode and Title<a class="headerlink" href="#parse_mode_and_title" title="Permanent link">&para;</a></h3>
 <p>If a parse mode is specified, the message needs to be escaped as per the corresponding sections in
 <a href="https://core.telegram.org/bots/api#formatting-options">Formatting options</a>.</p>
-<p>When a title has been specified, it will be prepended to the message, but this is only supported for
-the <code>HTML</code> parse mode. Note that, if no parse mode is specified, the message will be escaped and sent using <code>HTML</code>.</p>
-<p>Since the markdown modes are really hard to escape correctly, it's recommended to stick to <code>HTML</code> parse mode.</p>
+<p>A title is sent in bold on a line before the message, in every parse mode.
+Shoutrrr escapes the title for the parse mode, so it can hold any text.
+If no parse mode is specified and a title is set, the message is escaped and sent using <code>HTML</code>.</p>
+<p>The message itself is sent as written, so with a parse mode its markup must follow that mode's rules.
+Since the markdown modes are hard to escape correctly, <code>HTML</code> is the easiest parse mode to write by hand.</p>
 <h2 id="bot_api_server">Bot API server<a class="headerlink" href="#bot_api_server" title="Permanent link">&para;</a></h2>
 <p>By default, Shoutrrr sends requests to Telegram's own Bot API server at <code>https://api.telegram.org</code>.
 The <code>apiurl</code> param points it at another server, such as a <a href="https://github.com/tdlib/telegram-bot-api">self-hosted Bot API server</a> or a proxy where Telegram's domains are blocked.
@@ -3115,7 +3120,7 @@ shoutrrr<span class="w"> </span>generate<span class="w"> </span>telegram<span cl
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 15, 2026 18:39:13 UTC"><span class="timeago" datetime="2026-11-15T18:39:13+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 18:39:13 UTC">2026-11-15</span>
   </span>
 
     
