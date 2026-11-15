@@ -48,7 +48,7 @@ func TestIntegrationRouterInjectedClientAuthenticates(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"type":"note","body":"Message","title":"Shoutrrr notification","active":true}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"iden":"ujpah72o0sjAoRtnM0jc","type":"note","body":"Message","title":"Shoutrrr notification","active":true}`)),
 		}, nil
 	})
 

@@ -510,7 +510,6 @@ var fixtures = []fixture{
 		scheme:  "pushbullet",
 		url:     "pushbullet://SECRETpushbulletTOKENxxxxxxxxxxxxx",
 		secrets: []string{"SECRETpushbulletTOKENxxxxxxxxxxxxx"},
-		body:    `{"type":"note","body":"contract message","title":"Shoutrrr notification","active":true,"created":0}`,
 	},
 	{
 		scheme:  "pushover",

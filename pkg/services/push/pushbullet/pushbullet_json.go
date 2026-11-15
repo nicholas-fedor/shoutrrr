@@ -24,43 +24,6 @@ type PushRequest struct {
 	DeviceIden string `json:"device_iden"`
 }
 
-// PushResponse is the push the API returns after creating one.
-type PushResponse struct {
-	// Body is the push body.
-	Body string `json:"body"`
-	// Direction is self, outgoing, or incoming, relative to the token's user.
-	Direction string `json:"direction"`
-	// Iden is the push's identifier.
-	Iden string `json:"iden"`
-	// ReceiverEmail is the receiving user's e-mail address.
-	ReceiverEmail string `json:"receiver_email"`
-	// ReceiverEmailNormalized is ReceiverEmail in canonical form.
-	ReceiverEmailNormalized string `json:"receiver_email_normalized"`
-	// ReceiverIden is the receiving user's identifier.
-	ReceiverIden string `json:"receiver_iden"`
-	// SenderEmail is the sending user's e-mail address.
-	SenderEmail string `json:"sender_email"`
-	// SenderEmailNormalized is SenderEmail in canonical form.
-	SenderEmailNormalized string `json:"sender_email_normalized"`
-	// SenderIden is the sending user's identifier.
-	SenderIden string `json:"sender_iden"`
-	// SenderName is the sending user's name.
-	SenderName string `json:"sender_name"`
-	// Title is the push title.
-	Title string `json:"title"`
-	// Type is the push type.
-	Type string `json:"type"`
-	// Created is the creation time, in Unix seconds.
-	Created float64 `json:"created"`
-	// Modified is the time of the last change, in Unix seconds.
-	Modified float64 `json:"modified"`
-	// Active is false for a deleted push.
-	Active bool `json:"active"`
-	// Dismissed reports whether a device dismissed the push, or a device was
-	// active when the push arrived.
-	Dismissed bool `json:"dismissed"`
-}
-
 // ResponseError is the error body the API returns for a failed request.
 type ResponseError struct {
 	// ErrorData describes the error.

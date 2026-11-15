@@ -2,7 +2,6 @@ package pushbullet
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"io"
 	"log"
@@ -46,31 +45,16 @@ type cannedResponse struct {
 	statusCode int
 }
 
+// createdPush is the body the Pushbullet API returns for a created push,
+// which is the push.
+const createdPush = `{"iden":"ujpah72o0sjAoRtnM0jc","type":"note","title":"Shoutrrr notification","body":"Message","active":true}`
+
 // invalidTokenBody is the body the Pushbullet API returns for a missing or
 // invalid access token.
 const invalidTokenBody = `{"error":{"cat":"~(=^‥^)","message":"Access token is missing or invalid.","type":"invalid_request"}}`
 
 // errTransport is the transport failure returned by the failing HTTP client.
 var errTransport = errors.New("transport failure")
-
-// noteResponse returns the JSON body of a created note push, which is
-// active.
-//
-// Parameters:
-//   - t: the test.
-//   - body: the push body.
-//   - title: the push title.
-//
-// Returns:
-//   - string: the JSON body.
-func noteResponse(t *testing.T, body, title string) string {
-	t.Helper()
-
-	encoded, err := json.Marshal(PushResponse{Type: "note", Body: body, Title: title, Active: true})
-	require.NoError(t, err)
-
-	return string(encoded)
-}
 
 // newRespondingClient returns a mock HTTP client that expects one request for
 // each response, records the requests, and answers them in order.
@@ -188,13 +172,11 @@ func TestSend(t *testing.T) {
 		params     *types.Params
 		name       string
 		rawURL     string
-		title      string
 		wantBodies []string
 	}{
 		{
 			name:   "no target",
 			rawURL: "pushbullet://" + testToken,
-			title:  "Shoutrrr notification",
 			wantBodies: []string{
 				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":""}`,
 			},
@@ -202,7 +184,6 @@ func TestSend(t *testing.T) {
 		{
 			name:   "device, email, and channel targets",
 			rawURL: "pushbullet://" + testToken + "/device/iam@email.com#channel",
-			title:  "Shoutrrr notification",
 			wantBodies: []string{
 				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":"device"}`,
 				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"iam@email.com","channel_tag":"","device_iden":""}`,
@@ -213,7 +194,6 @@ func TestSend(t *testing.T) {
 			name:   "title param",
 			rawURL: "pushbullet://" + testToken + "/device?title=Configured",
 			params: &types.Params{"title": "Override"},
-			title:  "Override",
 			wantBodies: []string{
 				`{"type":"note","title":"Override","body":"Message","email":"","channel_tag":"","device_iden":"device"}`,
 			},
@@ -226,7 +206,7 @@ func TestSend(t *testing.T) {
 
 			responses := make([]cannedResponse, len(tt.wantBodies))
 			for i := range responses {
-				responses[i] = cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", tt.title)}
+				responses[i] = cannedResponse{statusCode: http.StatusOK, body: createdPush}
 			}
 
 			service := newTestService(t, tt.rawURL)
@@ -267,7 +247,7 @@ func TestSendChecksConfig(t *testing.T) {
 		t.Parallel()
 
 		service := newServiceWithConfig(&Config{Token: testToken, Title: "Title", Targets: nil})
-		client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Title")})
+		client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: createdPush})
 		service.SetHTTPClient(client)
 
 		require.NoError(t, service.Send("Message", nil))
@@ -287,13 +267,13 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	service := newTestService(t, "pushbullet://"+testToken+"/device?title=Configured")
 	want := *service.Config
 
-	client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Override")})
+	client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: createdPush})
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Override"}))
 	assert.Equal(t, want, *service.Config)
 
-	client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Configured")})
+	client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: createdPush})
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Message", nil))
@@ -302,61 +282,43 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 		(*captured)[0].body)
 }
 
-// TestSendResponseValidation verifies that a send rejects a created push that
-// does not match the request: another type, body, or title, or an inactive
-// push.
-func TestSendResponseValidation(t *testing.T) {
+// TestSendResponses verifies that a push counts as sent once the API accepts
+// it. The API's copy of the push may differ from the request, as when the
+// push was deleted at once, and a reply may leave fields out.
+func TestSendResponses(t *testing.T) {
 	t.Parallel()
 
-	// tests lists created pushes with the error each should produce.
+	// tests lists successful replies by their body.
 	tests := []struct {
-		response PushResponse
-		wantErr  error
-		name     string
+		name string
+		body string
 	}{
-		{
-			name:     "another type",
-			response: PushResponse{Type: "link", Body: "Message", Title: "Shoutrrr notification", Active: true},
-			wantErr:  ErrUnexpectedResponseType,
-		},
-		{
-			name:     "another body",
-			response: PushResponse{Type: "note", Body: "Wrong message", Title: "Shoutrrr notification", Active: true},
-			wantErr:  ErrResponseBodyMismatch,
-		},
-		{
-			name:     "another title",
-			response: PushResponse{Type: "note", Body: "Message", Title: "Wrong Title", Active: true},
-			wantErr:  ErrResponseTitleMismatch,
-		},
-		{
-			name:     "inactive",
-			response: PushResponse{Type: "note", Body: "Message", Title: "Shoutrrr notification", Active: false},
-			wantErr:  ErrPushNotActive,
-		},
+		{name: "created push", body: createdPush},
+		{name: "copy differs from the request", body: `{"iden":"ujpah72o0sjAoRtnM0jc","type":"link","title":"","body":"Message, edited","active":false}`},
+		{name: "empty object", body: `{}`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body, err := json.Marshal(tt.response)
-			require.NoError(t, err)
-
 			service := newTestService(t, "pushbullet://"+testToken+"/device")
-			client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: string(body)})
+			client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: tt.body})
 			service.SetHTTPClient(client)
 
-			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+			require.NoError(t, service.Send("Message", nil))
 		})
 	}
 }
 
-// TestSendContextErrors verifies that a send reports the API's error message
-// naming the target, wraps other request errors, keeps sending to the targets
-// after a failing one, rejects an unknown param before any request, sends
-// nothing when the caller's context is already canceled, and skips the
-// remaining targets once it ends.
+// TestSendContextErrors verifies how a send fails:
+//   - It reports the API's error message, naming the target.
+//   - It wraps other request errors.
+//   - It rejects a reply that is not JSON, whatever its status.
+//   - It keeps sending to the targets after a failing one.
+//   - It rejects an unknown param before any request.
+//   - It sends nothing when the caller's context is already canceled.
+//   - It skips the remaining targets once the context ends.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -388,6 +350,24 @@ func TestSendContextErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to push")
 	})
 
+	// An intermediate server can answer 200 with a page of its own, so a reply
+	// that is not JSON fails even with a success status.
+	t.Run("success status without a JSON body", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: "<html>Sign in to the network</html>"})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		jsonErr, ok := errors.AsType[jsonclient.Error](err)
+		require.True(t, ok, "error %v is not a jsonclient.Error", err)
+		assert.Equal(t, http.StatusOK, jsonErr.StatusCode)
+		require.NotErrorIs(t, err, jsonclient.ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "failed to push")
+	})
+
 	t.Run("transport error", func(t *testing.T) {
 		t.Parallel()
 
@@ -405,7 +385,7 @@ func TestSendContextErrors(t *testing.T) {
 		service := newTestService(t, "pushbullet://"+testToken+"/first/second")
 		client, captured := newRespondingClient(t,
 			cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody},
-			cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Second", "Shoutrrr notification")},
+			cannedResponse{statusCode: http.StatusOK, body: createdPush},
 		)
 		service.SetHTTPClient(client)
 
@@ -475,7 +455,7 @@ func TestSendContextErrors(t *testing.T) {
 
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(noteResponse(t, "Message", "Shoutrrr notification"))),
+				Body:       io.NopCloser(strings.NewReader(createdPush)),
 			}, nil
 		}).Once()
 
@@ -495,7 +475,7 @@ func TestSendShares(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		note := cannedResponse{
 			statusCode: http.StatusOK,
-			body:       noteResponse(t, "Message", "Shoutrrr notification"),
+			body:       createdPush,
 		}
 		client, captured := newRespondingClient(t, note, note)
 
