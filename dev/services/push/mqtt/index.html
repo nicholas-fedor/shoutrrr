@@ -1864,6 +1864,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#client_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#send_params" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2865,6 +2876,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#client_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#send_params" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2931,6 +2953,12 @@ The protocol is supported by many popular brokers:</p>
 <li><strong>EMQX</strong>: Enterprise-grade MQTT broker</li>
 <li><strong>HiveMQ</strong>: Scalable MQTT platform</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">MQTT 5</p>
+<p>Shoutrrr connects with MQTT 5, so the broker must support it.
+A broker that only speaks MQTT 3.1.1 refuses the connection.
+Each send then waits until its time runs out and fails, and Shoutrrr logs the broker's refusal as a warning.</p>
+</div>
 <p>To send notifications via MQTT, you need a running MQTT broker and a topic to publish to.
 Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/alerts</code>, <code>sensors/temperature</code>).
 A URL without a host, such as <code>mqtt:///home/alerts</code>, connects to a broker on <code>localhost</code>.
@@ -2977,8 +3005,8 @@ That includes a trailing <code>#</code>, such as <code>mqtt://broker.example.com
   Default: ✔ <code>yes</code></p>
 </li>
 <li>
-<p><strong>clientid</strong> - MQTT client identifier
-  Default: <code>shoutrrr</code></p>
+<p><strong>clientid</strong> - MQTT client identifier (default: shoutrrr and 12 random characters, chosen per service)
+  Default: <em>empty</em></p>
 </li>
 <li>
 <p><strong>disabletls</strong> - Disable TLS encryption
@@ -3047,6 +3075,41 @@ It still works and logs a warning the first time it is used, and <code>skiptlsve
 <p>A connection manager set with <code>SetConnectionManager()</code> belongs to the caller. The service never closes it for being idle, and <code>Close()</code> disconnects it.</p>
 <h3 id="error_behavior">Error Behavior<a class="headerlink" href="#error_behavior" title="Permanent link">&para;</a></h3>
 <p>If opening the connection fails, the error is returned to the caller and the next <code>Send()</code> tries again, so temporary network issues or broker unavailability do not require a new call to <code>Initialize()</code>. If the connection ends, for example because it was disconnected, the next <code>Send()</code> opens a new one.</p>
+<h3 id="client_id">Client ID<a class="headerlink" href="#client_id" title="Permanent link">&para;</a></h3>
+<p>The broker keeps one session per client ID.
+When a client connects with an ID that another connected client uses, the broker disconnects the other one.</p>
+<p>Without a <code>clientid</code>, each service uses its own ID, such as <code>shoutrrrK4QZ7M2XWB5D</code>.
+It is <code>shoutrrr</code> followed by 12 random letters and digits.
+The service keeps it for every connection it opens, and <code>Initialize()</code> chooses a new one.</p>
+<p>Set <code>clientid</code> in these cases:</p>
+<ul>
+<li>The broker accepts only known client IDs.</li>
+<li>A session should outlast its connection, with <code>cleansession=no</code>.</li>
+</ul>
+<p>Give each program that connects at the same time its own <code>clientid</code>.</p>
+<p>The broker keeps a session after its connection ends as follows.</p>
+<table>
+<thead>
+<tr>
+<th><code>cleansession</code></th>
+<th>Shoutrrr closes the connection</th>
+<th>The connection is lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yes</code> (default)</td>
+<td>The broker discards the session at once, since no later connection resumes it</td>
+<td>The broker keeps the session for 60 seconds. The automatic reconnect resumes it. A connection that a later send opens after an idle close starts a clean session, which discards it</td>
+</tr>
+<tr>
+<td><code>no</code></td>
+<td>The broker keeps the session for 60 seconds</td>
+<td>The broker keeps the session for 60 seconds, so the reconnect resumes it</td>
+</tr>
+</tbody>
+</table>
+<p>Shoutrrr asks for the 60 seconds, and the broker may choose a different interval in its reply, including a shorter one.</p>
 <h3 id="send_params">Send Params<a class="headerlink" href="#send_params" title="Permanent link">&para;</a></h3>
 <p>Params apply to a single send and do not change the service configuration. The <code>qos</code> and <code>retained</code> params affect every send that uses them. The connection params (<code>clientid</code>, <code>cleansession</code>, <code>disabletls</code>, and <code>skiptlsverify</code>) apply when that send opens the connection, and are ignored while an existing connection is reused.</p>
 <div class="highlight"><span class="filename">Example Send Params</span><pre><span></span><code><span class="c1">// Publish this message as retained with QoS 1, without changing later sends</span>
@@ -3119,7 +3182,7 @@ It still works and logs a warning the first time it is used, and <code>skiptlsve
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 15, 2026 02:30:27 UTC"><span class="timeago" datetime="2026-11-15T02:30:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 02:30:27 UTC">2026-11-15</span>
   </span>
 
     
