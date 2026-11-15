@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject messages larger than the broker's maximum packet size by @nicholas-fedor in [#2216](https://github.com/nicholas-fedor/shoutrrr/pull/2216)
 - Give each sender its own client ID by default by @nicholas-fedor in [#2214](https://github.com/nicholas-fedor/shoutrrr/pull/2214)
 - Publish through a base path without naming a sequence ID by @nicholas-fedor in [#2212](https://github.com/nicholas-fedor/shoutrrr/pull/2212)
 - Explain a homeserver that offers no password login by @nicholas-fedor in [#2208](https://github.com/nicholas-fedor/shoutrrr/pull/2208)
