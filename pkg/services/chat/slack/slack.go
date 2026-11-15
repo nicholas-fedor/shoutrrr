@@ -188,8 +188,10 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 //   - payload: the message payload.
 //
 // Returns:
-//   - error: the request error, or the error the webhook reported with up to
-//     [httpbody.MaxSize] bytes of its response.
+//   - error: the request error, the error the webhook reported with up to
+//     [httpbody.MaxSize] bytes of its response, or [ErrWebhookStatusFailure]
+//     for a status other than 200 without one. A redirect always gives
+//     [ErrWebhookStatusFailure].
 func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *MessagePayload) error {
 	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
@@ -224,18 +226,20 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	// A redirect the HTTP client did not follow never reached Slack, so its
+	// body, such as a proxy's HTML page or "ok", is not Slack's reply.
+	redirected := res.StatusCode >= http.StatusMultipleChoices && res.StatusCode < http.StatusBadRequest
+
+	// Slack answers a posted message with 200 and "ok", and a failure with an
+	// error code such as invalid_payload as the body.
 	response := string(resBytes)
-
-	switch response {
-	case "":
-		if res.StatusCode != http.StatusOK {
-			return fmt.Errorf("%w: %v", ErrWebhookStatusFailure, res.Status)
-		}
-
-		fallthrough
-	case "ok":
-		return nil
-	default:
+	if !redirected && response != "" && response != "ok" {
 		return fmt.Errorf("%w: %v", ErrWebhookResponseFailure, response)
 	}
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("%w: %v", ErrWebhookStatusFailure, res.Status)
+	}
+
+	return nil
 }

@@ -199,13 +199,14 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
-//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
-//     for an error status without one, the rate limit's error joined with
-//     ctx's error when ctx ends during a wait, the error of logging in again
-//     (returned by later requests too, unless ctx ended the login), or the
-//     marshaling, request, read, or decoding error. Reading stops at
-//     [httpbody.MaxSize]. An error status is reported from the bytes read,
-//     and an oversized success body wraps [httpbody.ErrTooLarge].
+//   - error: the Matrix API error for a status outside 200 to 299,
+//     [ErrUnexpectedStatus] for such a status without one, the rate limit's
+//     error joined with ctx's error when ctx ends during a wait, the error of
+//     logging in again (returned by later requests too, unless ctx ended the
+//     login), or the marshaling, request, read, or decoding error. Reading
+//     stops at [httpbody.MaxSize]. A status outside 200 to 299 is reported
+//     from the bytes read, and an oversized success body wraps
+//     [httpbody.ErrTooLarge].
 func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
 	if c.loginErr != nil {
 		return c.loginErr
@@ -462,9 +463,9 @@ func (c *client) renew(ctx context.Context, rejected string) error {
 //   - time.Duration: for a rate-limited request, the wait the homeserver
 //     asks for, from the Retry-After header or else retry_after_ms. It is
 //     negative for any other request, and for a 429 that gives no wait.
-//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
-//     for an error status without one, or the request, read, or decoding
-//     error. Reading stops at [httpbody.MaxSize].
+//   - error: the Matrix API error for a status outside 200 to 299,
+//     [ErrUnexpectedStatus] for such a status without one, or the request,
+//     read, or decoding error. Reading stops at [httpbody.MaxSize].
 func (c *client) send(ctx context.Context, method, path string, body []byte, response any) (time.Duration, error) {
 	var reader io.Reader = http.NoBody
 	if body != nil {
@@ -499,8 +500,10 @@ func (c *client) send(ctx context.Context, method, path string, body []byte, res
 
 	resBody, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
 
-	// An error status is reported from the first bytes of an oversized body.
-	if res.StatusCode >= http.StatusBadRequest && (readErr == nil || errors.Is(readErr, httpbody.ErrTooLarge)) {
+	// A status outside 2xx, a redirect the HTTP client did not follow
+	// included, is reported from the first bytes of an oversized body.
+	accepted := res.StatusCode >= http.StatusOK && res.StatusCode < http.StatusMultipleChoices
+	if !accepted && (readErr == nil || errors.Is(readErr, httpbody.ErrTooLarge)) {
 		resError := &apiResError{}
 		err = json.Unmarshal(resBody, resError, jsonopts.Default)
 
@@ -519,6 +522,12 @@ func (c *client) send(ctx context.Context, method, path string, body []byte, res
 				res.Status,
 				err,
 			)
+		}
+
+		// Every Matrix error names its code, so a body without one, such as
+		// the reply a redirect carries, is not the homeserver's error.
+		if resError.Code == "" {
+			return wait, fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 		}
 
 		return wait, resError

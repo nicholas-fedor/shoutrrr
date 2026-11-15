@@ -275,8 +275,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Returns:
 //   - error: the request error, the error the Bark server reported, or an
-//     error wrapping [ErrUnexpectedStatus] for an error status whose body is
-//     not JSON or reports success.
+//     error wrapping [ErrUnexpectedStatus] for a status outside 200 to 299
+//     whose body is not JSON or reports success.
 func (s *Service) sendAPI(ctx context.Context, config *Config, message string) error {
 	response := APIResponse{}
 	request := PushPayload{
@@ -327,17 +327,8 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		return fmt.Errorf("reading response: %w", err)
 	}
 
-	if err := json.Unmarshal(body, &response, jsonopts.Default); err != nil {
-		// A proxy in front of the server can answer an error status with a
-		// body that is not JSON, such as an HTML page.
-		if httpResp.StatusCode >= http.StatusBadRequest {
-			return fmt.Errorf("%w: %d", ErrUnexpectedStatus, httpResp.StatusCode)
-		}
-
-		return fmt.Errorf("decoding response: %w", err)
-	}
-
-	if response.Code != http.StatusOK {
+	decodeErr := json.Unmarshal(body, &response, jsonopts.Default)
+	if decodeErr == nil && response.Code != http.StatusOK {
 		if response.Message != "" {
 			return &response
 		}
@@ -345,9 +336,15 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, response.Code)
 	}
 
-	// A body that reports success does not override an error status.
-	if httpResp.StatusCode >= http.StatusBadRequest {
+	// A body that reports success does not override a status outside 2xx. A
+	// proxy in front of the server can also answer an error status with a
+	// body that is not JSON, such as an HTML page.
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, httpResp.StatusCode)
+	}
+
+	if decodeErr != nil {
+		return fmt.Errorf("decoding response: %w", decodeErr)
 	}
 
 	return nil

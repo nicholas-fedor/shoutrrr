@@ -207,15 +207,35 @@ func main() {
 
 ## Notes
 
-- **Environment Variables**: `HTTPS_PROXY` applies to HTTPS requests and `HTTP_PROXY` to plain HTTP requests. Both
-  accept `http`, `https`, or `socks5` proxy URLs, and `NO_PROXY` lists hosts to reach directly. Go reads them once,
-  when the process sends its first HTTP request, so set them before starting the application. They affect every
-  HTTP-based service that uses its own default client.
-- **Custom HTTP Client**: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.
-- **Redirects**: A service's own default client follows a redirect only on the host the request went to, and never from HTTPS to HTTP.
-  Other redirects fail the send, because the request's headers can hold the service's credentials.
-  A custom client keeps its own redirect policy.
-  Go's default policy forwards `Authorization`, `WWW-Authenticate`, and `Cookie` only within the first request's domain, and every other header to any host.
-- **Custom DialContext**: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use `HTTPClient`.
-- **Service Compatibility**: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).
-- **Timeouts**: The custom client example includes a 30-second dial timeout and 10-second TLS handshake timeout, adjustable as needed.
+### Environment Variables
+
+`HTTPS_PROXY` applies to HTTPS requests and `HTTP_PROXY` to plain HTTP requests.
+Both accept `http`, `https`, or `socks5` proxy URLs, and `NO_PROXY` lists hosts to reach directly.
+Go reads them once, when the process sends its first HTTP request, so set them before starting the application.
+They affect every HTTP-based service that uses its own default client.
+
+### Custom HTTP Client
+
+A custom client gives fine-grained control over proxy settings, for Go applications that need a specific transport configuration.
+
+### Redirects
+
+A service's own default client follows a redirect only on the host the request went to, and never from HTTPS to HTTP.
+Other redirects fail the send, because the request's headers can hold the service's credentials.
+A custom client keeps its own redirect policy.
+A redirect that a client does not follow fails the send, since the request never reached the service.
+Go's default policy forwards `Authorization`, `WWW-Authenticate`, and `Cookie` only within the first request's domain, and every other header to any host.
+
+### Custom DialContext
+
+A custom `DialContext` applies the same destination policy to SMTP and MQTT TCP connections.
+HTTP services continue to use `HTTPClient`.
+
+### Service Compatibility
+
+The proxy must support the protocol the service uses, such as HTTPS for Discord.
+
+### Timeouts
+
+The custom client example uses a 30-second dial timeout and a 10-second TLS handshake timeout.
+Adjust them as needed.

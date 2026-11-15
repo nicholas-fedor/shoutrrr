@@ -147,7 +147,7 @@
 //   - ErrUnsupportedLoginFlows: The homeserver offers no password login
 //   - ErrLoginReplyWithoutToken: A login reply held no access token
 //   - ErrInvalidRoomID: A room ID from the homeserver does not start with !
-//   - ErrUnexpectedStatus: Unexpected HTTP response from server
+//   - ErrUnexpectedStatus: A status outside 2xx without a Matrix error, such as a redirect the HTTP client did not follow
 //
 // # Security Considerations
 //

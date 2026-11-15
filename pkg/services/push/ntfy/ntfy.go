@@ -272,8 +272,9 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	// Send the HTTP request
 	if err := client.PostContext(ctx, config.apiURL(apiPath), request, &response); err != nil {
-		// Attempt to parse structured error response from API
-		if client.ErrorResponse(err, &response) {
+		// Every ntfy error has a code or a message. A JSON body without either,
+		// such as the reply a redirect carries, is not ntfy's error.
+		if client.ErrorResponse(err, &response) && (response.Code != 0 || response.Message != "") {
 			return &response
 		}
 

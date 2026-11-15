@@ -1,10 +1,3 @@
-// Package jsonclient provides a JSON HTTP client for making HTTP requests
-// that automatically marshal and unmarshal JSON payloads.
-//
-// Request bodies are encoded with sorted map keys, and a nil slice or map
-// encodes as an empty array or object. Responses are decoded with member names
-// that match field names exactly. A repeated member name fails the decode.
-// Invalid UTF-8 is replaced with U+FFFD in both directions.
 package jsonclient
 
 import (
@@ -24,9 +17,44 @@ import (
 
 // Client defines the interface for JSON HTTP operations.
 type Client interface {
+	// Get fetches url using GET and unmarshals the response into response.
+	//
+	// Parameters:
+	//   - url: the URL to fetch.
+	//   - response: the value the JSON response is decoded into.
+	//
+	// Returns:
+	//   - error: an [Error] for a status outside 200 to 299 or invalid JSON,
+	//     or the request error.
 	Get(url string, response any) error
+	// Post sends request as JSON to url and unmarshals the response into
+	// response.
+	//
+	// Parameters:
+	//   - url: the URL to post to.
+	//   - request: the request body. A string is sent as is, and any other
+	//     value is encoded as JSON.
+	//   - response: the value the JSON response is decoded into.
+	//
+	// Returns:
+	//   - error: an [Error] for a status outside 200 to 299 or invalid JSON,
+	//     or the request error.
 	Post(url string, request, response any) error
+	// Headers returns the headers set on every request. Changing them changes
+	// the requests that follow.
+	//
+	// Returns:
+	//   - http.Header: the headers.
 	Headers() http.Header
+	// ErrorResponse reports whether err is an [Error] whose body decodes as
+	// JSON into response.
+	//
+	// Parameters:
+	//   - err: the error of a request.
+	//   - response: the value the error's body is decoded into.
+	//
+	// Returns:
+	//   - bool: whether the body decoded into response.
 	ErrorResponse(err error, response any) bool
 }
 
@@ -37,16 +65,44 @@ type Client interface {
 type ContextClient interface {
 	Client
 
-	// GetContext fetches url using GET and unmarshals the response into response.
+	// GetContext fetches url using GET and unmarshals the response into
+	// response.
+	//
+	// Parameters:
+	//   - ctx: cancellation and deadline for the request.
+	//   - url: the URL to fetch.
+	//   - response: the value the JSON response is decoded into.
+	//
+	// Returns:
+	//   - error: an [Error] for a status outside 200 to 299 or invalid JSON,
+	//     or the request error, which matches ctx's error when ctx ends the
+	//     request.
 	GetContext(ctx context.Context, url string, response any) error
-	// PostContext sends request as JSON to url and unmarshals the response into response.
+	// PostContext sends request as JSON to url and unmarshals the response
+	// into response.
+	//
+	// Parameters:
+	//   - ctx: cancellation and deadline for the request.
+	//   - url: the URL to post to.
+	//   - request: the request body. A string is sent as is, and any other
+	//     value is encoded as JSON.
+	//   - response: the value the JSON response is decoded into.
+	//
+	// Returns:
+	//   - error: an [Error] for a status outside 200 to 299 or invalid JSON,
+	//     or the request error, which matches ctx's error when ctx ends the
+	//     request.
 	PostContext(ctx context.Context, url string, request, response any) error
 }
 
 // Error contains additional HTTP/JSON details.
 type Error struct {
-	err        error
-	Body       string
+	// err is the underlying error, such as [ErrUnexpectedStatus] or the
+	// decoding error.
+	err error
+	// Body holds up to [httpbody.MaxSize] bytes of the response body.
+	Body string
+	// StatusCode is the response status code.
 	StatusCode int
 }
 
@@ -62,10 +118,8 @@ type client struct {
 // ContentType defines the default MIME type for JSON requests.
 const ContentType = "application/json"
 
-// HTTPClientErrorThreshold specifies the status code threshold for client errors (400+).
-const HTTPClientErrorThreshold = 400
-
-// ErrUnexpectedStatus indicates an unexpected HTTP response status.
+// ErrUnexpectedStatus indicates a response status outside 200 to 299, such as
+// an error status or a redirect that the HTTP client did not follow.
 var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 
 // DefaultClient provides a singleton JSON client using http.DefaultClient.
@@ -75,11 +129,18 @@ var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 var DefaultClient = NewWithHTTPClient(http.DefaultClient)
 
 // Error returns the string representation of the error.
+//
+// Returns:
+//   - string: the text of [Error.String].
 func (je Error) Error() string {
 	return je.String()
 }
 
 // String provides a human-readable description of the error.
+//
+// Returns:
+//   - string: the underlying error's text, or the status code when there is
+//     no underlying error.
 func (je Error) String() string {
 	if je.err == nil {
 		return fmt.Sprintf("unknown error (HTTP %v)", je.StatusCode)
@@ -97,7 +158,14 @@ func (je Error) Unwrap() error {
 	return je.err
 }
 
-// ErrorBody extracts the request body from an error if it's a jsonclient.Error.
+// ErrorBody extracts the response body from an error if it is an [Error].
+//
+// Parameters:
+//   - e: the error of a request.
+//
+// Returns:
+//   - string: the body the [Error] holds, or an empty string for any other
+//     error.
 func ErrorBody(e error) string {
 	if jsonError, ok := errors.AsType[Error](e); ok {
 		return jsonError.Body
@@ -107,6 +175,9 @@ func ErrorBody(e error) string {
 }
 
 // NewClient creates a new JSON client using the default http.Client.
+//
+// Returns:
+//   - Client: a client that sends JSON requests through [http.DefaultClient].
 //
 // Deprecated: Use NewWithHTTPClient with an explicit client instead.
 //
@@ -154,6 +225,13 @@ func NewContextClient(httpClient types.HTTPClient) ContextClient {
 
 // Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
 //
+// Parameters:
+//   - url: the URL to fetch.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: the error of [Client.Get] on [DefaultClient].
+//
 // Deprecated: Create a Client with NewWithHTTPClient and call Get on it instead.
 func Get(url string, response any) error {
 	if err := DefaultClient.Get(url, response); err != nil {
@@ -165,6 +243,14 @@ func Get(url string, response any) error {
 
 // Post sends a request as JSON and unmarshals the response into the provided object using DefaultClient.
 //
+// Parameters:
+//   - url: the URL to post to.
+//   - request: the request body. A string is sent as is, and any other value is encoded as JSON.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: the error of [Client.Post] on [DefaultClient].
+//
 // Deprecated: Create a Client with NewWithHTTPClient and call Post on it instead.
 func Post(url string, request, response any) error {
 	if err := DefaultClient.Post(url, request, response); err != nil {
@@ -175,6 +261,13 @@ func Post(url string, request, response any) error {
 }
 
 // ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
+//
+// Parameters:
+//   - err: the error of a request.
+//   - response: the value the error's body is decoded into.
+//
+// Returns:
+//   - bool: whether err is an [Error] whose body decoded into response.
 func (c *client) ErrorResponse(err error, response any) bool {
 	if errMsg, ok := errors.AsType[Error](err); ok {
 		return json.Unmarshal([]byte(errMsg.Body), response, jsonopts.Default) == nil
@@ -192,7 +285,7 @@ func (c *client) ErrorResponse(err error, response any) bool {
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
-//   - error: an [Error] for an error status or invalid JSON, or the request error.
+//   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error.
 func (c *client) Get(url string, response any) error {
 	return c.GetContext(context.Background(), url, response)
 }
@@ -205,7 +298,7 @@ func (c *client) Get(url string, response any) error {
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
-//   - error: an [Error] for an error status or invalid JSON, or the request error,
+//   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error,
 //     which matches ctx's error when ctx ends the request.
 func (c *client) GetContext(ctx context.Context, url string, response any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
@@ -228,6 +321,9 @@ func (c *client) GetContext(ctx context.Context, url string, response any) error
 }
 
 // Headers returns the default headers for requests.
+//
+// Returns:
+//   - http.Header: the headers set on every request.
 func (c *client) Headers() http.Header {
 	return c.headers
 }
@@ -242,7 +338,7 @@ func (c *client) Headers() http.Header {
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
-//   - error: an [Error] for an error status or invalid JSON, or the request error.
+//   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error.
 func (c *client) Post(url string, request, response any) error {
 	return c.PostContext(context.Background(), url, request, response)
 }
@@ -256,7 +352,7 @@ func (c *client) Post(url string, request, response any) error {
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
-//   - error: an [Error] for an error status or invalid JSON, or the request error,
+//   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error,
 //     which matches ctx's error when ctx ends the request.
 func (c *client) PostContext(ctx context.Context, url string, request, response any) error {
 	var err error
@@ -305,13 +401,16 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 //
 // Returns:
 //   - error: an [Error] holding the body read. It wraps [ErrUnexpectedStatus]
-//     for an error status. It also wraps the read error, which is
-//     [httpbody.ErrTooLarge] for a body larger than [httpbody.MaxSize], on any
-//     status. Otherwise it wraps the decoding error.
+//     for a status outside 200 to 299, without decoding the body. It also
+//     wraps the read error, which is [httpbody.ErrTooLarge] for a body larger
+//     than [httpbody.MaxSize], on any status. Otherwise it wraps the decoding
+//     error.
 func parseResponse(res *http.Response, response any) error {
 	body, err := httpbody.Read(res.Body, httpbody.MaxSize)
 
-	if res.StatusCode >= HTTPClientErrorThreshold {
+	// A redirect the HTTP client did not follow never reached the endpoint,
+	// so only a 2xx status counts as an answer.
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		if err != nil {
 			err = fmt.Errorf("%w: %v: %w", ErrUnexpectedStatus, res.Status, err)
 		} else {

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -534,10 +535,11 @@ func TestSendItems(t *testing.T) {
 // rejects.
 //
 // The server's message comes back as an *APIResponse, and a response
-// without a message as ErrUnexpectedStatus. An error status whose body is not
-// JSON, or whose JSON body reports success, gives ErrUnexpectedStatus with the
-// HTTP status. A success status with a body that is not JSON gives a decoding
-// error, and a body over [httpbody.MaxSize] gives [httpbody.ErrTooLarge].
+// without a message as ErrUnexpectedStatus. An error status or a redirect
+// whose body is not JSON, or whose JSON body reports success, gives
+// ErrUnexpectedStatus with the HTTP status. A success status with a body that
+// is not JSON gives a decoding error, and a body over [httpbody.MaxSize] gives
+// [httpbody.ErrTooLarge].
 func TestSendServerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -569,31 +571,33 @@ func TestSendServerErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "500")
 	})
 
-	t.Run("error status with a body that is not JSON", func(t *testing.T) {
-		t.Parallel()
+	// statusTests lists statuses outside 2xx whose body is not JSON, or whose
+	// JSON body reports success, by the status the error names.
+	statusTests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "error status with a body that is not JSON", status: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
+		{name: "error status with a JSON body that reports success", status: http.StatusBadGateway, body: successBody},
+		{name: "redirect with a body that is not JSON", status: http.StatusFound, body: "<html>Found</html>"},
+		{name: "redirect with a JSON body that reports success", status: http.StatusTemporaryRedirect, body: successBody},
+	}
 
-		service := newTestService(t, "bark://:devicekey@hostname")
-		client, _ := newRespondingClient(t, http.StatusBadGateway, "<html>Bad Gateway</html>")
-		service.SetHTTPClient(client)
+	for _, tt := range statusTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		err := service.Send("Message", nil)
+			service := newTestService(t, "bark://:devicekey@hostname")
+			client, _ := newRespondingClient(t, tt.status, tt.body)
+			service.SetHTTPClient(client)
 
-		require.ErrorIs(t, err, ErrUnexpectedStatus)
-		assert.Contains(t, err.Error(), "502")
-	})
+			err := service.Send("Message", nil)
 
-	t.Run("error status with a JSON body that reports success", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, "bark://:devicekey@hostname")
-		client, _ := newRespondingClient(t, http.StatusBadGateway, successBody)
-		service.SetHTTPClient(client)
-
-		err := service.Send("Message", nil)
-
-		require.ErrorIs(t, err, ErrUnexpectedStatus)
-		assert.Contains(t, err.Error(), "502")
-	})
+			require.ErrorIs(t, err, ErrUnexpectedStatus)
+			assert.Contains(t, err.Error(), strconv.Itoa(tt.status))
+		})
+	}
 
 	t.Run("success status with a body that is not JSON", func(t *testing.T) {
 		t.Parallel()

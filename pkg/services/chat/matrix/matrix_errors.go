@@ -37,8 +37,9 @@ var (
 	// password sends without logging in.
 	ErrUnsupportedLoginFlows = errors.New("homeserver offers no password login, so use an access token")
 
-	// ErrUnexpectedStatus is returned when the Matrix API returns an HTTP
-	// status code that was not expected by the client.
+	// ErrUnexpectedStatus is returned for a status outside 200 to 299 whose
+	// body holds no Matrix error, such as a redirect that the HTTP client did
+	// not follow.
 	ErrUnexpectedStatus = errors.New("unexpected HTTP status")
 
 	// ErrNoJoinedRooms is returned when a send without configured rooms finds

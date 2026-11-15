@@ -468,9 +468,10 @@ func TestSendLogs(t *testing.T) {
 	assert.Equal(t, "DEBUG notification sent\n", logs.String())
 }
 
-// TestSendErrors verifies that a send reports ntfy's error response, other
-// error statuses, and transport errors without the credentials, and rejects
-// an invalid param before any request.
+// TestSendErrors verifies that a send reports ntfy's error response without
+// the credentials. A status outside 2xx without an ntfy error, a redirect
+// included, fails with its status. So does a transport error. An invalid param
+// fails before any request.
 func TestSendErrors(t *testing.T) {
 	t.Parallel()
 
@@ -491,6 +492,12 @@ func TestSendErrors(t *testing.T) {
 			response:  cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
 			wantErr:   jsonclient.ErrUnexpectedStatus,
 			wantError: "failed to send ntfy notification: posting to ntfy API: got unexpected HTTP status: 502 Bad Gateway",
+		},
+		{
+			name:      "redirect with a success body",
+			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: `{"id":"abc","time":1,"event":"message","topic":"` + testTopic + `"}`},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "failed to send ntfy notification: posting to ntfy API: got unexpected HTTP status: 307 Temporary Redirect",
 		},
 		{
 			name:     "transport error",

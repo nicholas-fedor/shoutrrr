@@ -111,6 +111,12 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			wantError: "got unexpected HTTP status: 400 Bad Request",
 		},
 		{
+			name:      "redirect with a success body",
+			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: `{"id":1}`},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 307 Temporary Redirect",
+		},
+		{
 			name:      "success body not JSON",
 			response:  cannedResponse{statusCode: http.StatusOK, body: "OK"},
 			wantError: "jsontext: invalid character 'O' at start of value",
@@ -153,6 +159,13 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{}`},
 			wantErr:   ErrUnexpectedStatus,
 			wantError: "got unexpected HTTP status: 400 Bad Request",
+		},
+		{
+			name:      "redirect with a success body with the token in a header",
+			headers:   headerAuth,
+			response:  cannedResponse{statusCode: http.StatusTemporaryRedirect, body: `{"id":1}`},
+			wantErr:   ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 307 Temporary Redirect",
 		},
 		{
 			name:     "success body not JSON with the token in a header",

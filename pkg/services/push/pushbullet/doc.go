@@ -127,7 +127,7 @@
 //   - Invalid or non-existent target device
 //   - Invalid email address format
 //   - Invalid channel (channel must exist and be accessible)
-//   - HTTP error status codes (4xx/5xx) from the Pushbullet API
+//   - HTTP status codes outside 2xx from the Pushbullet API, including a redirect the HTTP client did not follow
 //   - Authentication failures (invalid or expired token)
 //
 // # Security Considerations

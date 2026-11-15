@@ -259,6 +259,8 @@ func TestNewClient(t *testing.T) {
 // transport errors, Matrix API errors, error statuses without a Matrix error,
 // invalid JSON, and unreadable bodies. A body over [httpbody.MaxSize] still yields the
 // Matrix API error of an error status, and fails a success status as too large.
+// A redirect fails as an error status without a Matrix error, whatever its
+// body holds. So does a JSON error body without an error code.
 func TestAPIRequestFailures(t *testing.T) {
 	t.Parallel()
 
@@ -278,6 +280,8 @@ func TestAPIRequestFailures(t *testing.T) {
 			wantMessage: "invalid request",
 		},
 		{name: "error status without a Matrix error", reply: reply{status: http.StatusInternalServerError, body: "internal server error"}, wantErr: ErrUnexpectedStatus},
+		{name: "error status with JSON but no error code", reply: reply{status: http.StatusBadGateway, body: `{"error":"bad gateway"}`}, wantErr: ErrUnexpectedStatus},
+		{name: "redirect with a success body", reply: reply{status: http.StatusTemporaryRedirect, body: `{"access_token":"token"}`}, wantErr: ErrUnexpectedStatus},
 		{name: "invalid JSON", reply: ok("not valid json"), wantText: "unmarshaling"},
 		{name: "unreadable body", reply: reply{status: http.StatusOK, rawBody: errorReadCloser{}}, wantText: "reading"},
 		{name: "unreadable error body", reply: reply{status: http.StatusInternalServerError, rawBody: errorReadCloser{}}, wantText: "reading"},

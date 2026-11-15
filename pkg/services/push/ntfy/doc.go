@@ -136,8 +136,10 @@
 //
 // # Error Handling
 //
-// The service returns errors for network failures, HTTP error status codes (4xx/5xx),
-// authentication failures, and configuration issues. Always check the returned error:
+// The service returns errors for network failures, authentication failures,
+// and configuration issues. It also fails a send answered with a status outside
+// 2xx, including a redirect the HTTP client did not follow. Always check the
+// returned error:
 //
 //	err := shoutrrr.Send(url, message)
 //	if err != nil {
