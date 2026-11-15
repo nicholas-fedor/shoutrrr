@@ -470,6 +470,49 @@ func TestClient_Headers(t *testing.T) {
 	assert.Equal(t, "custom-value", client.Headers().Get("X-Custom-Header"), "Custom header should be set")
 }
 
+// TestClient_RequestHeaders verifies that GET and POST requests carry every
+// value of each header the client holds, and that a header without values
+// adds nothing instead of failing the request. Each request gets its own
+// copy, so a client that changes the request's headers cannot change the
+// client's.
+func TestClient_RequestHeaders(t *testing.T) {
+	t.Parallel()
+
+	// requests lists a GET and a POST through the client.
+	requests := map[string]func(ContextClient, string) error{
+		http.MethodGet: func(c ContextClient, url string) error {
+			return c.GetContext(t.Context(), url, &map[string]any{})
+		},
+		http.MethodPost: func(c ContextClient, url string) error {
+			return c.PostContext(t.Context(), url, map[string]string{}, &map[string]any{})
+		},
+	}
+
+	for method, send := range requests {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+
+			var got http.Header
+
+			httpClient := typesmocks.NewMockHTTPClient(t)
+			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				got = req.Header.Clone()
+				req.Header.Set("X-Trace", "changed")
+
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+			}).Once()
+
+			client := NewContextClient(httpClient)
+			client.Headers()["X-Trace"] = []string{"a", "b"}
+			client.Headers()["X-Empty"] = []string{}
+
+			require.NoError(t, send(client, "https://example.com/"))
+			assert.Equal(t, http.Header{"Content-Type": {ContentType}, "X-Empty": {}, "X-Trace": {"a", "b"}}, got)
+			assert.Equal(t, []string{"a", "b"}, client.Headers()["X-Trace"])
+		})
+	}
+}
+
 // TestClient_ErrorResponse_Success tests ErrorResponse with valid JSON error body.
 func TestClient_ErrorResponse_Success(t *testing.T) {
 	t.Parallel()
@@ -492,6 +535,46 @@ func TestClient_ErrorResponse_Success(t *testing.T) {
 	assert.True(t, result, "ErrorResponse() should return true")
 	assert.Equal(t, "validation failed", errorResponse.Error, "Error field mismatch")
 	assert.Equal(t, "name", errorResponse.Field, "Field field mismatch")
+}
+
+// TestClient_ErrorResponse_Status verifies that ErrorResponse decodes the
+// body of a status of 400 or more only. A redirect or a success status that
+// failed to decode carries a reply that is not the server's error, so its
+// body is left undecoded even when it is JSON.
+func TestClient_ErrorResponse_Status(t *testing.T) {
+	t.Parallel()
+
+	// tests lists statuses with whether ErrorResponse decodes a JSON body
+	// for each.
+	tests := []struct {
+		name   string
+		status int
+		want   bool
+	}{
+		{name: "client error", status: http.StatusBadRequest, want: true},
+		{name: "server error", status: http.StatusInternalServerError, want: true},
+		{name: "redirect", status: http.StatusTemporaryRedirect},
+		{name: "last redirect", status: 399},
+		{name: "success", status: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			jsonErr := Error{StatusCode: tt.status, Body: `{"error":"rejected"}`, err: ErrUnexpectedStatus}
+
+			var errorResponse struct {
+				Error string `json:"error"`
+			}
+
+			assert.Equal(t, tt.want, NewClient().ErrorResponse(jsonErr, &errorResponse))
+
+			if !tt.want {
+				assert.Empty(t, errorResponse.Error, "the body must not be decoded")
+			}
+		})
+	}
 }
 
 // TestClient_ErrorResponse_InvalidJSON tests ErrorResponse with invalid JSON error body.
@@ -1379,36 +1462,6 @@ func TestClient_InterfaceCompliance(t *testing.T) {
 	assert.NotNil(t, client.Headers(), "Headers() should be accessible")
 }
 
-// TestClient_MultipleHeaderValues tests only first header value is used.
-func TestClient_MultipleHeaderValues(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The client should only send the first value
-		assert.Equal(t, "first-value", r.Header.Get("X-Multi-Header"), "Only first header value should be used")
-
-		w.Header().Set("Content-Type", ContentType)
-		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte(`{"status": "ok"}`))
-		assert.NoError(t, err, "Failed to write response")
-	}))
-	defer server.Close()
-
-	client := NewClient()
-
-	// Set multiple values for the same header
-	client.Headers()["X-Multi-Header"] = []string{"first-value", "second-value", "third-value"}
-
-	var response struct {
-		Status string `json:"status"`
-	}
-
-	err := client.Get(server.URL, &response)
-
-	require.NoError(t, err, "Get() should not return error")
-	assert.Equal(t, "ok", response.Status, "Response status mismatch")
-}
-
 // TestClient_Post_CustomHeaders verifies custom headers are sent in POST requests.
 func TestClient_Post_CustomHeaders(t *testing.T) {
 	t.Parallel()
@@ -1449,43 +1502,6 @@ func TestClient_Post_CustomHeaders(t *testing.T) {
 
 	require.NoError(t, err, "Post() should not return error")
 	assert.Equal(t, "ok", response.Result, "Response result mismatch")
-}
-
-// TestClient_Post_MultipleHeaderValues tests only first header value is used in POST.
-func TestClient_Post_MultipleHeaderValues(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method, "HTTP method mismatch")
-		// The client should only send the first value
-		assert.Equal(t, "first-value", r.Header.Get("X-Multi-Header"), "Only first header value should be used")
-
-		w.Header().Set("Content-Type", ContentType)
-		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte(`{"status": "ok"}`))
-		assert.NoError(t, err, "Failed to write response")
-	}))
-	defer server.Close()
-
-	client := NewClient()
-
-	// Set multiple values for the same header
-	client.Headers()["X-Multi-Header"] = []string{"first-value", "second-value"}
-
-	request := struct {
-		Name string `json:"name"`
-	}{
-		Name: "test",
-	}
-
-	var response struct {
-		Status string `json:"status"`
-	}
-
-	err := client.Post(server.URL, request, &response)
-
-	require.NoError(t, err, "Post() should not return error")
-	assert.Equal(t, "ok", response.Status, "Response status mismatch")
 }
 
 // TestParseResponse_EmptyBodyError tests error response with empty body.

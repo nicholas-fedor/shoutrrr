@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -34,8 +33,6 @@ type Service struct {
 	payloadBuilder PayloadBuilder
 	// validator checks the message, priority, and date.
 	validator Validator
-	// sender sends the request and checks the response.
-	sender contextSender
 
 	// Config holds the server, the token, and the message options.
 	Config *Config
@@ -111,7 +108,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.urlBuilder = &DefaultURLBuilder{}
 	s.payloadBuilder = &DefaultPayloadBuilder{}
 	s.validator = &DefaultValidator{}
-	s.sender = &DefaultSender{}
 
 	return nil // Return success
 }
@@ -155,7 +151,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("failed to process config: %w", err)
 	}
 
-	postURL, request, headers, err := s.buildRequest(message, &config, extras)
+	postURL, request, err := s.buildRequest(message, &config, extras)
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
@@ -168,7 +164,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	return s.sendRequest(ctx, s.sendClient(ctx, &config), postURL, request, headers)
+	return s.sendRequest(ctx, s.sendClient(ctx, &config), &config, postURL, request)
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
@@ -203,7 +199,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 	}
 }
 
-// buildRequest constructs the URL, payload, and headers for the HTTP request.
+// buildRequest constructs the URL and payload for the HTTP request.
 //
 // Parameters:
 //   - message: the message.
@@ -213,30 +209,22 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 // Returns:
 //   - string: the message endpoint URL.
 //   - *MessageRequest: the request body.
-//   - http.Header: the token header for header authentication, or nil.
 //   - error: the error from building the URL.
 func (s *Service) buildRequest(
 	message string,
 	config *Config,
 	extras map[string]any,
-) (string, *MessageRequest, http.Header, error) {
+) (string, *MessageRequest, error) {
 	// Construct the complete API endpoint URL
 	postURL, err := s.urlBuilder.BuildURL(config)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to build URL: %w", err)
+		return "", nil, fmt.Errorf("failed to build URL: %w", err)
 	}
 
 	// Prepare the JSON request payload
 	request := s.payloadBuilder.PrepareRequest(message, config, extras, config.Date)
 
-	// Prepare headers for header-based authentication
-	var headers http.Header
-	if config.UseHeader {
-		headers = make(http.Header)
-		headers.Set("X-Gotify-Key", config.Token)
-	}
-
-	return postURL, request, headers, nil
+	return postURL, request, nil
 }
 
 // processConfig handles configuration processing including parameter updates, validation, and extras parsing.
@@ -322,37 +310,6 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	}
 
 	return s.client.Client()
-}
-
-// sendRequest executes the HTTP POST request to the Gotify API endpoint.
-//
-// Parameters:
-//   - ctx: cancellation and deadline for the request.
-//   - client: the HTTP client to send through.
-//   - postURL: the complete API endpoint URL to send the request to.
-//   - request: the JSON payload to send in the request body.
-//   - headers: optional headers to set on the request.
-//
-// Returns:
-//   - error: [ErrSendFailed] wrapping the request error or the error the server reported.
-func (s *Service) sendRequest(
-	ctx context.Context,
-	client types.HTTPClient,
-	postURL string,
-	request *MessageRequest,
-	headers http.Header,
-) error {
-	if err := s.sender.SendRequestContext(
-		ctx,
-		client,
-		postURL,
-		request,
-		headers,
-	); err != nil {
-		return fmt.Errorf("%w: %w", ErrSendFailed, err)
-	}
-
-	return nil
 }
 
 // validateInputs performs initial validation checks for the Send method.
