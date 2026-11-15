@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send every message through one jsonclient request by @nicholas-fedor in [#2222](https://github.com/nicholas-fedor/shoutrrr/pull/2222)
 - Count a send as delivered only on a 2xx status by @nicholas-fedor in [#2220](https://github.com/nicholas-fedor/shoutrrr/pull/2220)
 - Count a push as sent once Pushbullet accepts it by @nicholas-fedor in [#2218](https://github.com/nicholas-fedor/shoutrrr/pull/2218)
 - Reject messages larger than the broker's maximum packet size by @nicholas-fedor in [#2216](https://github.com/nicholas-fedor/shoutrrr/pull/2216)
