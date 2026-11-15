@@ -13,8 +13,8 @@ import (
 // htmlMessage contains characters that HTML parse mode must escape.
 const htmlMessage = `Oh wow! <3 Cool & stuff ->`
 
-// payloadFromURL builds the sendMessage payload for message and the first chat
-// of the service configured by rawURL.
+// payloadFromURL builds the sendMessage payload a send of message gives every
+// chat of the service configured by rawURL.
 //
 // Parameters:
 //   - t: the test.
@@ -22,14 +22,11 @@ const htmlMessage = `Oh wow! <3 Cool & stuff ->`
 //   - message: the message to send.
 //
 // Returns:
-//   - SendMessagePayload: the payload for the first chat.
+//   - SendMessagePayload: the payload without a chat.
 func payloadFromURL(t *testing.T, rawURL, message string) SendMessagePayload {
 	t.Helper()
 
-	config := newTestService(t, rawURL).GetConfig()
-	require.NotEmpty(t, config.Chats)
-
-	return createSendMessagePayload(message, config.Chats[0], config)
+	return newMessagePayload(message, newTestService(t, rawURL).GetConfig())
 }
 
 // TestPayloadParseMode verifies that parse_mode is sent only for a parse mode
@@ -72,43 +69,49 @@ func TestPayloadParseMode(t *testing.T) {
 	}
 }
 
-// TestPayloadTitleEscapesHTML verifies that a title is prepended to the message
-// and that the message's HTML characters are escaped.
-func TestPayloadTitleEscapesHTML(t *testing.T) {
+// TestPayloadTitle verifies the text a send carries for each parse mode. A
+// title goes on a bold line before the message, with the characters the mode
+// reads as markup escaped. With no parse mode, a title makes the message HTML
+// with its text escaped. Without a title, the message goes as written.
+func TestPayloadTitle(t *testing.T) {
 	t.Parallel()
 
-	payload := payloadFromURL(t, "telegram://12345:mock-token@telegram/?channels=channel-1&title=MessageTitle", htmlMessage)
-
-	assert.Contains(t, payload.Text, "MessageTitle")
-	assert.Contains(t, payload.Text, "&lt;3")
-	assert.Contains(t, payload.Text, "Cool &amp; stuff")
-	assert.Contains(t, payload.Text, "-&gt;")
-}
-
-// TestPayloadMessageThreadID verifies that a numeric thread ID after the chat
-// sets message_thread_id, and that a missing or non-numeric one leaves it unset.
-func TestPayloadMessageThreadID(t *testing.T) {
-	t.Parallel()
-
-	// tests lists chats with the thread ID the payload should carry, or nil
-	// when it should carry none.
+	// tests lists URL query strings and messages with the text the payload
+	// should carry.
 	tests := []struct {
-		name string
-		chat string
-		want *int
+		name    string
+		query   string
+		message string
+		want    string
 	}{
-		{name: "no thread ID", chat: "channel-1", want: nil},
-		{name: "numeric thread ID", chat: "channel-1:10", want: new(10)},
-		{name: "non-numeric thread ID", chat: "channel-1:invalid", want: nil},
+		{name: "no title", query: "&parsemode=HTML", message: htmlMessage, want: htmlMessage},
+		{
+			name:    "no parse mode",
+			query:   "&title=Disk%20%3C90%25%20%26%20rising",
+			message: htmlMessage,
+			want:    "<b>Disk &lt;90% &amp; rising</b>\nOh wow! &lt;3 Cool &amp; stuff -&gt;",
+		},
+		{name: "HTML", query: "&parsemode=HTML&title=Disk%20%3C90%25", message: "<i>Message</i>", want: "<b>Disk &lt;90%</b>\n<i>Message</i>"},
+		{name: "MarkdownV2", query: "&parsemode=MarkdownV2&title=v1.2_(beta)%21", message: "Message", want: "*v1\\.2\\_\\(beta\\)\\!*\nMessage"},
+		{name: "MarkdownV2 backslash", query: "&parsemode=MarkdownV2&title=a%5Cb", message: "Message", want: "*a\\\\b*\nMessage"},
+		{name: "Markdown", query: "&parsemode=Markdown&title=Alert", message: "Message", want: "*Alert*\nMessage"},
+		{
+			name:    "Markdown asterisks",
+			query:   "&parsemode=Markdown&title=2*2=4",
+			message: "Message",
+			want:    "*2*\\**2=4*\nMessage",
+		},
+		{name: "Markdown other markup characters", query: "&parsemode=Markdown&title=disk_usage%20%60df%60%20%5Bprod%5D", message: "Message", want: "*disk_usage `df` [prod]*\nMessage"},
+		{name: "Markdown title of asterisks", query: "&parsemode=Markdown&title=**_", message: "Message", want: "\\*\\**_*\nMessage"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload := payloadFromURL(t, "telegram://12345:mock-token@telegram/?channels="+tt.chat+"&title=MessageTitle", htmlMessage)
+			payload := payloadFromURL(t, "telegram://12345:mock-token@telegram/?channels=channel-1"+tt.query, tt.message)
 
-			assert.Equal(t, tt.want, payload.MessageThreadID)
+			assert.Equal(t, tt.want, payload.Text)
 		})
 	}
 }

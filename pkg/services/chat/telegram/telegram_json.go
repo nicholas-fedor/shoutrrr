@@ -1,9 +1,7 @@
 package telegram
 
 import (
-	"fmt"
 	"html"
-	"strconv"
 	"strings"
 )
 
@@ -24,13 +22,12 @@ type SendMessagePayload struct {
 	// Entities lists formatting entities in the text, as an alternative to
 	// ParseMode. It is left out when empty.
 	Entities []entity `json:"entities,omitempty"`
-	// ReplyTo is the ID of the message this one replies to, or 0 for none.
-	ReplyTo int64 `json:"reply_to_message_id"`
 	// MessageID identifies an existing message. sendMessage does not read it,
 	// so it is left out when 0.
 	MessageID int64 `json:"message_id,omitzero"`
-	// DisablePreview turns off the link preview for URLs in the text.
-	DisablePreview bool `json:"disable_web_page_preview"`
+	// LinkPreviewOptions sets how Telegram previews the links in the text. It
+	// is left out when zero, so Telegram previews the first link.
+	LinkPreviewOptions linkPreviewOptions `json:"link_preview_options,omitzero"`
 	// DisableNotification delivers the message without a sound.
 	DisableNotification bool `json:"disable_notification"`
 }
@@ -206,6 +203,12 @@ type inlineKey struct {
 	SwitchInlineQueryCurrent string `json:"switch_inline_query_current_chat"`
 }
 
+// linkPreviewOptions describes how Telegram previews the links in a message.
+type linkPreviewOptions struct {
+	// IsDisabled turns off the link preview.
+	IsDisabled bool `json:"is_disabled,omitzero"`
+}
+
 // replyMarkup is the reply markup of a message.
 type replyMarkup struct {
 	// InlineKeyboard holds the rows of buttons shown under the message.
@@ -256,6 +259,19 @@ type ChatMember struct {
 	Status string `json:"status"`
 }
 
+// legacyMarkdownExpansion is the most bytes a bold legacy Markdown title
+// takes for each of its bytes. A one-byte run between asterisks takes three.
+const legacyMarkdownExpansion = 3
+
+// markdownV2Escaper escapes the characters that MarkdownV2 reads as markup,
+// and the backslash that escapes them.
+var markdownV2Escaper = strings.NewReplacer(
+	`\`, `\\`,
+	"_", `\_`, "*", `\*`, "[", `\[`, "]", `\]`, "(", `\(`, ")", `\)`,
+	"~", `\~`, "`", "\\`", ">", `\>`, "#", `\#`, "+", `\+`, "-", `\-`,
+	"=", `\=`, "|", `\|`, "{", `\{`, "}", `\}`, ".", `\.`, "!", `\!`,
+)
+
 // Error returns the description of the failure.
 //
 // Returns:
@@ -277,53 +293,115 @@ func (c *Chat) Name() string {
 	return c.Title
 }
 
-// createSendMessagePayload builds the sendMessage body for one chat.
+// newMessagePayload builds the sendMessage body that a send gives every
+// chat, without the chat ID and thread ID.
 //
-// A chat written as <chat ID>:<thread ID> posts in that forum topic. With a
-// title and no parse mode, the message is escaped and sent as HTML so the title
-// can be bold. Only HTML supports a title.
+// A title goes on a bold line before the message. With a title and no parse
+// mode, the message is escaped and sent as HTML so the title can be bold.
 //
 // Parameters:
 //   - message: the message text.
-//   - channel: the chat ID or @channel, optionally with a thread ID.
 //   - config: the configuration for this send.
 //
 // Returns:
-//   - SendMessagePayload: the request body.
-func createSendMessagePayload(message, channel string, config *Config) SendMessagePayload {
-	var threadID *int
-
-	chatID, thread, ok := strings.Cut(channel, ":")
-	if ok {
-		if parsed, err := strconv.Atoi(thread); err == nil {
-			threadID = &parsed
-		}
-	}
-
+//   - SendMessagePayload: the request body without a chat.
+func newMessagePayload(message string, config *Config) SendMessagePayload {
 	payload := SendMessagePayload{
+		LinkPreviewOptions:  linkPreviewOptions{IsDisabled: !config.Preview},
 		Text:                message,
-		ID:                  chatID,
-		MessageThreadID:     threadID,
 		DisableNotification: !config.Notification,
-		DisablePreview:      !config.Preview,
 	}
 
 	parseMode := config.ParseMode
-	if config.ParseMode == ParseModes.None && config.Title != "" {
-		parseMode = ParseModes.HTML
-		// Without a parse mode the message is plain text, so it is escaped to
-		// send as HTML.
-		message = html.EscapeString(message)
+
+	if config.Title != "" {
+		if parseMode == ParseModeNone {
+			parseMode = ParseModeHTML
+			// Without a parse mode the message is plain text, so it is
+			// escaped to send as HTML.
+			message = html.EscapeString(message)
+		}
+
+		payload.Text = titledText(config.Title, message, parseMode)
 	}
 
-	if parseMode != ParseModes.None {
+	if parseMode != ParseModeNone {
 		payload.ParseMode = parseMode.String()
 	}
 
-	// Only the HTML parse mode supports a title.
-	if parseMode == ParseModes.HTML {
-		payload.Text = fmt.Sprintf("<b>%v</b>\n%v", html.EscapeString(config.Title), message)
+	return payload
+}
+
+// titledText returns the text of a message with a title.
+//
+// The title comes first, in bold, with the characters the parse mode reads as
+// markup escaped. A line break and the message follow it.
+//
+// Parameters:
+//   - title: the title, as plain text.
+//   - message: the message, already written for the parse mode.
+//   - mode: the parse mode of the text.
+//
+// Returns:
+//   - string: the text to send.
+func titledText(title, message string, mode parseMode) string {
+	switch mode {
+	case ParseModeMarkdownV2:
+		return "*" + markdownV2Escaper.Replace(title) + "*\n" + message
+	case ParseModeMarkdown:
+		return legacyMarkdownText(title, message)
+	case ParseModeNone, ParseModeHTML:
+	default:
 	}
 
-	return payload
+	// HTML is the parse mode of a message with a title and no parse mode of
+	// its own.
+	return "<b>" + html.EscapeString(title) + "</b>\n" + message
+}
+
+// legacyMarkdownText returns the text of a message with a title in bold
+// legacy Markdown.
+//
+// Inside a bold entity only an asterisk is markup, and it ends the entity,
+// since legacy Markdown allows no escape there. So each asterisk of the title
+// is escaped between bold runs, as the Bot API documents for "*2*\**2=4*".
+//
+// Parameters:
+//   - title: the title, as plain text.
+//   - message: the message, already written as legacy Markdown.
+//
+// Returns:
+//   - string: the text to send.
+func legacyMarkdownText(title, message string) string {
+	next := strings.IndexByte(title, '*')
+	if next < 0 {
+		return "*" + title + "*\n" + message
+	}
+
+	var text strings.Builder
+
+	text.Grow(legacyMarkdownExpansion*len(title) + len("\n") + len(message))
+
+	for ; next >= 0; next = strings.IndexByte(title, '*') {
+		if next > 0 {
+			text.WriteByte('*')
+			text.WriteString(title[:next])
+			text.WriteByte('*')
+		}
+
+		text.WriteString(`\*`)
+
+		title = title[next+1:]
+	}
+
+	if title != "" {
+		text.WriteByte('*')
+		text.WriteString(title)
+		text.WriteByte('*')
+	}
+
+	text.WriteByte('\n')
+	text.WriteString(message)
+
+	return text.String()
 }
