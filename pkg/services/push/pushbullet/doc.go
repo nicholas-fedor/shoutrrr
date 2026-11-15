@@ -129,8 +129,6 @@
 //   - Invalid channel (channel must exist and be accessible)
 //   - HTTP error status codes (4xx/5xx) from the Pushbullet API
 //   - Authentication failures (invalid or expired token)
-//   - Push notification marked as inactive by the server
-//   - Response validation failures (mismatched title or body)
 //
 // # Security Considerations
 //
@@ -148,14 +146,13 @@
 // - API token must be exactly 34 characters long
 // - Message content cannot be empty
 // - Title has a maximum length (typically truncated by the Pushbullet service)
-// - Targets are processed sequentially - if one fails, the service returns an error
+// - Targets are processed in order, and a target that fails does not stop the ones after it
 // - Channel names must be prefixed with # in the URL path
 // - Email targets must be valid email addresses
 // - Device targets must match the device identifier exactly
-// - The service validates API responses to ensure message integrity
 // - Push notifications are sent as "note" type messages
 // - HTTP client timeout is set for API requests
-// - Successful responses are validated for correctness (type, title, body, active status)
+// - A push counts as sent once the API accepts it, whatever its copy of the push says
 //
 // # Related Links
 //

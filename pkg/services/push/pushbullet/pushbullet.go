@@ -2,7 +2,6 @@ package pushbullet
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -34,20 +33,6 @@ const (
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
 	// defaultHTTPTimeout is the part of the send budget for each target.
 	defaultHTTPTimeout = 10 * time.Second
-)
-
-// Static errors for push validation.
-var (
-	// ErrUnexpectedResponseType indicates a created push that is not a note.
-	ErrUnexpectedResponseType = errors.New("unexpected response type, expected note")
-	// ErrResponseBodyMismatch indicates a created push whose body differs
-	// from the message.
-	ErrResponseBodyMismatch = errors.New("response body mismatch")
-	// ErrResponseTitleMismatch indicates a created push whose title differs
-	// from the one sent.
-	ErrResponseTitleMismatch = errors.New("response title mismatch")
-	// ErrPushNotActive indicates a created push that is already inactive.
-	ErrPushNotActive = errors.New("push notification is not active")
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -132,12 +117,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
 
+	client := s.newJSONClient()
+
 	return sequential.Send(
 		ctx,
 		config.sendTargets(),
 		sequential.PerTarget(defaultHTTPTimeout),
 		func(ctx context.Context, target string) error {
-			if err := s.doSend(ctx, &config, target, message); err != nil {
+			if err := doSend(ctx, client, &config, target, message); err != nil {
 				return fmt.Errorf("sending to target %q: %w", target, err)
 			}
 
@@ -177,24 +164,39 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
 }
 
-// doSend sends a push notification to a specific target and validates the response.
+// newJSONClient builds the API client from the injected or default HTTP client,
+// with the access token set, so every request is authenticated whichever HTTP
+// client it goes through. The service must be initialized.
+//
+// Returns:
+//   - jsonclient.ContextClient: the API client.
+func (s *Service) newJSONClient() jsonclient.ContextClient {
+	client := jsonclient.NewContextClient(s.client.Client())
+	client.Headers().Set("Access-Token", s.Config.Token)
+
+	return client
+}
+
+// doSend sends a push notification to a specific target. The API answers
+// every failure with an error status, so a push counts as sent once the API
+// accepts it, whatever its copy of the push says.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
+//   - client: the API client of the send.
 //   - config: the configuration for this send.
 //   - target: the device, channel, or email to push to.
 //   - message: the message to send.
 //
 // Returns:
-//   - error: the API error, the request error, or a response validation error.
-func (s *Service) doSend(ctx context.Context, config *Config, target, message string) error {
+//   - error: the API error or the request error.
+func doSend(ctx context.Context, client jsonclient.ContextClient, config *Config, target, message string) error {
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 
-	client := s.newJSONClient()
-
-	response := PushResponse{}
-	if err := client.PostContext(ctx, pushesEndpoint, push, &response); err != nil {
+	// The reply is the created push. It is decoded only to reject a reply that
+	// is not JSON, such as a page from an intermediate server.
+	if err := client.PostContext(ctx, pushesEndpoint, push, &struct{}{}); err != nil {
 		errorResponse := &ResponseError{}
 		if client.ErrorResponse(err, errorResponse) {
 			return fmt.Errorf("API error: %w", errorResponse)
@@ -203,47 +205,5 @@ func (s *Service) doSend(ctx context.Context, config *Config, target, message st
 		return fmt.Errorf("failed to push: %w", err)
 	}
 
-	// Validate response fields
-	if response.Type != "note" {
-		return fmt.Errorf("%w: got %s", ErrUnexpectedResponseType, response.Type)
-	}
-
-	if response.Body != message {
-		return fmt.Errorf(
-			"%w: got %s, expected %s",
-			ErrResponseBodyMismatch,
-			response.Body,
-			message,
-		)
-	}
-
-	if response.Title != config.Title {
-		return fmt.Errorf(
-			"%w: got %s, expected %s",
-			ErrResponseTitleMismatch,
-			response.Title,
-			config.Title,
-		)
-	}
-
-	if !response.Active {
-		return ErrPushNotActive
-	}
-
 	return nil
-}
-
-// newJSONClient builds the API client from the injected or default HTTP client,
-// with the access token set, so every request is authenticated whichever HTTP
-// client it goes through.
-//
-// Returns:
-//   - jsonclient.ContextClient: the API client.
-func (s *Service) newJSONClient() jsonclient.ContextClient {
-	client := jsonclient.NewContextClient(s.client.Client())
-	if s.Config != nil {
-		client.Headers().Set("Access-Token", s.Config.Token)
-	}
-
-	return client
 }
