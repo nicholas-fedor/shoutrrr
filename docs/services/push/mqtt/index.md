@@ -119,7 +119,7 @@ The broker keeps a session after its connection ends as follows.
 
 | `cleansession` | Shoutrrr closes the connection | The connection is lost |
 | --- | --- | --- |
-| `yes` (default) | The broker discards the session at once, since no later connection resumes it | The broker keeps the session for 60 seconds, so the reconnect resumes it |
+| `yes` (default) | The broker discards the session at once, since no later connection resumes it | The broker keeps the session for 60 seconds. The automatic reconnect resumes it. A connection that a later send opens after an idle close starts a clean session, which discards it |
 | `no` | The broker keeps the session for 60 seconds | The broker keeps the session for 60 seconds, so the reconnect resumes it |
 
 Shoutrrr asks for the 60 seconds, and the broker may choose a different interval in its reply, including a shorter one.
