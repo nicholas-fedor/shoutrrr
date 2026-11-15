@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 type Config struct {
 	// Token is the bot token, written as the userinfo of the service URL.
 	Token string `sensitive:"true" url:"user"`
-	// Title is prepended to the message in bold. It needs the HTML parse mode,
-	// which a message without a parse mode switches to.
+	// Title is sent in bold on a line before the message, escaped for the
+	// parse mode. A message without a parse mode switches to HTML for it.
 	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
 	// APIURL is the base URL of the Bot API server, such as a self-hosted
 	// server or a proxy. Empty selects https://api.telegram.org.
@@ -37,6 +38,18 @@ type Config struct {
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
+// chatTarget is a configured chat, read into the fields of a sendMessage
+// request.
+type chatTarget struct {
+	// threadID is the forum topic to post in, or nil for the chat's main
+	// thread.
+	threadID *int
+	// chat is the chat as configured, which a failed send names.
+	chat string
+	// id is the chat ID or @channel.
+	id string
+}
+
 // Service identity.
 const (
 	// Scheme identifies this service in configuration URLs.
@@ -52,6 +65,9 @@ var (
 	// ErrInvalidAPIURL indicates an API URL that is not an http or https URL
 	// with a host, or that carries userinfo, a query, or a fragment.
 	ErrInvalidAPIURL = errors.New("invalid telegram API URL")
+	// ErrInvalidThreadID indicates a chat whose thread ID, after the colon, is
+	// not a positive integer.
+	ErrInvalidThreadID = errors.New("invalid telegram thread ID")
 )
 
 // Enums returns the fields that use an EnumFormatter for their values.
@@ -124,32 +140,50 @@ func (c *Config) plaintextAPI() bool {
 }
 
 // prepare drops the empty chats, as reading a list setting does, then checks
-// the bot token, the chats, the parse mode, and the API URL.
+// the bot token, the chats and their thread IDs, the parse mode, and the API
+// URL.
 //
 // Reading a service URL and each send run it, so a config built in code sends
 // to the chats its URL would, and fails before a request as its URL would.
 //
 // Returns:
+//   - []chatTarget: the chats, each read into its chat ID and thread ID.
 //   - error: [ErrInvalidToken] for an invalid bot token, [ErrNoChannelsDefined]
-//     when no chats are set, an error wrapping [format.ErrInvalidEnumValue]
-//     for a parse mode that is not one of its values, or [ErrInvalidAPIURL].
+//     when no chats are set, [ErrInvalidThreadID] for a thread ID that is not
+//     a positive integer, an error wrapping [format.ErrInvalidEnumValue] for a
+//     parse mode that is not one of its values, or [ErrInvalidAPIURL].
 //     Otherwise nil.
-func (c *Config) prepare() error {
+func (c *Config) prepare() ([]chatTarget, error) {
 	c.Chats = util.NonEmpty(c.Chats)
 
 	if !IsTokenValid(c.Token) {
-		return ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 
 	if len(c.Chats) < 1 {
-		return ErrNoChannelsDefined
+		return nil, ErrNoChannelsDefined
+	}
+
+	targets := make([]chatTarget, len(c.Chats))
+
+	for i, chat := range c.Chats {
+		target, err := parseChat(chat)
+		if err != nil {
+			return nil, err
+		}
+
+		targets[i] = target
 	}
 
 	if err := format.CheckEnumValue(ParseModes.Enum, int(c.ParseMode)); err != nil {
-		return fmt.Errorf("parse mode: %w", err)
+		return nil, fmt.Errorf("parse mode: %w", err)
 	}
 
-	return validateAPIURL(c.APIURL)
+	if err := validateAPIURL(c.APIURL); err != nil {
+		return nil, err
+	}
+
+	return targets, nil
 }
 
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
@@ -170,7 +204,8 @@ func (c *Config) sendBudget() time.Duration {
 // Returns:
 //   - error: [ErrInvalidToken] for an invalid bot token, an error wrapping
 //     [util.ErrInvalidQuery] for a malformed query, a query prop error,
-//     [ErrNoChannelsDefined] when no chats are set, or [ErrInvalidAPIURL].
+//     [ErrNoChannelsDefined] when no chats are set, [ErrInvalidThreadID], or
+//     [ErrInvalidAPIURL].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 
@@ -195,13 +230,38 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	read := *c
 	read.Token = token
 
-	if err := read.prepare(); err != nil {
+	if _, err := read.prepare(); err != nil {
 		return err
 	}
 
 	*c = read
 
 	return nil
+}
+
+// parseChat reads a chat into its chat ID and the forum topic it names.
+//
+// Parameters:
+//   - chat: the chat ID or @channel, optionally followed by a colon and a
+//     thread ID.
+//
+// Returns:
+//   - chatTarget: the chat with its chat ID, and its thread ID when it names
+//     one.
+//   - error: [ErrInvalidThreadID] for a thread ID that is not a positive
+//     integer.
+func parseChat(chat string) (chatTarget, error) {
+	chatID, thread, ok := strings.Cut(chat, ":")
+	if !ok {
+		return chatTarget{threadID: nil, chat: chat, id: chat}, nil
+	}
+
+	threadID, err := strconv.Atoi(thread)
+	if err != nil || threadID < 1 {
+		return chatTarget{}, fmt.Errorf("%w: chat %q", ErrInvalidThreadID, chat)
+	}
+
+	return chatTarget{threadID: &threadID, chat: chat, id: chatID}, nil
 }
 
 // validateAPIURL checks that an API URL is an http or https URL with a host

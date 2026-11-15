@@ -28,6 +28,7 @@ Replace the `t.me/` prefix from the link with a `@`.
 
 !!! note
     A `message_thread_id` param ([reference](https://core.telegram.org/bots/api#sendmessage)) can be added, with the format of `$chat_id:$message_thread_id`. [More info](https://stackoverflow.com/questions/74773675/how-to-get-topic-id-for-telegram-group-chat/75178418#75178418) on how to obtain the `message_thread_id`.
+    A thread ID must be a positive integer, and any other value fails before any request is sent.
 
 ### Chats
 
@@ -59,8 +60,9 @@ A chat that Telegram rejects does not stop the chats after it, and the error lis
 
 A message can hold up to 4096 characters, counted as UTF-16 code units the way Telegram measures text.
 Most characters count as one unit, and an emoji or another character outside the Basic Multilingual Plane counts as two.
-A title sent on its own line, as the HTML parse mode or no parse mode sends it, counts toward the limit too.
-A longer message fails before any request is sent.
+A title counts toward the limit too, with the line break after it.
+Without a parse mode, a longer message fails before any request is sent.
+Telegram counts a message written for a parse mode after parsing its markup, so Shoutrrr sends it and leaves the limit to Telegram, which rejects a longer message in each chat.
 
 ## Optional parameters
 
@@ -72,17 +74,20 @@ You can optionally specify the __`notification`__, __`parseMode`__ and __`previe
 See [the telegram documentation](https://core.telegram.org/bots/api#sendmessage) for more information.
 
 !!! note
-    `preview` and `notification` are inverted in regards to their API counterparts (`disable_web_page_preview` and `disable_notification`)
+    `preview` and `notification` are inverted in regards to their API counterparts (`link_preview_options.is_disabled` and `disable_notification`).
+    A send with `preview=false` carries `link_preview_options`, which Bot API 7.0 introduced, so a self-hosted Bot API server needs version 7.0 or later to honor it.
 
 ### Parse Mode and Title
 
 If a parse mode is specified, the message needs to be escaped as per the corresponding sections in
 [Formatting options](https://core.telegram.org/bots/api#formatting-options).
 
-When a title has been specified, it will be prepended to the message, but this is only supported for
-the `HTML` parse mode. Note that, if no parse mode is specified, the message will be escaped and sent using `HTML`.
+A title is sent in bold on a line before the message, in every parse mode.
+Shoutrrr escapes the title for the parse mode, so it can hold any text.
+If no parse mode is specified and a title is set, the message is escaped and sent using `HTML`.
 
-Since the markdown modes are really hard to escape correctly, it's recommended to stick to `HTML` parse mode.
+The message itself is sent as written, so with a parse mode its markup must follow that mode's rules.
+Since the markdown modes are hard to escape correctly, `HTML` is the easiest parse mode to write by hand.
 
 ## Bot API server
 

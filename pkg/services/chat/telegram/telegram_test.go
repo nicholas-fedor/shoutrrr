@@ -167,6 +167,19 @@ func TestInitializeRejectsInvalidURLs(t *testing.T) {
 	}
 }
 
+// TestInitializeRejectsInvalidThreadID verifies that a URL whose chat has a
+// thread ID that is not a positive integer fails with [ErrInvalidThreadID]
+// and keeps no token, instead of posting to the chat's main thread.
+func TestInitializeRejectsInvalidThreadID(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+	err := service.Initialize(parseURL(t, "telegram://12345:mock-token@telegram/?chats=-1001234:general"), log.New(t.Output(), "", 0))
+
+	require.ErrorIs(t, err, ErrInvalidThreadID)
+	assert.Empty(t, service.GetConfig().Token)
+}
+
 // TestInitializeHidesInvalidToken verifies that an invalid token is rejected
 // without echoing it in the error.
 func TestInitializeHidesInvalidToken(t *testing.T) {
@@ -318,6 +331,66 @@ func TestSendUsesChatsFromParams(t *testing.T) {
 	assert.Equal(t, []string{"channel-9"}, chats)
 }
 
+// TestSendRequestBodies verifies the sendMessage body each chat gets, in the
+// Bot API 7.0 form. Link previews stay on unless the preview setting is off,
+// which sends link_preview_options with is_disabled. A send replies to no
+// message, so it carries no reply field. A thread ID after a chat sets
+// message_thread_id for that chat only.
+func TestSendRequestBodies(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URL query strings with the JSON body each request should
+	// carry, in order.
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{name: "defaults", query: "chats=channel-1", want: []string{`{"text":"Message","chat_id":"channel-1","disable_notification":false}`}},
+		{
+			name:  "preview off",
+			query: "chats=channel-1&preview=no",
+			want:  []string{`{"link_preview_options":{"is_disabled":true},"text":"Message","chat_id":"channel-1","disable_notification":false}`},
+		},
+		{name: "notification off", query: "chats=channel-1&notification=no", want: []string{`{"text":"Message","chat_id":"channel-1","disable_notification":true}`}},
+		{
+			name:  "thread ID",
+			query: "chats=channel-1,channel-2:10",
+			want: []string{
+				`{"text":"Message","chat_id":"channel-1","disable_notification":false}`,
+				`{"message_thread_id":10,"text":"Message","chat_id":"channel-2","disable_notification":false}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var bodies []string
+
+			service := newTestService(t, "telegram://12345:mock-token@telegram/?"+tt.query)
+			service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					return nil, err
+				}
+
+				bodies = append(bodies, string(body))
+
+				return newResponse(req, http.StatusOK, sendSuccessBody), nil
+			})})
+
+			require.NoError(t, service.Send("Message", nil))
+			require.Len(t, bodies, len(tt.want))
+
+			for i, want := range tt.want {
+				assert.JSONEq(t, want, bodies[i])
+			}
+		})
+	}
+}
+
 // TestSendChecksConfig verifies that a send checks its config after applying
 // its params, as reading a service URL does.
 //
@@ -337,6 +410,8 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "invalid token", change: func(config *Config) { config.Token = "invalid" }, wantErr: ErrInvalidToken},
 		{name: "no chats", change: func(config *Config) { config.Chats = nil }, wantErr: ErrNoChannelsDefined},
 		{name: "chats cleared by a param", params: &types.Params{"chats": ""}, wantErr: ErrNoChannelsDefined},
+		{name: "thread ID that is not a number", change: func(config *Config) { config.Chats = []string{"-1001234:general"} }, wantErr: ErrInvalidThreadID},
+		{name: "thread ID from a param", params: &types.Params{"chats": "-1001234:0"}, wantErr: ErrInvalidThreadID},
 		{name: "invalid API URL", change: func(config *Config) { config.APIURL = "ftp://bot.example" }, wantErr: ErrInvalidAPIURL},
 		{name: "undefined parse mode", change: func(config *Config) { config.ParseMode = 99 }, wantErr: format.ErrInvalidEnumValue},
 	}
@@ -401,29 +476,36 @@ func TestSendMessageLength(t *testing.T) {
 	}
 }
 
-// TestSendMessageLengthWithTitle verifies that the length limit counts the
-// title line a send with a title carries, whether the title comes from the
-// service URL or the send params. A Markdown message carries no title, so its
-// title does not count.
+// TestSendMessageLengthWithTitle verifies which sends the length limit
+// checks. Without a parse mode, the title line counts, whether the title comes
+// from the service URL or the send params. A message written for a parse mode
+// goes to Telegram, which counts its text after parsing, so markup around a
+// message at the limit does not fail the send.
 func TestSendMessageLengthWithTitle(t *testing.T) {
 	t.Parallel()
 
-	// tests lists service URLs and params with whether a message of
-	// maxlength-4 units fits the limit with the title "Alert" and its newline.
+	// tests lists service URLs, params, and messages with whether the send
+	// fits the limit. The title "Alert" and its line break take 6 units.
 	tests := []struct {
-		params *types.Params
-		name   string
-		rawURL string
-		fits   bool
+		params  *types.Params
+		name    string
+		rawURL  string
+		message string
+		fits    bool
 	}{
-		{name: "no title", rawURL: testServiceURL, fits: true},
-		{name: "title param", rawURL: testServiceURL, params: &types.Params{"title": "Alert"}},
-		{name: "title in the URL", rawURL: testServiceURL + "&title=Alert"},
-		{name: "title with HTML", rawURL: testServiceURL + "&title=Alert&parsemode=HTML"},
-		{name: "title with Markdown", rawURL: testServiceURL + "&title=Alert&parsemode=Markdown", fits: true},
+		{name: "no title", rawURL: testServiceURL, message: strings.Repeat("a", maxlength-4), fits: true},
+		{name: "title param", rawURL: testServiceURL, params: &types.Params{"title": "Alert"}, message: strings.Repeat("a", maxlength-4)},
+		{name: "title in the URL", rawURL: testServiceURL + "&title=Alert", message: strings.Repeat("a", maxlength-4)},
+		{name: "title at the limit", rawURL: testServiceURL + "&title=Alert", message: strings.Repeat("a", maxlength-6), fits: true},
+		{
+			name:    "Markdown bold message",
+			rawURL:  testServiceURL + "&title=Alert&parsemode=Markdown",
+			message: "*" + strings.Repeat("a", maxlength-6) + "*",
+			fits:    true,
+		},
+		{name: "HTML bold message", rawURL: testServiceURL + "&parsemode=HTML", message: "<b>" + strings.Repeat("a", maxlength) + "</b>", fits: true},
+		{name: "MarkdownV2 escaped message", rawURL: testServiceURL + "&parsemode=MarkdownV2", message: strings.Repeat(`\.`, maxlength), fits: true},
 	}
-
-	message := strings.Repeat("a", maxlength-4)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -435,27 +517,27 @@ func TestSendMessageLengthWithTitle(t *testing.T) {
 				// The mock has no expectations, so any request fails the test.
 				service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
 
-				require.ErrorIs(t, service.Send(message, tt.params), ErrMessageTooLong)
+				require.ErrorIs(t, service.Send(tt.message, tt.params), ErrMessageTooLong)
 
 				return
 			}
 
 			service.SetHTTPClient(&http.Client{Transport: respondWith(http.StatusOK, sendSuccessBody)})
 
-			require.NoError(t, service.Send(message, tt.params))
+			require.NoError(t, service.Send(tt.message, tt.params))
 		})
 	}
 }
 
 // TestSendContinuesAfterFailedChat verifies that a chat Telegram rejects does
 // not stop the send to the chats after it, and that the error names each
-// chat that failed.
+// chat that failed as configured, with its thread ID.
 func TestSendContinuesAfterFailedChat(t *testing.T) {
 	t.Parallel()
 
 	var chats []string
 
-	service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+	service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2:7,channel-3")
 	service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var payload struct {
 			ChatID string `json:"chat_id"`
@@ -478,7 +560,7 @@ func TestSendContinuesAfterFailedChat(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, []string{"channel-1", "channel-2", "channel-3"}, chats)
-	assert.Contains(t, err.Error(), `"channel-2"`)
+	assert.Contains(t, err.Error(), `"channel-2:7"`)
 	assert.NotContains(t, err.Error(), `"channel-1"`)
 
 	apiErr, ok := errors.AsType[*responseError](err)

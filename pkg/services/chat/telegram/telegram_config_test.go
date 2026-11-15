@@ -57,3 +57,44 @@ func TestConfigAPIURLRoundTrip(t *testing.T) {
 	assert.NotContains(t, defaultURL, "apiurl")
 	assert.NotContains(t, defaultURL, "skiptlsverify")
 }
+
+// TestParseChat verifies that a chat reads into its chat ID and thread ID,
+// and that a thread ID that is not a positive integer fails with
+// [ErrInvalidThreadID] instead of being dropped.
+func TestParseChat(t *testing.T) {
+	t.Parallel()
+
+	// tests lists chats with the target they read into, or with whether they
+	// fail.
+	tests := []struct {
+		name    string
+		chat    string
+		want    chatTarget
+		wantErr bool
+	}{
+		{name: "chat ID", chat: "-1001234", want: chatTarget{threadID: nil, chat: "-1001234", id: "-1001234"}},
+		{name: "channel", chat: "@alerts", want: chatTarget{threadID: nil, chat: "@alerts", id: "@alerts"}},
+		{name: "thread ID", chat: "-1001234:7", want: chatTarget{threadID: new(7), chat: "-1001234:7", id: "-1001234"}},
+		{name: "word", chat: "-1001234:general", wantErr: true},
+		{name: "empty", chat: "-1001234:", wantErr: true},
+		{name: "zero", chat: "-1001234:0", wantErr: true},
+		{name: "negative", chat: "-1001234:-7", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			target, err := parseChat(tt.chat)
+
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrInvalidThreadID)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, target)
+		})
+	}
+}

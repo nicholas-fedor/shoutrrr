@@ -116,6 +116,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to every configured Telegram chat.
+//
 // A context without a deadline is bounded by the budget that
 // [Service.ServiceTimeout] reports, which the requests share. The first send
 // to an http API URL logs a warning, and so does the first send that skips
@@ -128,8 +129,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, a params
-//     error, [ErrMessageTooLong] for a text over [maxlength] UTF-16 code units
-//     with its title line, [ErrInvalidAPIURL] for an API URL set by the params,
+//     error, [ErrMessageTooLong] for a message without a parse mode over 4096
+//     UTF-16 code units with its title line, [ErrInvalidThreadID] for a chat
+//     set by the params, [ErrInvalidAPIURL] for an API URL set by the params,
 //     or the joined errors of the chats that failed, each naming its chat. A
 //     chat that fails does not stop the chats after it. Once ctx ends, the
 //     remaining chats are skipped and ctx's error is reported once. A request
@@ -144,13 +146,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := config.prepare(); err != nil {
+	targets, err := config.prepare()
+	if err != nil {
 		return err
 	}
 
-	if textLength(message, &config) > maxlength {
+	if tooLong(message, &config) {
 		return ErrMessageTooLong
 	}
+
+	payload := newMessagePayload(message, &config)
 
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
@@ -165,11 +170,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	return sequential.Send(
 		ctx,
-		config.Chats,
+		targets,
 		sequential.PerTarget(defaultHTTPTimeout),
-		func(ctx context.Context, chat string) error {
-			if err := s.sendMessageToAPI(ctx, httpClient, message, chat, &config); err != nil {
-				return fmt.Errorf("sending to chat %q: %w", chat, err)
+		func(ctx context.Context, target chatTarget) error {
+			if err := s.sendMessageToAPI(ctx, httpClient, &payload, target, &config); err != nil {
+				return fmt.Errorf("sending to chat %q: %w", target.chat, err)
 			}
 
 			return nil
@@ -208,8 +213,9 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
 }
 
-// sendClient returns the HTTP client for a send's requests to every chat. A
-// send that skips certificate verification uses the insecure default client,
+// sendClient returns the HTTP client for a send's requests to every chat.
+//
+// A send that skips certificate verification uses the insecure default client,
 // and the first such send logs the shared warning. An injected client is used
 // unchanged and never warned about, because its owner controls its TLS
 // settings.
@@ -228,13 +234,14 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	return s.client.Client()
 }
 
-// sendMessageToAPI sends a message to the Telegram API for a specific chat.
+// sendMessageToAPI sends a send's message to one chat.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - httpClient: the HTTP client of the send.
-//   - message: the message to send.
-//   - chat: the chat to send the message to.
+//   - payload: the send's request body without a chat, which is left
+//     unchanged.
+//   - target: the chat to send the message to.
 //   - config: the configuration for this send.
 //
 // Returns:
@@ -242,36 +249,46 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 func (*Service) sendMessageToAPI(
 	ctx context.Context,
 	httpClient types.HTTPClient,
-	message, chat string,
+	payload *SendMessagePayload,
+	target chatTarget,
 	config *Config,
 ) error {
+	request := *payload
+	request.ID = target.id
+	request.MessageThreadID = target.threadID
+
 	client := &Client{token: config.Token, apiURL: config.APIURL, httpClient: httpClient}
-	payload := createSendMessagePayload(message, chat, config)
-	_, err := client.SendMessageContext(ctx, &payload)
+	_, err := client.SendMessageContext(ctx, &request)
 
 	return err
 }
 
-// textLength returns the length of the text Telegram shows for message, in
-// UTF-16 code units. A message sent with the HTML parse mode, or without one,
-// carries its title on a line of its own, so the title and the line break
-// count too. Telegram counts the text after parsing, so the HTML markup does
-// not count.
+// tooLong reports whether a message without a parse mode is longer than
+// Telegram allows.
+//
+// Telegram counts the text after parsing, in UTF-16 code units, so the markup
+// and escapes Shoutrrr adds do not count, and a title counts with its line break.
+// A message written for a parse mode is not checked, since only Telegram's parser
+// can tell how much of it is markup.
 //
 // Parameters:
 //   - message: the message to send.
 //   - config: the configuration for this send.
 //
 // Returns:
-//   - int: the number of UTF-16 code units Telegram counts.
-func textLength(message string, config *Config) int {
+//   - bool: true for a message without a parse mode over the limit.
+func tooLong(message string, config *Config) bool {
+	if config.ParseMode != ParseModeNone {
+		return false
+	}
+
 	length := utf16Length(message)
 
-	if config.Title != "" && (config.ParseMode == ParseModes.None || config.ParseMode == ParseModes.HTML) {
+	if config.Title != "" {
 		length += utf16Length(config.Title) + 1
 	}
 
-	return length
+	return length > maxlength
 }
 
 // utf16Length returns the length of s in UTF-16 code units, the unit of
