@@ -38,6 +38,9 @@ type pipeBroker struct {
 	addrs []string
 	// ackReason is the reason string sent with a failing acknowledgement.
 	ackReason string
+	// maxPacketSize, when not zero, is the Maximum Packet Size each CONNACK
+	// announces.
+	maxPacketSize uint32
 	// ackCode is the reason code of each PUBACK and PUBREC.
 	ackCode byte
 }
@@ -759,6 +762,28 @@ func TestIntegrationDisconnectEndsCleanSession(t *testing.T) {
 	}
 }
 
+// TestIntegrationBrokerMaximumPacketSize verifies that a send fails before
+// the publish when its packet would exceed the Maximum Packet Size the
+// broker's CONNACK announced, and that a smaller message still reaches the
+// broker. The test topic makes a QoS 0 packet 15 bytes larger than its
+// payload.
+func TestIntegrationBrokerMaximumPacketSize(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		broker := &pipeBroker{maxPacketSize: 100}
+		service := newBrokerService(t, pipeBrokerURL, broker)
+
+		require.NoError(t, service.Send(strings.Repeat("a", 85), nil))
+		require.ErrorIs(t, service.Send(strings.Repeat("b", 86), nil), mqtt.ErrMessageTooLarge)
+		synctest.Wait()
+
+		sessions := broker.dialed()
+		require.Len(t, sessions, 1)
+		assert.Equal(t, []string{strings.Repeat("a", 85)}, payloads(sessions[0].received()))
+	})
+}
+
 // TestIntegrationBrokerPublish verifies that a published message reaches the
 // broker byte for byte with the URL's topic, QoS, and retain flag, and that
 // the send completes the QoS 1 and QoS 2 acknowledgement flows.
@@ -1043,7 +1068,7 @@ func (b *pipeBroker) dial(_ context.Context, _, addr string) (net.Conn, error) {
 	b.addrs = append(b.addrs, addr)
 	b.mu.Unlock()
 
-	go session.serve(server, b.ackCode, b.ackReason)
+	go session.serve(server, b.maxPacketSize, b.ackCode, b.ackReason)
 
 	return client, nil
 }
@@ -1160,9 +1185,11 @@ func (s *brokerSession) sawDisconnect() bool {
 //
 // Parameters:
 //   - conn: the broker's end of the pipe.
+//   - maxPacketSize: the Maximum Packet Size the CONNACK announces, or zero
+//     for none.
 //   - ackCode: the reason code of each PUBACK and PUBREC.
 //   - ackReason: the reason string of each PUBACK and PUBREC.
-func (s *brokerSession) serve(conn net.Conn, ackCode byte, ackReason string) {
+func (s *brokerSession) serve(conn net.Conn, maxPacketSize uint32, ackCode byte, ackReason string) {
 	replies := make(chan io.WriterTo, replyBuffer)
 
 	defer close(replies)
@@ -1180,7 +1207,12 @@ func (s *brokerSession) serve(conn net.Conn, ackCode byte, ackReason string) {
 		case *packets.Connect:
 			s.recordConnect(content)
 
-			replies <- packets.NewControlPacket(packets.CONNACK)
+			connack := packets.NewControlPacket(packets.CONNACK)
+			if maxPacketSize > 0 {
+				connack.Content.(*packets.Connack).Properties.MaximumPacketSize = &maxPacketSize
+			}
+
+			replies <- connack
 		case *packets.Pingreq:
 			replies <- packets.NewControlPacket(packets.PINGRESP)
 		case *packets.Publish:

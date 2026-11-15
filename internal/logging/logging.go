@@ -62,6 +62,8 @@ const (
 	KeyServer = "server"
 	// KeyService names the service that logged the record, by its ID.
 	KeyService = "service"
+	// KeySize holds a size in bytes.
+	KeySize = "size"
 	// KeyStatus holds the status of an HTTP response, such as "200 OK".
 	KeyStatus = "status"
 	// KeyTimestamp holds a timestamp that a server returned.

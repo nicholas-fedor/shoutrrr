@@ -116,4 +116,10 @@
 // SendContext bounds the wait for the connection and the publish by its
 // context, or by the 10 second send budget when the context has no deadline.
 // The connection itself outlives the send.
+//
+// A broker may announce the largest packet it accepts when the connection
+// opens. A message that would make a larger packet fails with
+// [ErrMessageTooLarge] before it is sent. When a reconnection resumes the
+// session, a message still waiting for its acknowledgement is dropped instead
+// of resent if it exceeds the new limit, with a warning.
 package mqtt

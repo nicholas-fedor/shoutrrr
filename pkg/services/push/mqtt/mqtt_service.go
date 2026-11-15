@@ -235,9 +235,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize. A param that
 //     does not apply returns its error. A config that fails its checks
-//     returns their error, such as [ErrTopicRequired]. A failed connection or
-//     publish returns its error, which matches ctx's error when ctx ends the
-//     wait.
+//     returns their error, such as [ErrTopicRequired]. A message larger than
+//     the broker accepts returns an error wrapping [ErrMessageTooLarge]
+//     without being sent. A failed connection or publish returns its error,
+//     which matches ctx's error when ctx ends the wait.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -606,6 +607,11 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 	lifetime, cancel := context.WithCancel(context.Background())
 	clientID := s.connectionClientIDLocked(config)
 
+	// The wrapper checks each publish against the limit in the broker's
+	// CONNACK, which OnConnectionUp records. OnConnectionDown makes sends wait
+	// for the next CONNACK.
+	limited := newLimitedConnection()
+
 	// Create autopaho client configuration
 	//nolint:exhaustruct_v5 // autopaho.ClientConfig has many optional fields with library defaults
 	cliCfg := autopaho.ClientConfig{
@@ -619,9 +625,16 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 			s.LogAttrs(lifetime, slog.LevelWarn, "server disconnected",
 				slog.Uint64(logging.KeyCode, uint64(disconnect.ReasonCode)))
 		},
-		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
+		OnConnectionUp: func(_ *autopaho.ConnectionManager, connack *paho.Connack) {
+			limited.recordConnack(connack)
 			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, serverURL.Host),
 				slog.String(logging.KeyClientID, clientID))
+		},
+		// Returning true keeps autopaho reconnecting.
+		OnConnectionDown: func() bool {
+			limited.recordConnectionDown()
+
+			return true
 		},
 		// A send that cannot connect returns only its context's error, so this
 		// warning is the only report of why, such as a broker rejecting the
@@ -653,6 +666,13 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		cliCfg.DisconnectPacketBuilder = discardSessionDisconnect
 	}
 
+	// paho resends a resumed session's pending packets before OnConnectionUp
+	// runs, so the session checks them against the new limit itself.
+	cliCfg.Session = newLimitedSession(func(size, limit uint64) {
+		s.LogAttrs(lifetime, slog.LevelWarn, "pending message larger than the broker accepts dropped",
+			slog.Uint64(logging.KeySize, size), slog.Uint64(logging.KeyLimit, limit))
+	})
+
 	if s.dialContext != nil {
 		cliCfg.AttemptConnection = s.attemptConnection
 	}
@@ -669,7 +689,8 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		return fmt.Errorf("creating MQTT connection: %w", err)
 	}
 
-	s.connectionManager = connectionManager
+	limited.ConnectionManager = connectionManager
+	s.connectionManager = limited
 	s.ownedConnection = true
 	s.cancelConnection = cancel
 	s.connectionSends = &sync.WaitGroup{}
@@ -737,7 +758,7 @@ func newAutopahoConnection(ctx context.Context, cfg *autopaho.ClientConfig) (Con
 // Returns:
 //   - bool: true when manager's Done channel is closed.
 func connectionEnded(manager ConnectionManager) bool {
-	ender, ok := manager.(interface{ Done() <-chan struct{} })
+	ender, ok := manager.(connectionEnder)
 	if !ok {
 		return false
 	}
