@@ -46,20 +46,24 @@ type cannedResponse struct {
 }
 
 // fakeZulip is a loopback TLS server that stands in for a Zulip server. It
-// records the register and message requests and answers each endpoint with a
-// fixed response.
+// records the register, queue delete, and message requests and answers each
+// endpoint with a fixed response.
 type fakeZulip struct {
 	// server is the loopback TLS server.
 	server *httptest.Server
 	// registers are the register requests, in order.
 	registers []zulipRequest
+	// deletes are the event queue delete requests, in order.
+	deletes []zulipRequest
 	// messages are the message requests, in order.
 	messages []zulipRequest
 	// register is the answer to every register request.
 	register cannedResponse
+	// deleteQueue is the answer to every queue delete request.
+	deleteQueue cannedResponse
 	// message is the answer to every message request.
 	message cannedResponse
-	// mu guards registers and messages.
+	// mu guards registers, deletes, and messages.
 	mu sync.Mutex
 }
 
@@ -86,10 +90,14 @@ const (
 	registerPath = "/api/v1/register"
 	// messagesPath is the path of the Zulip messages endpoint.
 	messagesPath = "/api/v1/messages"
+	// eventsPath is the path of the Zulip event queue endpoint.
+	eventsPath = "/api/v1/events"
+	// testQueueID is the event queue ID in the register responses.
+	testQueueID = "1760500000:1"
 	// sentBody is Zulip's response to a sent message.
 	sentBody = `{"result":"success","msg":"","id":42}`
 	// defaultLimitsBody is a register response with Zulip's default limits.
-	defaultLimitsBody = `{"result":"success","msg":"","queue_id":"1760500000:1","max_message_length":10000,"max_topic_length":60}`
+	defaultLimitsBody = `{"result":"success","msg":"","queue_id":"` + testQueueID + `","max_message_length":10000,"max_topic_length":60}`
 )
 
 // Responses shared by the integration tests.
@@ -98,10 +106,23 @@ var (
 	sent = cannedResponse{statusCode: http.StatusOK, body: sentBody}
 	// defaultLimits is the register response with Zulip's default limits.
 	defaultLimits = cannedResponse{statusCode: http.StatusOK, body: defaultLimitsBody}
+	// queueDeleted is the response to a deleted event queue.
+	queueDeleted = cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":""}`}
 )
 
 // errConnectionRefused is the error the refused dials report.
 var errConnectionRefused = errors.New("connection refused")
+
+// Deletes returns the event queue delete requests received so far.
+//
+// Returns:
+//   - []zulipRequest: the requests, in order.
+func (f *fakeZulip) Deletes() []zulipRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]zulipRequest(nil), f.deletes...)
+}
 
 // Messages returns the message requests received so far.
 //
@@ -125,8 +146,9 @@ func (f *fakeZulip) Registers() []zulipRequest {
 	return append([]zulipRequest(nil), f.registers...)
 }
 
-// ServeHTTP records a register or message request and answers with the
-// endpoint's canned response, or 404 for any other path.
+// ServeHTTP records a register, queue delete, or message request and answers
+// with the endpoint's canned response, or 404 for any other path. The form of
+// a DELETE request is read from its body, as Zulip reads it.
 //
 // Parameters:
 //   - w: the response writer.
@@ -138,9 +160,25 @@ func (f *fakeZulip) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	form := r.PostForm
+
+	// ParseForm reads a body only for POST, PUT, and PATCH.
+	if r.Method == http.MethodDelete {
+		body, err := io.ReadAll(r.Body)
+		if err == nil {
+			form, err = url.ParseQuery(string(body))
+		}
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+	}
+
 	user, password, _ := r.BasicAuth()
 	request := zulipRequest{
-		form:        r.PostForm,
+		form:        form,
 		method:      r.Method,
 		path:        r.URL.Path,
 		contentType: r.Header.Get("Content-Type"),
@@ -156,6 +194,9 @@ func (f *fakeZulip) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case registerPath:
 		f.registers = append(f.registers, request)
 		response = f.register
+	case eventsPath:
+		f.deletes = append(f.deletes, request)
+		response = f.deleteQueue
 	case messagesPath:
 		f.messages = append(f.messages, request)
 		response = f.message
@@ -170,8 +211,8 @@ func (f *fakeZulip) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // newFakeZulip starts a fake Zulip server that answers register requests
-// with register and message requests with message, and stops when the test
-// ends.
+// with register, queue delete requests with success, and message requests
+// with message, and stops when the test ends.
 //
 // Parameters:
 //   - t: the test.
@@ -183,7 +224,7 @@ func (f *fakeZulip) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func newFakeZulip(t *testing.T, register, message cannedResponse) *fakeZulip {
 	t.Helper()
 
-	fake := &fakeZulip{register: register, message: message}
+	fake := &fakeZulip{register: register, deleteQueue: queueDeleted, message: message}
 	fake.server = httptest.NewTLSServer(fake)
 	t.Cleanup(fake.server.Close)
 
@@ -287,44 +328,44 @@ func TestIntegrationSend(t *testing.T) {
 			name:     "channel message from the URL",
 			query:    "?stream=general&topic=announcements",
 			message:  "Hello, World!",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"announcements"}, "content": {"Hello, World!"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"announcements"}, "content": {"Hello, World!"}},
 		},
 		{
 			name:     "URL topic with an encoded space",
 			query:    "?stream=general&topic=hello+world",
 			message:  "Test message",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"hello world"}, "content": {"Test message"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"hello world"}, "content": {"Test message"}},
 		},
 		{
 			name:     "stream and topic from params",
 			params:   &types.Params{"stream": "general", "topic": "announcements"},
 			message:  "Test message",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"announcements"}, "content": {"Test message"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"announcements"}, "content": {"Test message"}},
 		},
 		{
 			name:     "title param as the topic",
 			query:    "?stream=general",
 			params:   &types.Params{"title": "Fallback Topic"},
 			message:  "body content",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"Fallback Topic"}, "content": {"body content"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"Fallback Topic"}, "content": {"body content"}},
 		},
 		{
 			name:     "title before the message with a topic",
 			query:    "?stream=general&topic=explicit",
 			params:   &types.Params{"title": "Notification Title"},
 			message:  "body content",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"explicit"}, "content": {"Notification Title\n\nbody content"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"explicit"}, "content": {"Notification Title\n\nbody content"}},
 		},
 		{
 			name:     "no topic with non-ASCII and markup content",
 			query:    "?stream=general",
 			message:  "Hello 世界 🌍 <script>alert('xss')</script>",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello 世界 🌍 <script>alert('xss')</script>"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {"Hello 世界 🌍 <script>alert('xss')</script>"}},
 		},
 		{
 			name:     "empty message",
 			query:    "?stream=general",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {""}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {""}},
 		},
 		{
 			name:    "direct message read by the sender",
@@ -351,13 +392,24 @@ func TestIntegrationSend(t *testing.T) {
 			registers := fake.Registers()
 			require.Len(t, registers, 1)
 			assert.Equal(t, zulipRequest{
-				form:        url.Values{"fetch_event_types": {`["realm"]`}},
+				form:        url.Values{"event_types": {"[]"}, "fetch_event_types": {`["realm"]`}},
 				method:      http.MethodPost,
 				path:        registerPath,
 				contentType: formContentType,
 				user:        testBotMail,
 				password:    testBotKey,
 			}, registers[0])
+
+			deletes := fake.Deletes()
+			require.Len(t, deletes, 1)
+			assert.Equal(t, zulipRequest{
+				form:        url.Values{"queue_id": {testQueueID}},
+				method:      http.MethodDelete,
+				path:        eventsPath,
+				contentType: formContentType,
+				user:        testBotMail,
+				password:    testBotKey,
+			}, deletes[0])
 
 			messages := fake.Messages()
 			require.Len(t, messages, 1)
@@ -376,17 +428,22 @@ func TestIntegrationSend(t *testing.T) {
 // TestIntegrationSendServerLimits verifies that sends use the message and
 // topic limits from the server's register response, keep the default limits
 // of 10000 message and 60 topic characters when the register request fails,
-// and ask again on each send until the server answers.
+// and ask again on each send until the server answers. The event queue a
+// register response names is deleted, and a delete the server refuses still
+// leaves the server's limits in place.
 func TestIntegrationSendServerLimits(t *testing.T) {
 	t.Parallel()
 
-	// tests lists register responses with the sends to make in order and the
-	// register and message requests those sends should make.
+	// tests lists register and queue delete responses with the sends to make
+	// in order and the register, delete, and message requests those sends
+	// should make. A zero delete response keeps the fake's success.
 	tests := []struct {
 		name          string
 		register      cannedResponse
+		deleteQueue   cannedResponse
 		sends         []limitSend
 		wantRegisters int
+		wantDeletes   int
 		wantMessages  int
 	}{
 		{
@@ -402,6 +459,18 @@ func TestIntegrationSendServerLimits(t *testing.T) {
 				{message: "Hello", params: &types.Params{"topic": strings.Repeat("a", 121)}, wantErr: zulip.ErrTopicTooLong},
 			},
 			wantRegisters: 1,
+			wantMessages:  2,
+		},
+		{
+			name: "queue delete refused",
+			register: cannedResponse{
+				statusCode: http.StatusOK,
+				body:       `{"result":"success","msg":"","queue_id":"` + testQueueID + `","max_message_length":20000}`,
+			},
+			deleteQueue:   cannedResponse{statusCode: http.StatusBadRequest, body: `{"result":"error","msg":"Bad event queue ID","code":"BAD_EVENT_QUEUE_ID"}`},
+			sends:         []limitSend{{message: "Hello"}, {message: strings.Repeat("a", 15000)}},
+			wantRegisters: 1,
+			wantDeletes:   1,
 			wantMessages:  2,
 		},
 		{
@@ -432,6 +501,10 @@ func TestIntegrationSendServerLimits(t *testing.T) {
 			t.Parallel()
 
 			fake := newFakeZulip(t, tt.register, sent)
+			if tt.deleteQueue.statusCode != 0 {
+				fake.deleteQueue = tt.deleteQueue
+			}
+
 			service := newTestService(t, serviceURL(fake.server, "?stream=general"), fake.server.Client())
 
 			for i, send := range tt.sends {
@@ -447,6 +520,7 @@ func TestIntegrationSendServerLimits(t *testing.T) {
 			}
 
 			assert.Len(t, fake.Registers(), tt.wantRegisters)
+			assert.Len(t, fake.Deletes(), tt.wantDeletes)
 			assert.Len(t, fake.Messages(), tt.wantMessages)
 		})
 	}

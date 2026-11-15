@@ -36,22 +36,21 @@ So is a URL with an empty API key.
 
 ## Stream and Topic
 
-Both `stream` and `topic` are optional. They can be provided in the service URL or overridden
-at send time using `types.Params`:
+The `stream`, `topic`, and `title` values can be provided in the service URL or overridden at send time using `types.Params`:
 
-- __Stream__: The name of the Zulip stream to send messages to (e.g., `general`, `alerts`)
-- __Topic__: The message topic within the stream (e.g., `server-monitoring`). Zulip topics keep
-  conversations organized within a stream.
-- __Title__: A notification title that is prepended to the message content. If no `topic` is
-  set, the `title` is used as the topic instead.
+- __Stream__: The name of the Zulip stream to send messages to (e.g., `general`, `alerts`). A channel message needs a stream, so a send without one fails before any request.
+- __Topic__: The message topic within the stream (e.g., `server-monitoring`). Zulip topics keep conversations organized within a stream.
+- __Title__: A notification title that is prepended to the message content. If no `topic` is set, the `title` is used as the topic instead.
 
-If neither is specified, the message is sent to the default stream configured for the bot.
+Without a topic or a title, the message is sent with an empty topic.
+Zulip 10.0 and later post it to the stream's general chat, unless the organization requires topics.
+Older servers reject a message without a topic.
 
 ## Examples
 
-!!! example "Basic notification (default stream)"
+!!! example "Basic notification"
     ```uri
-    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com
+    zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?stream=alerts
     ```
 
 !!! example "With stream and topic in URL"
@@ -117,6 +116,19 @@ User IDs are sent to Zulip as numbers.
     zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?type=direct&to=dana@example.com,kai@example.com
     ```
 
+## Zulip Versions
+
+| Feature | Zulip version |
+| --- | --- |
+| Channel messages | Any |
+| Direct messages | 7.0 or later |
+| `read_by_sender` | 8.0 or later |
+| An empty topic, posted to the stream's general chat | 10.0 or later |
+| Server-side limits | 4.0 or later, and older servers use the defaults |
+
+A channel message is the default, also selected with `type=channel`.
+Shoutrrr sends it to Zulip with the message type `stream`, which every Zulip version accepts.
+
 ## TLS
 
 Zulip sends over HTTPS.
@@ -133,3 +145,6 @@ Shoutrrr logs a warning the first time a send skips certificate verification thr
 The service fetches `max_message_length` and `max_topic_length` from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 characters for content and 60 characters for topics. Like Zulip, the length checks count Unicode characters, not bytes.
 
 When the request fails, the next send asks again. Once the server answers, the service keeps its limits.
+
+The register endpoint always creates an event queue on the server.
+Shoutrrr subscribes it to no events and deletes it at the end of that send.

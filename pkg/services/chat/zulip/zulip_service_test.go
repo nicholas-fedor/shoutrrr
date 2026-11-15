@@ -49,14 +49,16 @@ type cannedResponse struct {
 	statusCode int
 }
 
-// fakeZulip records the register and message requests a fake Zulip client
-// receives.
+// fakeZulip records the register, queue delete, and message requests a fake
+// Zulip client receives.
 type fakeZulip struct {
 	// registers are the register requests, in order.
 	registers []capturedRequest
+	// deletes are the event queue delete requests, in order.
+	deletes []capturedRequest
 	// messages are the message requests, in order.
 	messages []capturedRequest
-	// mu guards registers and messages.
+	// mu guards registers, deletes, and messages.
 	mu sync.Mutex
 }
 
@@ -77,7 +79,11 @@ const (
 	// sentBody is Zulip's response to a sent message.
 	sentBody = `{"result":"success","msg":"","id":42,"message_url":"https://zulip.example.com/#narrow/near/42"}`
 	// defaultLimitsBody is a register response with Zulip's default limits.
-	defaultLimitsBody = `{"result":"success","msg":"","queue_id":"1760500000:1","max_message_length":10000,"max_topic_length":60}`
+	defaultLimitsBody = `{"result":"success","msg":"","queue_id":"` + testQueueID + `","max_message_length":10000,"max_topic_length":60}`
+	// testQueueID is the event queue ID in the register responses.
+	testQueueID = "1760500000:1"
+	// queueDeletedBody is Zulip's response to a deleted event queue.
+	queueDeletedBody = `{"result":"success","msg":""}`
 	// messagesURL is the messages endpoint for the test credentials and host.
 	messagesURL = "https://bot%40example.com:" + testBotKey + "@" + testHost + "/api/v1/messages"
 )
@@ -93,9 +99,9 @@ var (
 )
 
 // newFakeClient returns a mock HTTP client that answers register requests
-// with register, and message requests with messages in order, recording
-// each request. It fails the test on a request to any other endpoint or on
-// more message requests than messages.
+// with register, queue delete requests with success, and message requests
+// with messages in order, recording each request. It fails the test on a
+// request to any other endpoint or on more message requests than messages.
 //
 // Parameters:
 //   - t: the test that owns the mock.
@@ -153,6 +159,9 @@ func newFakeClientWithRegisters(t *testing.T, registers []cannedResponse, messag
 		case "/api/v1/register":
 			fake.registers = append(fake.registers, request)
 			response = registers[min(len(fake.registers), len(registers))-1]
+		case "/api/v1/events":
+			fake.deletes = append(fake.deletes, request)
+			response = cannedResponse{statusCode: http.StatusOK, body: queueDeletedBody}
 		case "/api/v1/messages":
 			fake.messages = append(fake.messages, request)
 			require.LessOrEqual(t, len(fake.messages), len(messages), "unexpected message request")
@@ -263,7 +272,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL,
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
 		},
 		{
 			name:     "stream and topic params",
@@ -271,7 +280,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"stream": "ops", "topic": "disks"},
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"ops"}, "topic": {"disks"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"ops"}, "topic": {"disks"}, "content": {"Hello"}},
 		},
 		{
 			name:     "title as the topic",
@@ -279,14 +288,14 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"title": "Disk full"},
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"Disk full"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"Disk full"}, "content": {"Hello"}},
 		},
 		{
 			name:     "title before the message",
 			rawURL:   testServiceURL + "&title=Disk%20full",
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Disk full\n\nHello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Disk full\n\nHello"}},
 		},
 		{
 			name:     "empty title param",
@@ -294,7 +303,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"title": ""},
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
 		},
 		{
 			name:     "read by sender param",
@@ -302,7 +311,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"read_by_sender": "yes"},
 			message:  "Hello",
 			wantURL:  messagesURL,
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}, "read_by_sender": {"true"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}, "read_by_sender": {"true"}},
 		},
 		{
 			name:     "direct message",
@@ -324,21 +333,21 @@ func TestSend(t *testing.T) {
 			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@192.0.2.10:8443?stream=general",
 			message:  "Hello",
 			wantURL:  "https://bot%40example.com:" + testBotKey + "@192.0.2.10:8443/api/v1/messages",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {"Hello"}},
 		},
 		{
 			name:     "IPv6 host",
 			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@[2001:db8::1]:8443?stream=general",
 			message:  "Hello",
 			wantURL:  "https://bot%40example.com:" + testBotKey + "@[2001:db8::1]:8443/api/v1/messages",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {"Hello"}},
 		},
 		{
 			name:     "single-label host",
 			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@zulip?stream=general",
 			message:  "Hello",
 			wantURL:  "https://bot%40example.com:" + testBotKey + "@zulip/api/v1/messages",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {"Hello"}},
 		},
 		{
 			name:     "direct message to user IDs",
@@ -353,7 +362,7 @@ func TestSend(t *testing.T) {
 			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443?stream=general",
 			message:  "Hello",
 			wantURL:  "https://bot%40example.com:" + testBotKey + "@" + testHost + ":8443/api/v1/messages",
-			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+			wantForm: url.Values{"type": {"stream"}, "to": {"general"}, "topic": {""}, "content": {"Hello"}},
 		},
 	}
 
@@ -371,8 +380,13 @@ func TestSend(t *testing.T) {
 			assert.Equal(t, http.MethodPost, register.method)
 			assert.Equal(t, strings.Replace(tt.wantURL, "/api/v1/messages", "/api/v1/register", 1), register.url)
 			assert.Equal(t, "application/x-www-form-urlencoded", register.contentType)
-			assert.Equal(t, url.Values{"fetch_event_types": {`["realm"]`}}, register.form)
+			assert.Equal(t, url.Values{"event_types": {"[]"}, "fetch_event_types": {`["realm"]`}}, register.form)
 			assert.WithinDuration(t, time.Now().Add(registerTimeout), register.deadline, time.Second)
+
+			require.Len(t, fake.deletes, 1)
+			assert.Equal(t, http.MethodDelete, fake.deletes[0].method)
+			assert.Equal(t, strings.Replace(tt.wantURL, "/api/v1/messages", "/api/v1/events", 1), fake.deletes[0].url)
+			assert.Equal(t, url.Values{"queue_id": {testQueueID}}, fake.deletes[0].form)
 
 			require.Len(t, fake.messages, 1)
 			request := fake.messages[0]
@@ -402,7 +416,8 @@ func TestSendFetchesLimitsOnce(t *testing.T) {
 // TestSendBudget verifies the deadlines of a send's requests. Without a
 // caller deadline the send is bounded by its budget, and with one the
 // caller's deadline applies. The limits lookup is capped at
-// [registerTimeout] either way, and the message request gets the rest.
+// [registerTimeout] either way, and the message request gets the rest. The
+// event queue delete after the message is capped at 5 seconds.
 func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
@@ -440,15 +455,18 @@ func TestSendBudget(t *testing.T) {
 
 				require.Len(t, fake.registers, 1)
 				require.Len(t, fake.messages, 1)
+				require.Len(t, fake.deletes, 1)
 				assert.Equal(t, start.Add(registerTimeout), fake.registers[0].deadline)
 				assert.Equal(t, start.Add(tt.wantMessage), fake.messages[0].deadline)
+				assert.Equal(t, start.Add(deleteQueueTimeout), fake.deletes[0].deadline)
 			})
 		})
 	}
 }
 
 // TestInitializeRefetchesLimits verifies that Initialize drops the limits of
-// the previous server, so the next send fetches them again.
+// the previous server, so the next send fetches them again. The register
+// responses name no event queue, so the sends delete none.
 func TestInitializeRefetchesLimits(t *testing.T) {
 	t.Parallel()
 
@@ -465,16 +483,21 @@ func TestInitializeRefetchesLimits(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrMessageTooLong)
 	assert.Len(t, fake.registers, 2)
+	assert.Empty(t, fake.deletes)
 	assert.Len(t, fake.messages, 1)
 }
 
 // TestSendServerLimits verifies that the topic and message limits come from
 // the register response, both counted in characters, and that a send at a
-// limit is accepted.
+// limit is accepted. A send that a limit rejects still deletes the event
+// queue its register request created.
 func TestSendServerLimits(t *testing.T) {
 	t.Parallel()
 
-	limits := cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":"","max_message_length":5000,"max_topic_length":30}`}
+	limits := cannedResponse{
+		statusCode: http.StatusOK,
+		body:       `{"result":"success","msg":"","queue_id":"` + testQueueID + `","max_message_length":5000,"max_topic_length":30}`,
+	}
 
 	// tests lists sends with the error each should produce, or nil.
 	tests := []struct {
@@ -530,6 +553,7 @@ func TestSendServerLimits(t *testing.T) {
 			err := service.Send(tt.message, tt.params)
 
 			assert.Len(t, fake.registers, 1)
+			assert.Len(t, fake.deletes, 1)
 
 			if tt.wantErr == nil {
 				require.NoError(t, err)
@@ -631,7 +655,8 @@ func TestSendRetriesLimits(t *testing.T) {
 }
 
 // TestSendConcurrently verifies that concurrent first sends share one
-// register request.
+// register request, and that only the send that made it deletes its event
+// queue.
 func TestSendConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -655,6 +680,7 @@ func TestSendConcurrently(t *testing.T) {
 	wg.Wait()
 
 	assert.Len(t, fake.registers, 1)
+	assert.Len(t, fake.deletes, 1)
 	assert.Len(t, fake.messages, sends)
 }
 
@@ -748,17 +774,22 @@ func TestSendWaiterCancellation(t *testing.T) {
 
 // TestSendValidation verifies that a send rejects an invalid message type,
 // host, or param before any request, as it does a config built in code without
-// the bot's credentials. It rejects a missing or mixed recipient list before
-// the message request.
+// the bot's credentials or a send without a usable recipient list.
 func TestSendValidation(t *testing.T) {
 	t.Parallel()
 
-	// rejected lists sends that fail before any request.
-	rejected := []struct {
+	// noStreamURL configures the bot credentials and host without a stream.
+	noStreamURL := "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost
+
+	// tests lists service URLs, params, and config changes with the error
+	// each send should fail with before any request. An empty URL means
+	// testServiceURL.
+	tests := []struct {
 		wantErr error
 		params  *types.Params
 		change  func(config *Config)
 		name    string
+		rawURL  string
 	}{
 		{name: "invalid message type", params: &types.Params{"type": "group"}, wantErr: ErrInvalidMessageType},
 		{name: "unknown param", params: &types.Params{"unknown": "value"}, wantErr: format.ErrInvalidConfigKey},
@@ -769,61 +800,33 @@ func TestSendValidation(t *testing.T) {
 		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
 		{name: "no bot e-mail address", change: func(config *Config) { config.BotMail = "" }, wantErr: ErrMissingBotMail},
 		{name: "no API key", change: func(config *Config) { config.BotKey = "" }, wantErr: ErrMissingAPIKey},
+		{name: "direct message with only separators", params: &types.Params{"type": "direct", "to": " , "}, wantErr: ErrMissingRecipient},
+		{
+			name:    "direct message to user IDs and e-mail addresses",
+			params:  &types.Params{"type": "direct", "to": "12,alice@example.com"},
+			wantErr: ErrMixedRecipients,
+		},
+		{name: "channel message without a stream", rawURL: noStreamURL, wantErr: ErrMissingRecipient},
+		{name: "direct message without recipients", rawURL: noStreamURL + "?type=direct", wantErr: ErrMissingRecipient},
+		{name: "stream cleared by a param", params: &types.Params{"stream": ""}, wantErr: ErrMissingRecipient},
 	}
 
-	for _, tt := range rejected {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			rawURL := tt.rawURL
+			if rawURL == "" {
+				rawURL = testServiceURL
+			}
+
 			// The mock has no expectations, so a request fails the test.
-			service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
+			service := newTestService(t, rawURL, mocks.NewMockHTTPClient(t))
 			if tt.change != nil {
 				tt.change(service.Config)
 			}
 
 			require.ErrorIs(t, service.Send("Hello", tt.params), tt.wantErr)
-		})
-	}
-
-	// unaddressed lists sends without a usable recipient list, with the error
-	// each should produce.
-	unaddressed := []struct {
-		wantErr error
-		params  *types.Params
-		name    string
-		rawURL  string
-	}{
-		{
-			name:    "direct message with only separators",
-			rawURL:  testServiceURL,
-			params:  &types.Params{"type": "direct", "to": " , "},
-			wantErr: ErrMissingRecipient,
-		},
-		{
-			name:    "direct message to user IDs and e-mail addresses",
-			rawURL:  testServiceURL,
-			params:  &types.Params{"type": "direct", "to": "12,alice@example.com"},
-			wantErr: ErrMixedRecipients,
-		},
-		{name: "channel message without a stream", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost},
-		{name: "direct message without recipients", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=direct"},
-		{name: "stream cleared by a param", rawURL: testServiceURL, params: &types.Params{"stream": ""}},
-	}
-
-	for _, tt := range unaddressed {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client, fake := newFakeClient(t, defaultLimits)
-			service := newTestService(t, tt.rawURL, client)
-
-			wantErr := tt.wantErr
-			if wantErr == nil {
-				wantErr = ErrMissingRecipient
-			}
-
-			require.ErrorIs(t, service.Send("Hello", tt.params), wantErr)
-			assert.Empty(t, fake.messages)
 		})
 	}
 }
@@ -898,7 +901,7 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	assert.Equal(t, want, service.Config)
 	assert.Equal(t, types.Params{"type": "direct", "to": "alice@example.com", "title": "Disk", "read_by_sender": "yes"}, params)
 	require.Len(t, fake.messages, 2)
-	assert.Equal(t, url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}}, fake.messages[1].form)
+	assert.Equal(t, url.Values{"type": {"stream"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}}, fake.messages[1].form)
 }
 
 // TestSendContextCancellation verifies that the caller's context bounds the
