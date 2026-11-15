@@ -38,6 +38,8 @@ type Once struct {
 
 // Attribute keys for log records.
 const (
+	// KeyClientID holds the client ID a connection identifies itself with.
+	KeyClientID = "clientid"
 	// KeyCode holds a reason code that a server returned.
 	KeyCode = "code"
 	// KeyDevice names the device a session logged in as.

@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -51,6 +52,10 @@ type Service struct {
 	connectionSends *sync.WaitGroup
 	// idleTimer tears down a connection the service created once it is idle.
 	idleTimer *time.Timer
+	// clientID is the client ID of the connections whose config names none.
+	// It is chosen when the first such connection opens, and Initialize
+	// clears it. clientMutex guards it.
+	clientID string
 	// warnings logs each warning about the service's settings once.
 	warnings logging.Once
 	// pkr resolves property keys for configuration updates from URL parameters.
@@ -84,6 +89,15 @@ const sessionExpiryInterval = 60
 // disconnectTimeout defines the maximum time in seconds to wait for graceful disconnection.
 // This prevents indefinite blocking when the broker is unresponsive during close operations.
 const disconnectTimeout = 5
+
+// clientIDPrefix starts every client ID the service chooses.
+const clientIDPrefix = "shoutrrr"
+
+// clientIDRandomLength is how many random base32 characters follow the
+// shoutrrr prefix in a client ID the service chooses. The 20 characters stay
+// within the 23 letters and digits every MQTT 5 broker must accept
+// ([MQTT-3.1.3-5]).
+const clientIDRandomLength = 12
 
 // idleTimeout is how long a connection the service created stays open without
 // sends. Tearing it down bounds the goroutines and sockets left behind by
@@ -153,8 +167,13 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.warnings.Reset()
 
-	// A connection the service created belongs to the previous configuration.
+	// A connection the service created belongs to the previous configuration,
+	// and so does the client ID chosen for it.
 	s.closeOwnedConnection()
+
+	s.clientMutex.Lock()
+	s.clientID = ""
+	s.clientMutex.Unlock()
 
 	// Initialize the configuration struct with default values
 	s.Config = &Config{}
@@ -467,6 +486,29 @@ func (s *Service) closeOwnedConnection() {
 	}
 }
 
+// connectionClientIDLocked returns the client ID a new connection sends.
+//
+// It is the config's own when it names one. Otherwise it is the service's ID,
+// shoutrrr followed by 12 random base32 characters, chosen on first use and
+// kept for later connections. The caller holds clientMutex.
+//
+// Parameters:
+//   - config: the configuration of the send that opens the connection.
+//
+// Returns:
+//   - string: the client ID.
+func (s *Service) connectionClientIDLocked(config *Config) string {
+	if config.ClientID != "" {
+		return config.ClientID
+	}
+
+	if s.clientID == "" {
+		s.clientID = clientIDPrefix + rand.Text()[:clientIDRandomLength]
+	}
+
+	return s.clientID
+}
+
 // createTLSConfig builds the TLS settings of a connection from the shared
 // helpers, which require TLS 1.2 or later. It skips certificate verification
 // when SkipTLSVerify is set, such as for a self-signed certificate, and warns
@@ -562,6 +604,7 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 	// it ends, so its lifetime does not derive from the send's context. Its
 	// callbacks run during that lifetime, so they log with it.
 	lifetime, cancel := context.WithCancel(context.Background())
+	clientID := s.connectionClientIDLocked(config)
 
 	// Create autopaho client configuration
 	//nolint:exhaustruct_v5 // autopaho.ClientConfig has many optional fields with library defaults
@@ -571,13 +614,14 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		CleanStartOnInitialConnection: config.CleanSession,
 		SessionExpiryInterval:         sessionExpiryInterval,
 		//nolint:exhaustruct_v5 // remaining fields use library defaults
-		ClientID: config.ClientID,
+		ClientID: clientID,
 		OnServerDisconnect: func(disconnect *paho.Disconnect) {
 			s.LogAttrs(lifetime, slog.LevelWarn, "server disconnected",
 				slog.Uint64(logging.KeyCode, uint64(disconnect.ReasonCode)))
 		},
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
-			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, serverURL.Host))
+			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, serverURL.Host),
+				slog.String(logging.KeyClientID, clientID))
 		},
 		// A send that cannot connect returns only its context's error, so this
 		// warning is the only report of why, such as a broker rejecting the
@@ -599,6 +643,14 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 
 	if useTLS {
 		cliCfg.TlsCfg = s.createTLSConfig(ctx, config)
+	}
+
+	// No later connection resumes a clean session. The service's next
+	// connection starts clean, and another service chooses another client ID.
+	// So a graceful disconnect asks the broker to discard the session at once
+	// rather than keep it for the expiry interval.
+	if config.CleanSession {
+		cliCfg.DisconnectPacketBuilder = discardSessionDisconnect
 	}
 
 	if s.dialContext != nil {
@@ -723,4 +775,26 @@ func disconnect(manager ConnectionManager, cancel context.CancelFunc, sends *syn
 	}
 
 	return nil
+}
+
+// discardSessionDisconnect builds the DISCONNECT packet of a connection with a
+// clean session.
+//
+// Its Session Expiry Interval of 0 makes the broker discard the
+// session when the connection closes. MQTT 5 section 3.14.2.2.2 lets a
+// client's DISCONNECT replace the interval its CONNECT sent, and forbids only
+// a non-zero interval after a CONNECT that sent 0.
+//
+// Returns:
+//   - *paho.Disconnect: a normal disconnect that ends the session.
+func discardSessionDisconnect() *paho.Disconnect {
+	return &paho.Disconnect{
+		ReasonCode: 0,
+		Properties: &paho.DisconnectProperties{
+			ServerReference:       "",
+			ReasonString:          "",
+			SessionExpiryInterval: new(uint32(0)),
+			User:                  nil,
+		},
+	}
 }

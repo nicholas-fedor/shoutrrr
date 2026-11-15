@@ -66,7 +66,7 @@ func TestInitialize(t *testing.T) {
 	// defaults is the config for a URL without credentials or query parameters.
 	defaults := Config{
 		Host: "broker.example.com", Port: 1883, Topic: "test/topic",
-		ClientID: "shoutrrr", QoS: QoSAtMostOnce, CleanSession: true, DisableTLS: true,
+		QoS: QoSAtMostOnce, CleanSession: true, DisableTLS: true,
 	}
 
 	// with returns defaults changed by change.

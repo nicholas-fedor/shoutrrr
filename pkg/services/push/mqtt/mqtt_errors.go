@@ -22,13 +22,6 @@ const reasonCodeFailureThreshold = 0x80
 
 // Error definitions for the MQTT service.
 var (
-	// ErrPublishTimeout is returned when message publication exceeds the configured timeout.
-	// This error indicates the broker did not acknowledge the message within the expected time.
-	ErrPublishTimeout = errors.New("publish timeout exceeded")
-
-	// ErrConnectionNotInitialized is returned when the connection manager fails to initialize.
-	ErrConnectionNotInitialized = errors.New("MQTT connection manager not initialized")
-
 	// ErrTopicRequired is returned when a configuration URL lacks a required topic path.
 	// The topic is mandatory for publishing messages and must be provided in the URL path.
 	ErrTopicRequired = errors.New("topic is required")
@@ -38,6 +31,12 @@ var (
 	// wildcard (+ or #) or a null character. A topic that is not valid UTF-8
 	// or is longer than 65535 bytes is rejected too.
 	ErrInvalidTopic = errors.New("invalid topic")
+
+	// ErrInvalidClientID is returned for a client ID that an MQTT string
+	// cannot hold, so the broker would refuse every connection. Such a client
+	// ID holds a null character or is not valid UTF-8. A client ID longer than
+	// 65535 bytes is rejected too.
+	ErrInvalidClientID = errors.New("invalid client ID")
 
 	// ErrInvalidQoS is returned when a QoS value is outside the valid range (0-2).
 	// MQTT protocol only supports QoS levels 0, 1, and 2.

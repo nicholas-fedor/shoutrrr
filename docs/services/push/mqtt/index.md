@@ -21,6 +21,11 @@ The protocol is supported by many popular brokers:
 - __EMQX__: Enterprise-grade MQTT broker
 - __HiveMQ__: Scalable MQTT platform
 
+!!! Note "MQTT 5"
+    Shoutrrr connects with MQTT 5, so the broker must support it.
+    A broker that only speaks MQTT 3.1.1 refuses the connection.
+    Each send then waits until its time runs out and fails, and Shoutrrr logs the broker's refusal as a warning.
+
 To send notifications via MQTT, you need a running MQTT broker and a topic to publish to.
 Topics use a hierarchical naming scheme with forward slashes (e.g., `home/alerts`, `sensors/temperature`).
 A URL without a host, such as `mqtt:///home/alerts`, connects to a broker on `localhost`.
@@ -93,6 +98,31 @@ A connection manager set with `SetConnectionManager()` belongs to the caller. Th
 ### Error Behavior
 
 If opening the connection fails, the error is returned to the caller and the next `Send()` tries again, so temporary network issues or broker unavailability do not require a new call to `Initialize()`. If the connection ends, for example because it was disconnected, the next `Send()` opens a new one.
+
+### Client ID
+
+The broker keeps one session per client ID.
+When a client connects with an ID that another connected client uses, the broker disconnects the other one.
+
+Without a `clientid`, each service uses its own ID, such as `shoutrrrK4QZ7M2XWB5D`.
+It is `shoutrrr` followed by 12 random letters and digits.
+The service keeps it for every connection it opens, and `Initialize()` chooses a new one.
+
+Set `clientid` in these cases:
+
+- The broker accepts only known client IDs.
+- A session should outlast its connection, with `cleansession=no`.
+
+Give each program that connects at the same time its own `clientid`.
+
+The broker keeps a session after its connection ends as follows.
+
+| `cleansession` | Shoutrrr closes the connection | The connection is lost |
+| --- | --- | --- |
+| `yes` (default) | The broker discards the session at once, since no later connection resumes it | The broker keeps the session for 60 seconds. The automatic reconnect resumes it. A connection that a later send opens after an idle close starts a clean session, which discards it |
+| `no` | The broker keeps the session for 60 seconds | The broker keeps the session for 60 seconds, so the reconnect resumes it |
+
+Shoutrrr asks for the 60 seconds, and the broker may choose a different interval in its reply, including a shorter one.
 
 ### Send Params
 

@@ -32,12 +32,18 @@ type Config struct {
 	// anonymous connections or username-only authentication.
 	Password string `desc:"Auth password" optional:"" sensitive:"true" url:"password"`
 
-	// ClientID is the unique identifier for this MQTT client connection.
-	// The broker uses this to identify the client across sessions and for
-	// persistent session management. Must be unique among all clients connecting
-	// to the same broker.
-	// Default: "shoutrrr"
-	ClientID string `default:"shoutrrr" desc:"MQTT client identifier" key:"clientid"`
+	// ClientID identifies the client to the broker, which keeps one session
+	// per client ID. A broker disconnects a client when another one connects
+	// with the same ID.
+	//
+	// When it is empty, each service uses its own ID. That ID is shoutrrr
+	// followed by 12 random letters and digits. The service keeps it for every
+	// connection it opens, and [Service.Initialize] chooses a new one. Set it
+	// when the broker accepts only known client IDs, or to resume a session
+	// with CleanSession off. The service asks the broker to keep a session for
+	// 60 seconds after a disconnect, and the broker may choose another
+	// interval.
+	ClientID string `desc:"MQTT client identifier (default: shoutrrr and 12 random characters, chosen per service)" key:"clientid" optional:""`
 
 	// Port is the MQTT broker port number.
 	//
@@ -112,9 +118,9 @@ const SchemeTLS = "mqtts"
 // DefaultHost is the broker host a URL without a host uses.
 const DefaultHost = "localhost"
 
-// maxTopicLength is the longest topic name in bytes. MQTT encodes a topic name
-// as a UTF-8 string with a two-byte length prefix.
-const maxTopicLength = 65535
+// maxStringLength is the longest topic name or client ID in bytes. MQTT
+// encodes both as UTF-8 strings with a two-byte length prefix.
+const maxStringLength = 65535
 
 // DefaultPort is the standard MQTT port (1883).
 const DefaultPort = 1883
@@ -293,7 +299,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // A config without a host gets [DefaultHost], and one without a port gets
 // [DefaultTLSPort], or [DefaultPort] when [Config.DisableTLS] is set, as a URL
-// without them does. The checks then cover the host, the topic, the QoS, and the port.
+// without them does. The checks then cover the host, the topic, the client ID,
+// the QoS, and the port.
 // Reading a service URL and each send run it, so a config built in code
 // reaches the broker its URL would, and fails before the connection is opened
 // or a message is published.
@@ -302,6 +309,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - error: an error wrapping [util.ErrInvalidHost] for a host that holds a
 //     port or brackets. [ErrTopicRequired] for an empty topic, and
 //     [ErrInvalidTopic] for a topic an MQTT topic name cannot be.
+//     [ErrInvalidClientID] for a client ID an MQTT string cannot hold.
 //     [ErrInvalidQoS], also wrapping [format.ErrInvalidEnumValue], for a QoS
 //     that is not one of its values.
 //     An error wrapping [util.ErrInvalidPort] for a port outside 1 to 65535.
@@ -326,20 +334,20 @@ func (c *Config) prepare() error {
 		return ErrTopicRequired
 	}
 
-	// MQTT forbids wildcards and the null character in the topic name of a
-	// PUBLISH packet, so a broker would reject every message to such a topic.
-	if strings.ContainsAny(c.Topic, "+#\x00") {
-		return fmt.Errorf("%w: %q must not contain +, #, or a null character", ErrInvalidTopic, c.Topic)
+	// MQTT forbids wildcards in the topic name of a PUBLISH packet, so a
+	// broker would reject every message to such a topic.
+	if strings.ContainsAny(c.Topic, "+#") {
+		return fmt.Errorf("%w: %q must not contain + or #", ErrInvalidTopic, c.Topic)
 	}
 
-	// A topic name is a UTF-8 string with a two-byte length prefix
-	// ([MQTT-3.3.2-1]).
-	if !utf8.ValidString(c.Topic) {
-		return fmt.Errorf("%w: %q is not valid UTF-8", ErrInvalidTopic, c.Topic)
+	if err := checkString(c.Topic, ErrInvalidTopic); err != nil {
+		return err
 	}
 
-	if len(c.Topic) > maxTopicLength {
-		return fmt.Errorf("%w: %d bytes is longer than %d", ErrInvalidTopic, len(c.Topic), maxTopicLength)
+	// A broker closes the connection of a CONNECT whose client ID breaks the
+	// string rules, so every attempt to connect would fail.
+	if err := checkString(c.ClientID, ErrInvalidClientID); err != nil {
+		return err
 	}
 
 	if err := format.CheckEnumValue(QoSValues.Enum, int(c.QoS)); err != nil {
@@ -447,4 +455,31 @@ func (q QoS) IsValid() bool {
 //     "Invalid" for any other value.
 func (q QoS) String() string {
 	return QoSValues.Enum.Print(int(q))
+}
+
+// checkString checks that value fits an MQTT UTF-8 string. Such a string
+// holds valid UTF-8 without a null character ([MQTT-1.5.4-1], [MQTT-1.5.4-2]).
+// Its two-byte length prefix limits it to 65535 bytes.
+//
+// Parameters:
+//   - value: the topic name or client ID.
+//   - invalid: the error the returned error wraps.
+//
+// Returns:
+//   - error: an error wrapping invalid for a value that breaks one of these
+//     rules. Otherwise nil.
+func checkString(value string, invalid error) error {
+	if strings.IndexByte(value, 0) >= 0 {
+		return fmt.Errorf("%w: %q must not contain a null character", invalid, value)
+	}
+
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%w: %q is not valid UTF-8", invalid, value)
+	}
+
+	if len(value) > maxStringLength {
+		return fmt.Errorf("%w: %d bytes is longer than %d", invalid, len(value), maxStringLength)
+	}
+
+	return nil
 }

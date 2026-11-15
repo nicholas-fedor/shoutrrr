@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestPublishErrorMessage verifies that a publish error names its reason code
@@ -72,15 +71,4 @@ func TestIsFailureCode(t *testing.T) {
 			assert.Equal(t, tt.want, IsFailureCode(tt.code))
 		})
 	}
-}
-
-// TestSentinelErrors verifies the sentinel error messages and that the
-// sentinels are distinct.
-func TestSentinelErrors(t *testing.T) {
-	t.Parallel()
-
-	require.EqualError(t, ErrPublishTimeout, "publish timeout exceeded")
-	require.EqualError(t, ErrConnectionNotInitialized, "MQTT connection manager not initialized")
-	require.EqualError(t, ErrNoDialContext, "custom dial context is not configured")
-	assert.NotErrorIs(t, ErrPublishTimeout, ErrConnectionNotInitialized)
 }

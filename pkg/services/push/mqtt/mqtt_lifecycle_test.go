@@ -8,6 +8,7 @@ import (
 	"log"
 	"log/slog"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -58,6 +59,8 @@ type fakeConnector struct {
 	// schemes holds the scheme of each connection's broker URL, which decides
 	// whether autopaho dials TLS.
 	schemes []string
+	// clientIDs holds the client ID each connection sends.
+	clientIDs []string
 }
 
 // warningContexts records the test value of the context each warning was
@@ -686,6 +689,86 @@ func TestSendTLSSettings(t *testing.T) {
 	}
 }
 
+// TestConnectionClientID verifies the client ID each connection sends. A
+// config without one sends shoutrrr followed by 12 random base32 characters,
+// 20 characters that every MQTT 5 broker must accept. A service keeps its ID
+// for every connection it opens and gets a new one when it is initialized
+// again, so two services on one broker never take over each other's session.
+func TestConnectionClientID(t *testing.T) {
+	t.Parallel()
+
+	generated := regexp.MustCompile(`^shoutrrr[A-Z2-7]{12}$`)
+
+	t.Run("kept across connections", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+
+			require.NoError(t, service.Send("first", nil))
+
+			time.Sleep(idleTimeout + time.Second)
+
+			require.NoError(t, service.Send("after reconnect", nil))
+
+			ids := connector.sentClientIDs()
+			require.Len(t, ids, 2)
+			assert.Regexp(t, generated, ids[0])
+			assert.Equal(t, ids[0], ids[1])
+		})
+	})
+
+	t.Run("new after Initialize", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+
+			require.NoError(t, service.Send("first", nil))
+
+			serviceURL, err := url.Parse(lifecycleURL)
+			require.NoError(t, err)
+			require.NoError(t, service.Initialize(serviceURL, nil))
+			require.NoError(t, service.Send("second", nil))
+
+			ids := connector.sentClientIDs()
+			require.Len(t, ids, 2)
+			assert.Regexp(t, generated, ids[1])
+			assert.NotEqual(t, ids[0], ids[1])
+		})
+	})
+
+	t.Run("one per service", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+
+			require.NoError(t, newLifecycleService(t, connector).Send("first", nil))
+			require.NoError(t, newLifecycleService(t, connector).Send("second", nil))
+
+			ids := connector.sentClientIDs()
+			require.Len(t, ids, 2)
+			assert.NotEqual(t, ids[0], ids[1])
+		})
+	})
+
+	t.Run("from params", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+
+			require.NoError(t, service.Send("first", &types.Params{"clientid": "fromparams"}))
+
+			assert.Equal(t, []string{"fromparams"}, connector.sentClientIDs())
+		})
+	})
+}
+
 // warningLines returns the logged lines that are warnings.
 //
 // Parameters:
@@ -883,6 +966,7 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 	c.tlsConfigs = append(c.tlsConfigs, cfg.TlsCfg)
 	c.servers = append(c.servers, cfg.ServerUrls[0].Host)
 	c.schemes = append(c.schemes, cfg.ServerUrls[0].Scheme)
+	c.clientIDs = append(c.clientIDs, cfg.ClientID)
 
 	if len(c.connections) == 0 {
 		connection.gate = c.gateFirst
@@ -903,4 +987,15 @@ func (c *fakeConnector) created() []*fakeConnection {
 	defer c.mu.Unlock()
 
 	return append([]*fakeConnection(nil), c.connections...)
+}
+
+// sentClientIDs returns the client ID of each connection created so far.
+//
+// Returns:
+//   - []string: a copy of the client IDs in creation order.
+func (c *fakeConnector) sentClientIDs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Clone(c.clientIDs)
 }
