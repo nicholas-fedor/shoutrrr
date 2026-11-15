@@ -50,6 +50,9 @@ type brokerSession struct {
 	connect brokerConnect
 	// publishes holds each PUBLISH packet in arrival order.
 	publishes []brokerPublish
+	// disconnectExpiry holds the Session Expiry Interval of the client's
+	// DISCONNECT, nil when the packet leaves it out.
+	disconnectExpiry *uint32
 	// disconnected reports whether the client sent DISCONNECT.
 	disconnected bool
 }
@@ -611,12 +614,14 @@ func TestIntegrationInitializeErrors(t *testing.T) {
 // TestIntegrationBrokerConnect verifies that the first send dials the URL's
 // broker address and connects with the client identifier, session setting, and
 // percent-decoded credentials from the URL, including a password without a
-// username, which MQTT v5 allows.
+// username, which MQTT v5 allows. A URL without a client identifier connects
+// with shoutrrr followed by 12 random base32 characters.
 func TestIntegrationBrokerConnect(t *testing.T) {
 	t.Parallel()
 
 	// tests lists service URLs with the address the service should dial and
-	// the CONNECT packet the broker should receive.
+	// the CONNECT packet the broker should receive. An empty client
+	// identifier stands for a generated one.
 	tests := []struct {
 		name     string
 		rawURL   string
@@ -627,15 +632,15 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 			name:     "defaults",
 			rawURL:   pipeBrokerURL,
 			wantAddr: "broker.example.invalid:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
+			want:     brokerConnect{cleanStart: true},
 		},
 		{
 			name:     "username and password",
 			rawURL:   "mqtt://user:pass@broker.example.invalid/test/topic",
 			wantAddr: "broker.example.invalid:1883",
 			want: brokerConnect{
-				clientID: "shoutrrr", cleanStart: true,
-				username: "user", usernameFlag: true, password: "pass", passwordFlag: true,
+				cleanStart: true,
+				username:   "user", usernameFlag: true, password: "pass", passwordFlag: true,
 			},
 		},
 		{
@@ -643,33 +648,33 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 			rawURL:   "mqtt://user%40domain:pass%40word@broker.example.invalid/test/topic",
 			wantAddr: "broker.example.invalid:1883",
 			want: brokerConnect{
-				clientID: "shoutrrr", cleanStart: true,
-				username: "user@domain", usernameFlag: true, password: "pass@word", passwordFlag: true,
+				cleanStart: true,
+				username:   "user@domain", usernameFlag: true, password: "pass@word", passwordFlag: true,
 			},
 		},
 		{
 			name:     "password without username",
 			rawURL:   "mqtt://:token@broker.example.invalid/test/topic",
 			wantAddr: "broker.example.invalid:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true, password: "token", passwordFlag: true},
+			want:     brokerConnect{cleanStart: true, password: "token", passwordFlag: true},
 		},
 		{
 			name:     "username only",
 			rawURL:   "mqtt://user@broker.example.invalid/test/topic",
 			wantAddr: "broker.example.invalid:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true, username: "user", usernameFlag: true},
+			want:     brokerConnect{cleanStart: true, username: "user", usernameFlag: true},
 		},
 		{
 			name:     "omitted host",
 			rawURL:   "mqtt:///test/topic",
 			wantAddr: "localhost:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
+			want:     brokerConnect{cleanStart: true},
 		},
 		{
 			name:     "IPv6 broker",
 			rawURL:   "mqtt://[2001:db8::1]/test/topic",
 			wantAddr: "[2001:db8::1]:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
+			want:     brokerConnect{cleanStart: true},
 		},
 		{
 			name:     "client identifier, persistent session, and custom port",
@@ -681,7 +686,7 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 			name:     "mqtts with TLS disabled",
 			rawURL:   "mqtts://broker.example.invalid/test/topic?disabletls=yes",
 			wantAddr: "broker.example.invalid:1883",
-			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
+			want:     brokerConnect{cleanStart: true},
 		},
 	}
 
@@ -700,8 +705,55 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 
 				sessions := broker.dialed()
 				require.Len(t, sessions, 1)
-				assert.Equal(t, tt.want, sessions[0].connected())
+
+				got := sessions[0].connected()
+				if tt.want.clientID == "" {
+					assert.Regexp(t, `^shoutrrr[A-Z2-7]{12}$`, got.clientID)
+					got.clientID = ""
+				}
+
+				assert.Equal(t, tt.want, got)
 				assert.Len(t, sessions[0].received(), 1)
+			})
+		})
+	}
+}
+
+// TestIntegrationDisconnectEndsCleanSession verifies the session a graceful
+// disconnect leaves on the broker. With a clean session, the DISCONNECT asks
+// the broker to discard the session at once, since no later connection
+// resumes it. With cleansession=no, it keeps the interval the CONNECT asked
+// for, so a later connection with the same client ID can resume the session.
+func TestIntegrationDisconnectEndsCleanSession(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the Session Expiry Interval the DISCONNECT
+	// should carry, nil for none.
+	tests := []struct {
+		want   *uint32
+		name   string
+		rawURL string
+	}{
+		{name: "clean session", rawURL: pipeBrokerURL, want: new(uint32(0))},
+		{name: "persistent session", rawURL: pipeBrokerURL + "?clientid=app&cleansession=no"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				broker := &pipeBroker{}
+				service := newBrokerService(t, tt.rawURL, broker)
+
+				require.NoError(t, service.Send("message", nil))
+				require.NoError(t, service.Close())
+				synctest.Wait()
+
+				sessions := broker.dialed()
+				require.Len(t, sessions, 1)
+				require.True(t, sessions[0].sawDisconnect())
+				assert.Equal(t, tt.want, sessions[0].disconnectSessionExpiry())
 			})
 		})
 	}
@@ -1029,6 +1081,18 @@ func (s *brokerSession) connected() brokerConnect {
 	return s.connect
 }
 
+// disconnectSessionExpiry returns the Session Expiry Interval of the client's
+// DISCONNECT.
+//
+// Returns:
+//   - *uint32: the interval in seconds, nil when the packet leaves it out.
+func (s *brokerSession) disconnectSessionExpiry() *uint32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.disconnectExpiry
+}
+
 // received returns the publishes the session received.
 //
 // Returns:
@@ -1130,6 +1194,7 @@ func (s *brokerSession) serve(conn net.Conn, ackCode byte, ackReason string) {
 		case *packets.Disconnect:
 			s.mu.Lock()
 			s.disconnected = true
+			s.disconnectExpiry = content.Properties.SessionExpiryInterval
 			s.mu.Unlock()
 
 			return

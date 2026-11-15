@@ -129,7 +129,7 @@ func TestConfigGetURL(t *testing.T) {
 		t.Parallel()
 
 		config := &Config{
-			Host: "broker.example.com", Port: 8883, Topic: "t", ClientID: "shoutrrr", CleanSession: true, DisableTLSVerification: true,
+			Host: "broker.example.com", Port: 8883, Topic: "t", CleanSession: true, DisableTLSVerification: true,
 		}
 
 		assert.Equal(t, url.Values{"skiptlsverify": {"Yes"}}, config.GetURL().Query())
@@ -139,7 +139,7 @@ func TestConfigGetURL(t *testing.T) {
 	t.Run("no credentials", func(t *testing.T) {
 		t.Parallel()
 
-		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts", ClientID: "shoutrrr"}).GetURL()
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts"}).GetURL()
 		require.NotNil(t, result)
 		assert.Nil(t, result.User)
 	})
@@ -147,7 +147,7 @@ func TestConfigGetURL(t *testing.T) {
 	t.Run("username only", func(t *testing.T) {
 		t.Parallel()
 
-		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", Username: "testuser", ClientID: "shoutrrr"}).GetURL()
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", Username: "testuser"}).GetURL()
 		require.NotNil(t, result)
 		assert.Equal(t, "testuser", result.User.Username())
 
@@ -158,7 +158,7 @@ func TestConfigGetURL(t *testing.T) {
 	t.Run("password without username", func(t *testing.T) {
 		t.Parallel()
 
-		config := &Config{Host: "broker.example.com", Port: 1883, Topic: "t", Password: "secret", ClientID: "shoutrrr"}
+		config := &Config{Host: "broker.example.com", Port: 1883, Topic: "t", Password: "secret"}
 		result := config.GetURL()
 		require.NotNil(t, result)
 		assert.Empty(t, result.User.Username())
@@ -173,10 +173,22 @@ func TestConfigGetURL(t *testing.T) {
 		assert.Equal(t, "secret", restored.Password)
 	})
 
+	t.Run("client ID", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Host: "broker.example.com", Port: 1883, Topic: "t", ClientID: "shoutrrr", CleanSession: true}
+
+		assert.Equal(t, url.Values{"clientid": {"shoutrrr"}}, config.GetURL().Query())
+
+		config.ClientID = ""
+
+		assert.Empty(t, config.GetURL().Query())
+	})
+
 	t.Run("exactly once QoS", func(t *testing.T) {
 		t.Parallel()
 
-		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", ClientID: "shoutrrr", QoS: QoSExactlyOnce}).GetURL()
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", QoS: QoSExactlyOnce}).GetURL()
 		require.NotNil(t, result)
 		assert.Equal(t, "ExactlyOnce", result.Query().Get("qos"))
 	})
@@ -399,8 +411,9 @@ func TestConfigGetURLZeroPort(t *testing.T) {
 // TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic
 // and rejects one with a wildcard or a null character. So are a topic that is
 // not valid UTF-8 and one longer than 65535 bytes. A URL whose unescaped #
-// starts a fragment is rejected too. So are a port above 65535 and a QoS value
-// outside the enum.
+// starts a fragment is rejected too. So are a client ID with a null character
+// or invalid UTF-8 and one longer than 65535 bytes. So are a port above 65535
+// and a QoS value outside the enum.
 func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 
@@ -439,6 +452,22 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 
 		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), ErrInvalidTopic)
 	})
+
+	// A client ID is a UTF-8 string with a two-byte length prefix, which must
+	// not hold a null character.
+	for name, clientID := range map[string]string{
+		"null character": "app%00one",
+		"invalid UTF-8":  "app%FF",
+		"too long":       strings.Repeat("a", 65536),
+	} {
+		t.Run("client ID with "+name, func(t *testing.T) {
+			t.Parallel()
+
+			rawURL := "mqtt://broker.example.com:1883/test/topic?clientid=" + clientID
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), ErrInvalidClientID)
+		})
+	}
 
 	t.Run("port above 65535", func(t *testing.T) {
 		t.Parallel()
@@ -495,7 +524,7 @@ func TestConfigURLRoundTripKeepsTopic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := &Config{Host: "broker.example.com", Port: DefaultPort, Topic: tt.topic, ClientID: "shoutrrr"}
+			config := &Config{Host: "broker.example.com", Port: DefaultPort, Topic: tt.topic}
 
 			restored := &Config{}
 			require.NoError(t, restored.SetURL(config.GetURL()))

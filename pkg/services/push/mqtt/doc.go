@@ -3,7 +3,8 @@
 // MQTT (Message Queuing Telemetry Transport) is a lightweight messaging protocol
 // ideal for small sensors and mobile devices, optimized for high-latency or
 // unreliable networks. This service supports both standard (mqtt://) and secure
-// (mqtts://) connections to any MQTT-compatible broker.
+// (mqtts://) connections to any broker that supports MQTT 5. A broker that
+// only speaks MQTT 3.1.1 refuses the connection.
 //
 // # URL Format
 //
@@ -24,7 +25,8 @@
 //
 // The following query parameters can be used to configure the service:
 //
-//   - clientid: MQTT client identifier (default: shoutrrr)
+//   - clientid: MQTT client identifier (default: shoutrrr and 12 random
+//     characters, chosen per service)
 //   - qos: Quality of Service level (0=at most once, 1=at least once, 2=exactly once)
 //   - retained: retain message on broker (default: no)
 //   - cleansession: start with a clean session (default: yes)
