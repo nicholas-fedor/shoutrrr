@@ -38,6 +38,12 @@ var (
 	// 65535 bytes is rejected too.
 	ErrInvalidClientID = errors.New("invalid client ID")
 
+	// ErrMessageTooLarge is returned for a message whose packet is larger
+	// than the broker accepts, without sending it. The broker announces its
+	// Maximum Packet Size when the connection opens, and it would disconnect a
+	// client that sends a larger packet.
+	ErrMessageTooLarge = errors.New("message is too large for the broker")
+
 	// ErrInvalidQoS is returned when a QoS value is outside the valid range (0-2).
 	// MQTT protocol only supports QoS levels 0, 1, and 2.
 	ErrInvalidQoS = errors.New("invalid QoS value: must be 0, 1, or 2")

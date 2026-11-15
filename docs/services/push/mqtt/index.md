@@ -99,6 +99,16 @@ A connection manager set with `SetConnectionManager()` belongs to the caller. Th
 
 If opening the connection fails, the error is returned to the caller and the next `Send()` tries again, so temporary network issues or broker unavailability do not require a new call to `Initialize()`. If the connection ends, for example because it was disconnected, the next `Send()` opens a new one.
 
+### Message Size
+
+A broker may announce the largest packet it accepts when the connection opens.
+A send whose message would make a larger packet fails with `ErrMessageTooLarge` before anything is sent, since the broker would disconnect the client instead of delivering the message.
+The packet also holds the topic and a few header bytes, so the largest message is a little smaller than the broker's limit.
+A broker that announces no limit accepts packets up to about 256 MB, the largest MQTT can encode.
+When a reconnection resumes the session, a message still waiting for its acknowledgement is resent unless it exceeds the new limit.
+Shoutrrr drops such a message with a warning, and its send has already failed with the lost connection.
+A connection manager set with `SetConnectionManager()` is not checked, since Shoutrrr does not see its broker's reply.
+
 ### Client ID
 
 The broker keeps one session per client ID.

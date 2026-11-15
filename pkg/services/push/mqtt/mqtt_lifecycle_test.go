@@ -19,6 +19,7 @@ import (
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
+	"github.com/eclipse/paho.golang/paho/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -61,6 +62,14 @@ type fakeConnector struct {
 	schemes []string
 	// clientIDs holds the client ID each connection sends.
 	clientIDs []string
+	// sessionManagers holds the session state each connection keeps.
+	sessionManagers []session.SessionManager
+	// maxPacketSize, when not zero, is the Maximum Packet Size each CONNACK
+	// announces.
+	maxPacketSize uint32
+	// connackDelay is how long after a connection opens its CONNACK arrives.
+	// Zero delivers it before connect returns.
+	connackDelay time.Duration
 }
 
 // warningContexts records the test value of the context each warning was
@@ -543,6 +552,7 @@ func TestConnectErrorWarning(t *testing.T) {
 
 		service.connect = func(ctx context.Context, config *autopaho.ClientConfig) (ConnectionManager, error) {
 			cfg = config
+			config.OnConnectionUp(nil, &paho.Connack{Properties: &paho.ConnackProperties{}})
 
 			return newFakeConnection(ctx), nil
 		}
@@ -687,6 +697,81 @@ func TestSendTLSSettings(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestPublishPacketSizeLimit verifies that a publish larger than the Maximum
+// Packet Size the broker announced fails before it is sent. The test topic
+// makes a QoS 0 packet 15 bytes larger than its payload, and a QoS 1 packet
+// carries 2 more bytes for its packet ID. A send waits for the broker's
+// CONNACK, which can arrive after the connection is up, and a broker that
+// announces no limit takes any message.
+func TestPublishPacketSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	// tests lists payload sizes with the broker's limit and whether the
+	// publish fails.
+	tests := []struct {
+		params        *types.Params
+		name          string
+		payload       int
+		connackDelay  time.Duration
+		maxPacketSize uint32
+		wantErr       bool
+	}{
+		{name: "at the limit", maxPacketSize: 100, payload: 85},
+		{name: "over the limit", maxPacketSize: 100, payload: 86, wantErr: true},
+		{name: "packet ID over the limit", maxPacketSize: 100, payload: 84, params: &types.Params{"qos": "1"}, wantErr: true},
+		{name: "late CONNACK", maxPacketSize: 100, payload: 86, connackDelay: time.Second, wantErr: true},
+		{name: "no limit", payload: 1 << 20},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				connector := &fakeConnector{maxPacketSize: tt.maxPacketSize, connackDelay: tt.connackDelay}
+				service := newLifecycleService(t, connector)
+
+				err := service.Send(strings.Repeat("a", tt.payload), tt.params)
+
+				require.Len(t, connector.created(), 1)
+
+				if tt.wantErr {
+					require.ErrorIs(t, err, ErrMessageTooLarge)
+					require.ErrorContains(t, err, "the packet would be 101 bytes")
+					assert.Zero(t, connector.created()[0].publishes.Load())
+
+					return
+				}
+
+				require.NoError(t, err)
+				assert.Equal(t, int32(1), connector.created()[0].publishes.Load())
+			})
+		})
+	}
+}
+
+// TestConnectionSession verifies that each connection the service opens keeps
+// its own session state, which drops the pending packets that a broker
+// resuming the session would refuse.
+func TestConnectionSession(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		connector := &fakeConnector{}
+		service := newLifecycleService(t, connector)
+
+		require.NoError(t, service.Send("first", nil))
+		require.NoError(t, service.Close())
+		require.NoError(t, service.Send("second", nil))
+
+		sessions := connector.sessions()
+		require.Len(t, sessions, 2)
+		assert.IsType(t, &limitedSession{}, sessions[0])
+		assert.IsType(t, &limitedSession{}, sessions[1])
+		assert.NotSame(t, sessions[0], sessions[1])
+	})
 }
 
 // TestConnectionClientID verifies the client ID each connection sends. A
@@ -967,6 +1052,7 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 	c.servers = append(c.servers, cfg.ServerUrls[0].Host)
 	c.schemes = append(c.schemes, cfg.ServerUrls[0].Scheme)
 	c.clientIDs = append(c.clientIDs, cfg.ClientID)
+	c.sessionManagers = append(c.sessionManagers, cfg.Session)
 
 	if len(c.connections) == 0 {
 		connection.gate = c.gateFirst
@@ -974,6 +1060,22 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 
 	c.connections = append(c.connections, connection)
 	c.mu.Unlock()
+
+	// autopaho hands each CONNACK to OnConnectionUp after AwaitConnection
+	// starts returning, which a delay reproduces.
+	connack := &paho.Connack{Properties: &paho.ConnackProperties{}}
+	if c.maxPacketSize > 0 {
+		connack.Properties.MaximumPacketSize = new(c.maxPacketSize)
+	}
+
+	if c.connackDelay == 0 {
+		cfg.OnConnectionUp(nil, connack)
+	} else {
+		go func() {
+			time.Sleep(c.connackDelay)
+			cfg.OnConnectionUp(nil, connack)
+		}()
+	}
 
 	return connection, nil
 }
@@ -998,4 +1100,15 @@ func (c *fakeConnector) sentClientIDs() []string {
 	defer c.mu.Unlock()
 
 	return slices.Clone(c.clientIDs)
+}
+
+// sessions returns the session state of each connection created so far.
+//
+// Returns:
+//   - []session.SessionManager: a copy of the sessions in creation order.
+func (c *fakeConnector) sessions() []session.SessionManager {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Clone(c.sessionManagers)
 }
