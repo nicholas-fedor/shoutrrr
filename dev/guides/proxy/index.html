@@ -3186,11 +3186,45 @@ They affect every HTTP-based service that uses its own default client.</p>
 <h3 id="custom_http_client">Custom HTTP Client<a class="headerlink" href="#custom_http_client" title="Permanent link">&para;</a></h3>
 <p>A custom client gives fine-grained control over proxy settings, for Go applications that need a specific transport configuration.</p>
 <h3 id="redirects">Redirects<a class="headerlink" href="#redirects" title="Permanent link">&para;</a></h3>
-<p>A service's own default client follows a redirect only on the host the request went to, and never from HTTPS to HTTP.
-Other redirects fail the send, because the request's headers can hold the service's credentials.
-A custom client keeps its own redirect policy.
-A redirect that a client does not follow fails the send, since the request never reached the service.
-Go's default policy forwards <code>Authorization</code>, <code>WWW-Authenticate</code>, and <code>Cookie</code> only within the first request's domain, and every other header to any host.</p>
+<p>A service's own default client follows only the redirects that keep its credentials on the server and its message intact.</p>
+<table>
+<thead>
+<tr>
+<th>Redirect</th>
+<th>Default client</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>On the same host without changing the method, including from HTTP to HTTPS</td>
+<td>Follows it</td>
+</tr>
+<tr>
+<td>A 303 after a POST</td>
+<td>Follows it, because it points to the server's response to the POST</td>
+</tr>
+<tr>
+<td>To another host</td>
+<td>Fails the send, because the request's headers can hold the service's credentials</td>
+</tr>
+<tr>
+<td>From HTTPS to HTTP</td>
+<td>Fails the send, for the same reason</td>
+</tr>
+<tr>
+<td>A 301 or 302 after a POST or any other method but GET and HEAD</td>
+<td>Fails the send, because Go would resend the request as a GET without the message</td>
+</tr>
+<tr>
+<td>A redirect after ten requests</td>
+<td>Fails the send</td>
+</tr>
+</tbody>
+</table>
+<p>A custom client keeps its own redirect policy.
+Whatever the client, a redirect that it does not follow fails the send, since the request never reached the service.</p>
+<p>Go's default policy forwards <code>Authorization</code>, <code>WWW-Authenticate</code>, and <code>Cookie</code> only within the first request's domain, and every other header to any host.
+Some services send their credentials in a header of their own, such as Gotify's <code>X-Gotify-Key</code>, so a custom client that follows redirects to other hosts can send them there.</p>
 <h3 id="custom_dialcontext">Custom DialContext<a class="headerlink" href="#custom_dialcontext" title="Permanent link">&para;</a></h3>
 <p>A custom <code>DialContext</code> applies the same destination policy to SMTP and MQTT TCP connections.
 HTTP services continue to use <code>HTTPClient</code>.</p>
@@ -3221,7 +3255,7 @@ Adjust them as needed.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 15, 2026 12:06:21 UTC"><span class="timeago" datetime="2026-11-15T12:06:21+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 12:06:21 UTC">2026-11-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 15, 2026 13:57:14 UTC"><span class="timeago" datetime="2026-11-15T13:57:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:57:14 UTC">2026-11-15</span>
   </span>
 
     
