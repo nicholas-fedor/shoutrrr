@@ -11,9 +11,11 @@
 //
 // The default clients refuse a redirect to another host or from HTTPS to HTTP
 // with [ErrRedirectRefused]. Such a redirect could carry a service's
-// credentials elsewhere. [NewClient] builds a client with the same policy for
-// code that does not send through a Holder. An injected client keeps its
-// owner's redirect policy.
+// credentials elsewhere. They also refuse a redirect that changes the request
+// method, except a 303, because a POST resent as a GET never delivers its
+// message. [NewClient] builds a client with the same policy for code that does
+// not send through a Holder. An injected client keeps its owner's redirect
+// policy.
 //
 // [BoundContext] bounds a send whose context has no deadline, such as a direct
 // Send call without the router. [RetryAfter] reads the wait that a

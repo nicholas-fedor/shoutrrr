@@ -205,7 +205,7 @@ Every service follows the same rules, so services behave alike for users and for
 
 - Keep the clients in `internal/httpclient.Holder`, and implement `SetHTTPClient` through it.
 - Send every request through that client, including token and API requests, so the holder's redirect policy covers them.
-  Its default clients refuse a redirect to another host or from HTTPS to HTTP.
+  Its default clients refuse the redirects that the proxy guide's [Redirects](docs/guides/proxy/index.md#redirects) section lists.
 - Build any other client with `httpclient.NewClient`, such as a generator's.
   It follows the same redirect policy.
 - Count a request as answered only on a 2xx status, or on the success statuses the provider documents.

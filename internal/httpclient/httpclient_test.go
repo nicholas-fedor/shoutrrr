@@ -431,7 +431,8 @@ func TestHolderDefaultClient(t *testing.T) {
 // TestHolderDefaultClientsRedirect verifies that both default clients carry
 // the redirect policy. Each follows a redirect on the server's own host and
 // refuses one that names the server as localhost, another host name for it,
-// before connecting.
+// before connecting. A POST answered with 302 fails before it is resent as a
+// GET, and one answered with 303 fetches the response it points to.
 func TestHolderDefaultClientsRedirect(t *testing.T) {
 	t.Parallel()
 
@@ -441,6 +442,10 @@ func TestHolderDefaultClientsRedirect(t *testing.T) {
 		switch r.URL.Path {
 		case "/same":
 			http.Redirect(w, r, "/done", http.StatusTemporaryRedirect)
+		case "/moved":
+			http.Redirect(w, r, "/done", http.StatusFound)
+		case "/processed":
+			http.Redirect(w, r, "/done", http.StatusSeeOther)
 		case "/elsewhere":
 			_, port, _ := net.SplitHostPort(r.Host)
 			http.Redirect(w, r, "http://"+net.JoinHostPort("localhost", port)+"/done", http.StatusTemporaryRedirect)
@@ -472,6 +477,20 @@ func TestHolderDefaultClientsRedirect(t *testing.T) {
 
 			_, err = client.Do(req)
 			require.ErrorIs(t, err, ErrRedirectRefused)
+
+			req, err = http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/moved", strings.NewReader("message"))
+			require.NoError(t, err)
+
+			_, err = client.Do(req)
+			require.ErrorIs(t, err, ErrRedirectRefused)
+
+			req, err = http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/processed", strings.NewReader("message"))
+			require.NoError(t, err)
+
+			res, err = client.Do(req)
+			require.NoError(t, err)
+			require.NoError(t, res.Body.Close())
+			assert.Equal(t, http.StatusNoContent, res.StatusCode)
 		})
 	}
 }

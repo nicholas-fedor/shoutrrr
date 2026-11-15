@@ -15,8 +15,8 @@ import (
 // Holder holds the injected HTTP client of a service and its default clients.
 // The zero value is ready to use and holds no client. The default clients
 // have no timeout of their own, because each send bounds its requests with
-// [BoundContext]. They fail a redirect to another host or from HTTPS to HTTP
-// with [ErrRedirectRefused]. A Holder must not be copied after first use.
+// [BoundContext]. They fail with [ErrRedirectRefused] the redirects that the
+// package documentation lists. A Holder must not be copied after first use.
 type Holder struct {
 	// injected is the client from Set, or nil.
 	injected types.HTTPClient
@@ -43,9 +43,9 @@ type nilClient struct {
 
 // NewClient returns a new HTTP client with the given transport and timeout.
 //
-// Like a [Holder]'s default clients, the client refuses a redirect to another
-// host or from HTTPS to HTTP with [ErrRedirectRefused]. It follows a redirect
-// on the same host, up to 10 for each request.
+// Like a [Holder]'s default clients, the client fails with
+// [ErrRedirectRefused] the redirects that the package documentation lists. It
+// follows other redirects until a request's chain reaches ten requests.
 //
 // Parameters:
 //   - roundTripper: the transport, or nil for [http.DefaultTransport].

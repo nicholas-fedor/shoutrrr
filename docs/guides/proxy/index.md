@@ -220,11 +220,22 @@ A custom client gives fine-grained control over proxy settings, for Go applicati
 
 ### Redirects
 
-A service's own default client follows a redirect only on the host the request went to, and never from HTTPS to HTTP.
-Other redirects fail the send, because the request's headers can hold the service's credentials.
+A service's own default client follows only the redirects that keep its credentials on the server and its message intact.
+
+| Redirect | Default client |
+| --- | --- |
+| On the same host without changing the method, including from HTTP to HTTPS | Follows it |
+| A 303 after a POST | Follows it, because it points to the server's response to the POST |
+| To another host | Fails the send, because the request's headers can hold the service's credentials |
+| From HTTPS to HTTP | Fails the send, for the same reason |
+| A 301 or 302 after a POST or any other method but GET and HEAD | Fails the send, because Go would resend the request as a GET without the message |
+| A redirect after ten requests | Fails the send |
+
 A custom client keeps its own redirect policy.
-A redirect that a client does not follow fails the send, since the request never reached the service.
+Whatever the client, a redirect that it does not follow fails the send, since the request never reached the service.
+
 Go's default policy forwards `Authorization`, `WWW-Authenticate`, and `Cookie` only within the first request's domain, and every other header to any host.
+Some services send their credentials in a header of their own, such as Gotify's `X-Gotify-Key`, so a custom client that follows redirects to other hosts can send them there.
 
 ### Custom DialContext
 
