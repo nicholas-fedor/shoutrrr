@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require a dedup_key to acknowledge or resolve and send the title by @nicholas-fedor in [#2236](https://github.com/nicholas-fedor/shoutrrr/pull/2236)
 - Verify the server's certificate against the JID domain by @nicholas-fedor in [#2230](https://github.com/nicholas-fedor/shoutrrr/pull/2230)
 - Send channel messages that every Zulip version accepts by @nicholas-fedor in [#2228](https://github.com/nicholas-fedor/shoutrrr/pull/2228)
 - Send messages with the Bot API 7.0 fields by @nicholas-fedor in [#2226](https://github.com/nicholas-fedor/shoutrrr/pull/2226)
