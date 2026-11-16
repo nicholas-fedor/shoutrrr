@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send channel messages that every Zulip version accepts by @nicholas-fedor in [#2228](https://github.com/nicholas-fedor/shoutrrr/pull/2228)
 - Send messages with the Bot API 7.0 fields by @nicholas-fedor in [#2226](https://github.com/nicholas-fedor/shoutrrr/pull/2226)
 - Refuse redirects that turn a request into a bodiless GET by @nicholas-fedor in [#2224](https://github.com/nicholas-fedor/shoutrrr/pull/2224)
 - Send every message through one jsonclient request by @nicholas-fedor in [#2222](https://github.com/nicholas-fedor/shoutrrr/pull/2222)
