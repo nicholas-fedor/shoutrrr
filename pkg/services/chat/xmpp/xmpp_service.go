@@ -16,6 +16,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service sends fire-and-forget XMPP chat and MUC notifications.
@@ -165,7 +166,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	}
 	defer func() { _ = session.Close() }()
 
-	body := composeMessage(config.Title, message)
+	body := util.TitledMessage(config.Title, message)
 
 	nick := config.mucNick()
 

@@ -1,10 +1,12 @@
 package twilio
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -205,6 +207,148 @@ func TestSend(t *testing.T) {
 		assert.Equal(t, "authToken", request.password, "request %d", i)
 		assert.Equal(t, wantForms[i], request.form, "request %d", i)
 	}
+}
+
+// TestSendAPIKey verifies that a send with an API key authenticates with the
+// API key SID and its secret, while the request path keeps the account SID.
+func TestSendAPIKey(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "twilio://"+testAccountSID+":keySecret@"+testFrom+"/"+testTo+"?apikey="+testAPIKeySID)
+	client, captured := newRespondingClient(t, created)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+
+	require.Len(t, *captured, 1)
+	assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/"+testAccountSID+"/Messages.json", (*captured)[0].url)
+	assert.Equal(t, testAPIKeySID, (*captured)[0].username)
+	assert.Equal(t, "keySecret", (*captured)[0].password)
+}
+
+// TestSendBody verifies the body each send carries. A title without a message
+// is sent alone, and a body of 1600 characters is sent whole. Twilio counts
+// characters, so a longer body fails before any request. The title counts
+// toward that length. An empty body also fails before any request.
+func TestSendBody(t *testing.T) {
+	t.Parallel()
+
+	// tests lists messages and params with the body sent, or the error the
+	// send returns before any request.
+	tests := []struct {
+		params   *types.Params
+		wantErr  error
+		name     string
+		message  string
+		wantBody string
+	}{
+		{name: "title alone", params: &types.Params{"title": "Alert"}, wantBody: "Alert"},
+		{name: "1600 characters", message: strings.Repeat("é", 1600), wantBody: strings.Repeat("é", 1600)},
+		{name: "1601 characters", message: strings.Repeat("é", 1601), wantErr: ErrMessageTooLong},
+		{name: "title over the limit", message: strings.Repeat("a", 1595), params: &types.Params{"title": "Alert"}, wantErr: ErrMessageTooLong},
+		{name: "empty", wantErr: ErrMessageMissing},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+
+			if tt.wantErr != nil {
+				// The mock has no expectations, so a request fails the test.
+				service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+				require.ErrorIs(t, service.Send(tt.message, tt.params), tt.wantErr)
+
+				return
+			}
+
+			client, captured := newRespondingClient(t, created)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+			require.Len(t, *captured, 1)
+			assert.Equal(t, []string{tt.wantBody}, (*captured)[0].form["Body"])
+		})
+	}
+}
+
+// TestSendLogsMessageSID verifies that each created message is logged at
+// Debug with the SID Twilio gave it. A reply that is not JSON still counts as
+// sent. A logger without Debug gets no record.
+func TestSendLogsMessageSID(t *testing.T) {
+	t.Parallel()
+
+	// tests lists replies with the log the send writes.
+	tests := []struct {
+		name    string
+		reply   cannedResponse
+		wantLog string
+	}{
+		{name: "created", reply: created, wantLog: "DEBUG message created messageid=SMb7c0a2ce80504485a6f653a7110836f5\n"},
+		{
+			name:    "reply that is not JSON",
+			reply:   cannedResponse{status: "201 Created", statusCode: http.StatusCreated, body: "created"},
+			wantLog: "DEBUG message created, reply not read error=",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+			service.SetLogger(log.New(&logs, "", 0))
+
+			client, _ := newRespondingClient(t, tt.reply)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", nil))
+			assert.True(t, strings.HasPrefix(logs.String(), tt.wantLog), logs.String())
+		})
+	}
+
+	t.Run("logger without Debug", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+		service.SetLogger(types.NewSlogLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))))
+
+		client, _ := newRespondingClient(t, created)
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Empty(t, logs.String())
+	})
+}
+
+// TestSendNormalizesConfig verifies that a send strips the formatting from the
+// sender and recipients of a config built in code, as reading its URL does.
+// The requests then carry the same numbers. A recipient written like the
+// sender is caught.
+func TestSendNormalizesConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+	client, captured := newRespondingClient(t, created)
+	service.SetHTTPClient(client)
+
+	stored := []string{"+1 (555) 987-6543"}
+	service.Config = &Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: "+1.555.123.4567", ToNumbers: stored}
+
+	require.NoError(t, service.Send("Message", nil))
+	require.Len(t, *captured, 1)
+	assert.Equal(t, url.Values{"To": {testTo}, "Body": {"Message"}, "From": {testFrom}}, (*captured)[0].form)
+	assert.Equal(t, []string{"+1 (555) 987-6543"}, stored)
+
+	service.Config = &Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: "+1.555.123.4567", ToNumbers: []string{"+1 555 123 4567"}}
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send("Message", nil), ErrToFromNumberSame)
 }
 
 // TestSendChecksConfig verifies that a send with a config built in code fails

@@ -1,6 +1,10 @@
 package signal
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
+)
 
 // createPayload builds the JSON payload for POST /v2/send.
 //
@@ -36,20 +40,11 @@ func createPayload(message string, config *Config) sendMessagePayload {
 // Returns:
 //   - string: the composed message
 func composeMessage(title, message string, styled bool) string {
-	if title == "" {
-		return message
+	if title != "" && styled {
+		title = "**" + title + "**"
 	}
 
-	heading := title
-	if styled {
-		heading = "**" + title + "**"
-	}
-
-	if message == "" {
-		return heading
-	}
-
-	return heading + "\n" + message
+	return util.TitledMessage(title, message)
 }
 
 // apiRecipients maps URL recipients to REST API recipient strings.

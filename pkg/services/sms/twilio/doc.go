@@ -12,8 +12,8 @@
 //
 // Where:
 //   - accountSID: Twilio Account SID (required)
-//   - authToken: Twilio Auth Token (required)
-//   - fromNumber: sender phone number in E.164 format, or Messaging Service SID (required)
+//   - authToken: Twilio Auth Token, or the API key secret with apikey (required)
+//   - fromNumber: sender phone number in E.164 format, alphanumeric sender ID, or Messaging Service SID (required)
 //   - toNumber: recipient phone number(s) in E.164 format (required)
 //   - query: configuration parameters
 //
@@ -32,23 +32,36 @@
 //
 // The following query parameters can be used to configure the service:
 //
-//   - title: notification title, prepended to the message body
+//   - title: notification title, on its own line before the message
+//   - apikey: API key SID, SK followed by 32 hexadecimal characters
 //
-// # Messaging Service SID
+// # API Keys
 //
-// If the fromNumber starts with "MG", it is treated as a Twilio Messaging Service SID
-// and sent as the MessagingServiceSid parameter instead of From.
+// With apikey set, requests authenticate with the API key SID and the secret
+// in the authToken position. The account SID still names the account.
+//
+// # Senders
+//
+// A fromNumber of MG followed by 32 hexadecimal characters is a Messaging
+// Service SID, sent as the MessagingServiceSid parameter. Any other sender is
+// sent as From. A sender that holds a letter, such as an alphanumeric sender
+// ID, is sent as written.
 //
 // # Phone Number Normalization
 //
-// Phone numbers are automatically normalized by stripping common formatting characters
-// (spaces, dashes, parentheses, dots), leaving only digits and a leading '+'.
+// Common formatting characters (spaces, dashes, parentheses, dots) are
+// stripped from recipient numbers and from a sender without letters.
+//
+// # Message Length
+//
+// Twilio accepts a body of up to 1600 characters, title included. A longer
+// body, or an empty one, fails before any request.
 //
 // # Important Notes
 //
 //   - Multiple recipients can be specified by adding additional path segments
 //   - The To and From numbers must not be the same (Twilio rejects such requests)
 //   - Messaging Service SIDs bypass the To==From validation
-//   - Authentication uses HTTP Basic Auth with AccountSID and AuthToken
+//   - Authentication uses HTTP Basic Auth
 //   - Requests are sent as application/x-www-form-urlencoded POST to the Twilio Messages API
 package twilio

@@ -43,10 +43,10 @@ func TestDefaultHTTPClient(t *testing.T) {
 	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 }
 
-// TestSendToRecipient verifies the request for one recipient: an
+// TestSendToRecipient verifies the request for one recipient. It is an
 // authenticated form POST to the account's Messages endpoint with the
-// recipient, the body with the title on its own line, and the sender as From
-// or as MessagingServiceSid for a Messaging Service SID.
+// recipient and the body. The sender goes as MessagingServiceSid for a
+// Messaging Service SID and as From for any other sender.
 func TestSendToRecipient(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +67,9 @@ func TestSendToRecipient(t *testing.T) {
 			wantForm: url.Values{"To": {testTo}, "Body": {"Test"}, "MessagingServiceSid": {testMessagingServiceSID}},
 		},
 		{
-			name:     "title",
-			config:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom, Title: "Alert"},
-			wantForm: url.Values{"To": {testTo}, "Body": {"Alert\nTest"}, "From": {testFrom}},
+			name:     "MG that is not a Messaging Service SID",
+			config:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: "MGMHotels"},
+			wantForm: url.Values{"To": {testTo}, "Body": {"Test"}, "From": {"MGMHotels"}},
 		},
 	}
 
@@ -80,7 +80,7 @@ func TestSendToRecipient(t *testing.T) {
 			client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusCreated, body: messageBody})
 			service := &Service{HTTPClient: client}
 
-			require.NoError(t, service.sendToRecipient(t.Context(), &tt.config, testTo, "Test"))
+			require.NoError(t, service.sendToRecipient(t.Context(), &tt.config, testTo, encodeMessageForm(&tt.config, "Test")))
 
 			require.Len(t, *captured, 1)
 			request := (*captured)[0]

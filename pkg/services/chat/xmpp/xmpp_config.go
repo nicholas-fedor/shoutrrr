@@ -376,26 +376,6 @@ func asciiDomain(name string) string {
 	return name
 }
 
-// composeMessage prepends title to message when title is set.
-//
-// Parameters:
-//   - title: Optional heading prepended to the body.
-//   - message: The notification body.
-//
-// Returns:
-//   - string: the combined text sent as the XMPP body.
-func composeMessage(title, message string) string {
-	if title == "" {
-		return message
-	}
-
-	if message == "" {
-		return title
-	}
-
-	return title + "\n" + message
-}
-
 // splitJID splits value into localpart and domainpart.
 //
 // A resource, if present, is discarded. The domain must not contain another @.

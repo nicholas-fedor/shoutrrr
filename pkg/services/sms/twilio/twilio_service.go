@@ -11,7 +11,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service provides the Twilio SMS notification service.
@@ -100,8 +99,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, a params
-//     error, or the joined errors of the failed recipients. A request error
-//     matches ctx's error when ctx ends the request. When ctx ends, the
+//     error, or the error from the config's checks. [ErrMessageMissing] or
+//     [ErrMessageTooLong] for a body Twilio would reject. These fail before any
+//     request. Otherwise the joined errors of the failed recipients. A request
+//     error matches ctx's error when ctx ends the request. When ctx ends, the
 //     remaining recipients are skipped and ctx's error is included.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -124,12 +125,19 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
+	body, err := config.messageBody(message)
+	if err != nil {
+		return err
+	}
+
+	form := encodeMessageForm(config, body)
+
 	return sequential.Send(
 		ctx,
 		config.ToNumbers,
 		sequential.PerTarget(defaultHTTPTimeout),
 		func(ctx context.Context, toNumber string) error {
-			if err := s.sendToRecipient(ctx, config, toNumber, message); err != nil {
+			if err := s.sendToRecipient(ctx, config, toNumber, form); err != nil {
 				return fmt.Errorf("sending to %s: %w", toNumber, err)
 			}
 
@@ -153,7 +161,7 @@ func (s *Service) ServiceTimeout(_ *types.Params) time.Duration {
 		return defaultHTTPTimeout
 	}
 
-	return defaultHTTPTimeout * time.Duration(max(1, len(util.NonEmpty(s.Config.ToNumbers))))
+	return defaultHTTPTimeout * time.Duration(max(1, len(normalizeRecipients(s.Config.ToNumbers))))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,

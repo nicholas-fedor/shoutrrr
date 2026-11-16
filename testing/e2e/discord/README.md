@@ -108,7 +108,7 @@ SHOUTRRR_DISCORD_ROLE_ID=<ROLE_ID>
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Valid Discord webhook URL
 - `.env` file with required environment variables
 

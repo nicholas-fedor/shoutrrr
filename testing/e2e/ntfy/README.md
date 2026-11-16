@@ -58,7 +58,7 @@ A local ntfy server is required for e2e testing. The provided `docker-compose.ya
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Docker and Docker Compose
 - Linux OS
 
@@ -136,7 +136,7 @@ SHOUTRRR_NTFY_URL=ntfy://localhost:8080/shoutrrr-e2e-test
 
 ### Test Execution Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Running ntfy server
 - `.env` file with required environment variables
 

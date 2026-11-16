@@ -17,7 +17,9 @@ const (
 	// testAccountSID is an account SID.
 	testAccountSID = "AC0123456789abcdef0123456789ABCDEF"
 	// testMessagingServiceSID is a Messaging Service SID.
-	testMessagingServiceSID = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	testMessagingServiceSID = "MG0123456789abcdef0123456789ABCDEF"
+	// testAPIKeySID is an API key SID.
+	testAPIKeySID = "SK0123456789abcdef0123456789ABCDEF"
 	// testFrom is a sender number in E.164 format.
 	testFrom = "+15551234567"
 	// testTo is a recipient number in E.164 format.
@@ -85,6 +87,22 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:   "API key",
+			rawURL: "twilio://" + testAccountSID + ":keySecret@" + testFrom + "/" + testTo + "?apikey=" + testAPIKeySID,
+			want: Config{
+				AccountSID: testAccountSID,
+				AuthToken:  "keySecret",
+				APIKey:     testAPIKeySID,
+				FromNumber: testFrom,
+				ToNumbers:  []string{testTo},
+			},
+		},
+		{
+			name:   "escaped plus sign and slash",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/%2B15551111111/%2B1555%2F2222222",
+			want:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom, ToNumbers: []string{"+15551111111", "+1555/2222222"}},
+		},
+		{
 			name:   "Messaging Service SID as a recipient is not checked against the sender",
 			rawURL: "twilio://" + testAccountSID + ":authToken@" + testMessagingServiceSID + "/" + testMessagingServiceSID,
 			want: Config{
@@ -126,9 +144,12 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "account SID that is not an account SID", rawURL: "twilio://bob:authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "account SID with a question mark", rawURL: "twilio://AC%3F" + testAccountSID[3:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "account SID with a slash", rawURL: "twilio://AC%2F" + testAccountSID[3:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "account SID one character long", rawURL: "twilio://" + testAccountSID + "0:authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "account SID one character short", rawURL: "twilio://" + testAccountSID[:33] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "account SID that is not hexadecimal", rawURL: "twilio://AC" + strings.Repeat("g", 32) + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "API key SID", rawURL: "twilio://SK" + testAccountSID[2:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "API key that is not an API key SID", rawURL: "twilio://" + testAccountSID + ":keySecret@" + testFrom + "/" + testTo + "?apikey=bob", wantErr: ErrInvalidAPIKey},
+		{name: "account SID as the API key", rawURL: "twilio://" + testAccountSID + ":keySecret@" + testFrom + "/" + testTo + "?apikey=" + testAccountSID, wantErr: ErrInvalidAPIKey},
 		{name: "sender with a port", rawURL: "twilio://" + testAccountSID + ":authToken@+15551234567:443/" + testTo, wantErr: util.ErrInvalidHost},
 		{name: "missing recipients", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom, wantErr: ErrToNumbersMissing},
 		{name: "recipient equals sender", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/" + testFrom, wantErr: ErrToFromNumberSame},
@@ -154,22 +175,27 @@ func TestConfigGetURL(t *testing.T) {
 	config := &Config{
 		AccountSID: testAccountSID,
 		AuthToken:  "authToken",
+		APIKey:     testAPIKeySID,
 		FromNumber: testFrom,
 		ToNumbers:  []string{testTo, "+15551111111", "+1555/2222222"},
 		Title:      "Alert",
 	}
 
 	serviceURL := config.GetURL()
-	assert.Equal(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo+"/+15551111111/+1555%2F2222222?title=Alert", serviceURL.String())
+	assert.Equal(t,
+		"twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo+"/+15551111111/+1555%2F2222222?apikey="+testAPIKeySID+"&title=Alert",
+		serviceURL.String())
 
 	roundTrip := &Config{}
 	require.NoError(t, roundTrip.SetURL(serviceURL))
 	assert.Equal(t, config, roundTrip)
 }
 
-// TestNormalizePhoneNumber verifies that spaces, dashes, parentheses, and dots
-// are removed from phone numbers, while Messaging Service SIDs are kept as is.
-func TestNormalizePhoneNumber(t *testing.T) {
+// TestNormalizeSender verifies that spaces, dashes, parentheses, and dots are
+// removed from a phone number or short code, while a sender with a letter,
+// such as a Messaging Service SID or an alphanumeric sender ID, is kept as
+// written.
+func TestNormalizeSender(t *testing.T) {
 	t.Parallel()
 
 	// tests lists inputs with their normalized form.
@@ -180,8 +206,9 @@ func TestNormalizePhoneNumber(t *testing.T) {
 		{input: "+1 (555) 123-4567", want: testFrom},
 		{input: "+1.555.123.4567", want: testFrom},
 		{input: testFrom, want: testFrom},
+		{input: "123-456", want: "123456"},
 		{input: testMessagingServiceSID, want: testMessagingServiceSID},
-		{input: "MG-ABC.DEF", want: "MG-ABC.DEF"},
+		{input: "Acme-Alerts", want: "Acme-Alerts"},
 		{input: "", want: ""},
 	}
 
@@ -189,14 +216,13 @@ func TestNormalizePhoneNumber(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, normalizePhoneNumber(tt.input))
+			assert.Equal(t, tt.want, normalizeSender(tt.input))
 		})
 	}
 }
 
-// TestParseToNumbers verifies that the escaped path splits into normalized
-// numbers, skipping empty and blank segments. Each segment is decoded, and an
-// escaped slash stays in its number.
+// TestParseToNumbers verifies that the escaped path splits into its decoded
+// segments, and that an escaped slash stays in its number.
 func TestParseToNumbers(t *testing.T) {
 	t.Parallel()
 
@@ -208,10 +234,7 @@ func TestParseToNumbers(t *testing.T) {
 	}{
 		{name: "empty", path: "", want: nil},
 		{name: "root only", path: "/", want: nil},
-		{name: "one number", path: "/" + testTo, want: []string{testTo}},
 		{name: "several numbers", path: "/" + testTo + "/+15551111111", want: []string{testTo, "+15551111111"}},
-		{name: "empty and blank segments", path: "//" + testTo + "/ /", want: []string{testTo}},
-		{name: "escaped plus sign", path: "/%2B15551111111", want: []string{"+15551111111"}},
 		{name: "escaped slash stays in its number", path: "/%2B1555%2F1111111", want: []string{"+1555/1111111"}},
 	}
 
@@ -224,9 +247,24 @@ func TestParseToNumbers(t *testing.T) {
 	}
 }
 
-// TestConfigQueryResolver verifies the config's query props: the title can be
-// set and read, an unknown key is rejected, and title is the only key with no
-// enums.
+// TestNormalizeRecipients verifies that formatting is stripped from each
+// number and that empty numbers are dropped. Numbers already in shape are
+// returned without a copy. A send never writes to the stored config.
+func TestNormalizeRecipients(t *testing.T) {
+	t.Parallel()
+
+	numbers := []string{" +1 (555) 987-6543", "", "+15551111111", " "}
+	assert.Equal(t, []string{testTo, "+15551111111"}, normalizeRecipients(numbers))
+	assert.Equal(t, []string{" +1 (555) 987-6543", "", "+15551111111", " "}, numbers)
+
+	clean := []string{testTo, "+15551111111"}
+	assert.Same(t, &clean[0], &normalizeRecipients(clean)[0])
+	assert.Empty(t, normalizeRecipients([]string{"", " "}))
+}
+
+// TestConfigQueryResolver verifies the config's query props. The title can be
+// set and read. An unknown key is rejected. The only keys are apikey and
+// title, and there are no enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
 
@@ -246,5 +284,5 @@ func TestConfigQueryResolver(t *testing.T) {
 	require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 
 	assert.Empty(t, config.Enums())
-	assert.Equal(t, []string{"title"}, resolver.QueryFields())
+	assert.Equal(t, []string{"apikey", "title"}, resolver.QueryFields())
 }
