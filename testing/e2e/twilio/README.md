@@ -24,7 +24,7 @@ The end-to-end tests validate the complete Twilio SMS functionality by making ac
 1. Create or log in to a [Twilio account](https://www.twilio.com/)
 2. Obtain the following from your Twilio console:
    - **Account SID** (starts with `AC`)
-   - **Auth Token**
+   - **Auth Token**, or an **API key SID** (starts with `SK`) and its secret
    - **Messaging Service SID** (starts with `MG`) or a Twilio phone number as the sender
    - **Recipient phone number** (E.164 format, e.g., `+1234567890`)
 
@@ -41,6 +41,12 @@ SHOUTRRR_TWILIO_URL=twilio://<ACCOUNT_SID>:<AUTH_TOKEN>@<MESSAGING_SID>/<RECIPIE
 ```
 
 **Security Note**: Never commit real account credentials to version control. The `.env` file is included in `.gitignore`.
+
+To authenticate with an API key, put its secret in place of the Auth Token and add its SID:
+
+```bash
+SHOUTRRR_TWILIO_URL=twilio://<ACCOUNT_SID>:<API_KEY_SECRET>@<MESSAGING_SID>/<RECIPIENT_PHONE>?apikey=<API_KEY_SID>
+```
 
 #### Inline environment variable
 
@@ -66,7 +72,7 @@ twilio://<AccountSID>:<AuthToken>@<MessagingSID>/<RecipientPhone>
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Valid Twilio account credentials
 - `SHOUTRRR_TWILIO_URL` environment variable set (via `.env` or shell)
 
@@ -99,7 +105,7 @@ go test ./testing/e2e/twilio/ -v -run TestTwilioServiceID
 
 ### Expected Output
 
-A successful run produces 3 passing specs. The basic and title tests each deliver one SMS to the configured recipient phone number (2 messages total).
+A successful run produces 3 passing tests. The basic and title tests each deliver one SMS to the configured recipient phone number (2 messages total).
 
 ## Test Structure
 

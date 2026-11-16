@@ -54,6 +54,8 @@ const (
 	KeyKey = "key"
 	// KeyLimit holds a size limit in bytes.
 	KeyLimit = "limit"
+	// KeyMessageID holds the ID that a server gave a message.
+	KeyMessageID = "messageid"
 	// KeyPort holds a port number.
 	KeyPort = "port"
 	// KeyReplacement names what replaces a deprecated field or key.

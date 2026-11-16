@@ -259,16 +259,6 @@ func TestSplitJID(t *testing.T) {
 	}
 }
 
-// TestComposeMessage verifies that the title goes on its own line before the
-// message, and that either part alone is sent as is.
-func TestComposeMessage(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "hello", composeMessage("", "hello"))
-	assert.Equal(t, "Alert\nhello", composeMessage("Alert", "hello"))
-	assert.Equal(t, "Alert", composeMessage("Alert", ""))
-}
-
 // TestConfigPrepareRejectsHostWithPort verifies that prepare rejects a host
 // built in code that holds a port, which the config keeps in its own field.
 func TestConfigPrepareRejectsHostWithPort(t *testing.T) {

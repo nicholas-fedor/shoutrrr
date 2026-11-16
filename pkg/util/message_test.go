@@ -165,6 +165,17 @@ func TestPartitionMessage(t *testing.T) {
 	}
 }
 
+// TestTitledMessage verifies that the title goes on its own line before the
+// message, and that either part alone is returned as is.
+func TestTitledMessage(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "hello", TitledMessage("", "hello"))
+	assert.Equal(t, "Alert\nhello", TitledMessage("Alert", "hello"))
+	assert.Equal(t, "Alert", TitledMessage("Alert", ""))
+	assert.Empty(t, TitledMessage("", ""))
+}
+
 func TestEllipsis(t *testing.T) {
 	t.Parallel()
 

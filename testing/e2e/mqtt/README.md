@@ -53,7 +53,7 @@ The end-to-end tests validate the complete MQTT notification functionality by co
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Docker and Docker Compose
 - Linux OS (for generating TLS certs)
 
@@ -235,7 +235,7 @@ URL options include:
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Running MQTT broker
 - `.env` file with required environment variables
 

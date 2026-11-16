@@ -1,10 +1,13 @@
 package twilio
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -34,6 +38,12 @@ type apiErrorResponse struct {
 	Status int `json:"status"`
 }
 
+// messageReply holds the part of a created message that a send logs.
+type messageReply struct {
+	// SID identifies the message in Twilio.
+	SID string `json:"sid"`
+}
+
 // Settings for requests to the Twilio REST API.
 const (
 	// apiBaseURL is the accounts endpoint of the API. A message request adds
@@ -44,9 +54,6 @@ const (
 	// defaultHTTPTimeout is the part of the send budget for each recipient,
 	// and the timeout of the client [DefaultHTTPClient] returns.
 	defaultHTTPTimeout = 10 * time.Second
-	// msgServicePrefix starts a Messaging Service SID. A sender with this
-	// prefix is sent as MessagingServiceSid instead of From.
-	msgServicePrefix = "MG"
 )
 
 // DefaultHTTPClient returns a new HTTP client with a default timeout.
@@ -63,48 +70,50 @@ func DefaultHTTPClient() types.HTTPClient {
 	}
 }
 
-// sendToRecipient sends an SMS message to a single recipient via the Twilio API.
+// encodeMessageForm encodes the form fields that every recipient's request of
+// a send shares, the body and the sender.
+//
+// Parameters:
+//   - config: the configuration for this send.
+//   - body: the message body.
+//
+// Returns:
+//   - string: the URL-encoded fields, without the recipient.
+func encodeMessageForm(config *Config, body string) string {
+	senderKey := "From"
+	if config.usesMessagingService() {
+		senderKey = "MessagingServiceSid"
+	}
+
+	return "Body=" + url.QueryEscape(body) + "&" + senderKey + "=" + url.QueryEscape(config.FromNumber)
+}
+
+// sendToRecipient sends an SMS message to a single recipient via the Twilio
+// API. A created message is logged at Debug with its SID.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - config: the configuration for this send.
 //   - toNumber: the recipient phone number.
-//   - message: the message to send.
+//   - form: the shared form fields from [encodeMessageForm].
 //
 // Returns:
 //   - error: the request error, or [ErrSendFailed] for a non-success status.
-func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber, message string) error {
-	body := message
-	if config.Title != "" {
-		body = config.Title + "\n" + message
-	}
-
+func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber, form string) error {
 	apiURL := apiBaseURL + "/" + config.AccountSID + "/Messages.json"
-
-	data := url.Values{}
-	data.Set("To", toNumber)
-	data.Set("Body", body)
-
-	// Use MessagingServiceSid if the sender looks like a Messaging Service SID,
-	// otherwise use it as a regular From number.
-	if strings.HasPrefix(config.FromNumber, msgServicePrefix) {
-		data.Set("MessagingServiceSid", config.FromNumber)
-	} else {
-		data.Set("From", config.FromNumber)
-	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
 		apiURL,
-		strings.NewReader(data.Encode()),
+		strings.NewReader("To="+url.QueryEscape(toNumber)+"&"+form),
 	)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)
-	req.SetBasicAuth(config.AccountSID, config.AuthToken)
+	req.SetBasicAuth(cmp.Or(config.APIKey, config.AccountSID), config.AuthToken)
 
 	res, err := s.client.Prefer(s.HTTPClient).Do(req)
 	if err != nil {
@@ -116,6 +125,27 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return parseAPIError(res)
 	}
+
+	// Whatever the Debug record leaves unread is read to its end, which lets
+	// the connection carry the next request.
+	reader := io.LimitReader(res.Body, httpbody.MaxSize)
+	defer func() { _, _ = io.Copy(io.Discard, reader) }() //nolint:errcheck // A failed read only keeps the connection from being reused.
+
+	// The reply only feeds a Debug record, so without Debug it is not decoded.
+	if !s.Slog().Enabled(ctx, slog.LevelDebug) {
+		return nil
+	}
+
+	// Twilio created the message, so a reply that cannot be read is only
+	// logged.
+	var reply messageReply
+	if err := json.UnmarshalRead(reader, &reply, jsonopts.Default); err != nil {
+		s.LogAttrs(ctx, slog.LevelDebug, "message created, reply not read", slog.Any(logging.KeyError, err))
+
+		return nil
+	}
+
+	s.LogAttrs(ctx, slog.LevelDebug, "message created", slog.String(logging.KeyMessageID, reply.SID))
 
 	return nil
 }

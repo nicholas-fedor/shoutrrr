@@ -110,6 +110,27 @@ func Ellipsis(text string, maxLength int) string {
 	return string(runes[:maxLength-len(ellipsis)]) + ellipsis
 }
 
+// TitledMessage returns a message with its title on its own line before it.
+// Either part may be empty, and then the other is returned alone.
+//
+// Parameters:
+//   - title: the title, or an empty string for none.
+//   - message: the message, or an empty string for none.
+//
+// Returns:
+//   - string: the title and the message joined by a line break.
+func TitledMessage(title, message string) string {
+	if title == "" {
+		return message
+	}
+
+	if message == "" {
+		return title
+	}
+
+	return title + "\n" + message
+}
+
 // MessageItemsFromLines creates batches of MessageItem from newline-separated text.
 //
 // This function splits the input by newlines and creates batches that respect

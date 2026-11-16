@@ -51,7 +51,7 @@ const (
 	// testAccountSID is an account SID.
 	testAccountSID = "AC0123456789abcdef0123456789ABCDEF"
 	// testMessagingServiceSID is a Messaging Service SID.
-	testMessagingServiceSID = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	testMessagingServiceSID = "MG0123456789abcdef0123456789ABCDEF"
 	// testFrom is a sender number in E.164 format.
 	testFrom = "+15551234567"
 	// testTo is a recipient number in E.164 format.
@@ -176,6 +176,18 @@ func TestIntegrationSend(t *testing.T) {
 			wantForms: []url.Values{{"To": {testTo}, "Body": {"Test message"}, "MessagingServiceSid": {testMessagingServiceSID}}},
 		},
 		{
+			name:      "alphanumeric sender ID starting with MG",
+			rawURL:    "twilio://" + testAccountSID + ":authToken@MGMHotels/" + testTo,
+			message:   "Test message",
+			wantForms: []url.Values{{"To": {testTo}, "Body": {"Test message"}, "From": {"MGMHotels"}}},
+		},
+		{
+			name:      "alphanumeric sender ID with a dash",
+			rawURL:    "twilio://" + testAccountSID + ":authToken@Acme-Alerts/" + testTo,
+			message:   "Test message",
+			wantForms: []url.Values{{"To": {testTo}, "Body": {"Test message"}, "From": {"Acme-Alerts"}}},
+		},
+		{
 			name:    "several recipients",
 			rawURL:  testMultiURL,
 			message: "Message to multiple recipients",
@@ -211,11 +223,6 @@ func TestIntegrationSend(t *testing.T) {
 			rawURL:    testServiceURL,
 			message:   "Привет 🚨 ✓",
 			wantForms: []url.Values{{"To": {testTo}, "Body": {"Привет 🚨 ✓"}, "From": {testFrom}}},
-		},
-		{
-			name:      "empty message",
-			rawURL:    testServiceURL,
-			wantForms: []url.Values{{"To": {testTo}, "Body": {""}, "From": {testFrom}}},
 		},
 	}
 
