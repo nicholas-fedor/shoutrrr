@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/net/idna"
 	"mellium.im/sasl"
 	"mellium.im/xmlstream"
 	"mellium.im/xmpp/jid"
@@ -90,7 +91,15 @@ type mucUserPresence struct {
 // presence that tells the joining user it has entered.
 const selfPresenceStatus = "110"
 
+// alpnClient is the ALPN protocol that XEP-0368 assigns to a direct TLS
+// client-to-server connection.
+const alpnClient = "xmpp-client"
+
 var _ io.Closer = (*melliumSession)(nil)
+
+// clientProtocols lists the ALPN protocols an implicit TLS session offers.
+// The tls package only reads it, so every session shares it.
+var clientProtocols = []string{alpnClient}
 
 // newMelliumSession negotiates an XMPP client session over conn.
 //
@@ -122,14 +131,14 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 	features := []mxmpp.StreamFeature{}
 
 	if cfg.implicitTLS() {
-		tlsConn := tls.Client(conn, newTLSConfig(cfg))
+		tlsConn := tls.Client(conn, newTLSConfig(cfg, origin.Domain()))
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return nil, fmt.Errorf("TLS handshake: %w", err)
 		}
 
 		stream = tlsConn
 	} else if cfg.useTLS() {
-		features = append(features, mxmpp.StartTLS(newTLSConfig(cfg)))
+		features = append(features, mxmpp.StartTLS(newTLSConfig(cfg, origin.Domain())))
 	}
 
 	saslFeature := mxmpp.SASL("", cfg.Password,
@@ -180,23 +189,42 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 	return clientSession, nil
 }
 
-// newTLSConfig builds a TLS config from cfg with the shared helpers.
+// newTLSConfig builds the TLS config for a session whose stream is opened
+// for domain.
 //
-// TLS 1.2 is the minimum version, and the certificate is verified against
-// Host unless [Config.SkipTLSVerify] is set, such as for a self-signed or
-// internal server.
+// TLS 1.2 is the minimum version. RFC 6120 section 13.7.2.1 has the client
+// verify the server's certificate against the domain the stream is opened
+// for. The server name is therefore domain in its ASCII form.
+// [Config.SkipTLSVerify] skips that verification for a self-signed or
+// internal server. Implicit TLS offers the xmpp-client ALPN protocol, as
+// XEP-0368 asks.
 //
 // Parameters:
-//   - cfg: The service configuration supplying Host and SkipTLSVerify.
+//   - cfg: The service configuration supplying the scheme and SkipTLSVerify.
+//   - domain: The domain the stream is opened for.
 //
 // Returns:
 //   - *tls.Config: a TLS config with TLS 1.2 as the minimum version.
-func newTLSConfig(cfg *Config) *tls.Config {
-	if cfg.SkipTLSVerify {
-		return transport.InsecureTLSConfig(cfg.Host)
+func newTLSConfig(cfg *Config, domain jid.JID) *tls.Config {
+	// Mellium keeps a domain in Unicode, but certificates name it in ASCII.
+	// IDNA rejects a bracketed IPv6 literal, so that name stays as written.
+	serverName := domain.String()
+	if ascii, err := idna.Lookup.ToASCII(serverName); err == nil {
+		serverName = ascii
 	}
 
-	return transport.TLSConfig(cfg.Host)
+	var config *tls.Config
+	if cfg.SkipTLSVerify {
+		config = transport.InsecureTLSConfig(serverName)
+	} else {
+		config = transport.TLSConfig(serverName)
+	}
+
+	if cfg.implicitTLS() {
+		config.NextProtos = clientProtocols
+	}
+
+	return config
 }
 
 // wrapNegotiateError wraps a session negotiation error, marking an

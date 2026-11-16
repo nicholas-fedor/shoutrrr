@@ -27,16 +27,21 @@ At least one of `to` or `rooms` is required.
 The URL userinfo is the login identity:
 
 - A localpart (`alice`) becomes `alice@HOST`.
-- A full JID (`alice%40jabber.example.com`) is used as-is, while `HOST` remains the TCP dial target.
+- A full JID (`alice%40jabber.example.com`) is used as-is.
 
 ```
 xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com
 ```
 
+Shoutrrr connects to `HOST` itself and does not look up the domain's SRV records.
+The server's certificate is checked against the domain of the JID, as RFC 6120 requires.
+In the example, that domain is `jabber.example.com`.
+With a full JID, `HOST` can therefore be any name or address of the server.
+
 ## TLS
 
 - Use `xmpp://` for STARTTLS (default port 5222).
-- Use `xmpps://` for implicit TLS (default port 5223).
+- Use `xmpps://` for implicit TLS (default port 5223). Shoutrrr offers the `xmpp-client` ALPN protocol, as XEP-0368 asks.
 - Use `disabletls=yes` only with `xmpp://` for plaintext on a trusted network. Combining it with `xmpps://` is rejected.
 - Use `skiptlsverify=yes` to skip certificate verification (self-signed or internal TLS). TLS 1.2 remains the minimum.
 

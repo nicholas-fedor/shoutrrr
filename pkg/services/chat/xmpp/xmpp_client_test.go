@@ -85,6 +85,35 @@ const (
 	testTimeout = 5 * time.Second
 )
 
+// errHelloRecorded ends a TLS handshake once the test server has recorded
+// the client hello.
+var errHelloRecorded = errors.New("client hello recorded")
+
+// serveTLSHello runs the server side of a TLS handshake on conn, closing conn
+// when the handshake ends. For implicit TLS the handshake starts at once. For
+// STARTTLS the server first negotiates a stream that offers only STARTTLS.
+//
+// Parameters:
+//   - ctx: bounds the handshake.
+//   - conn: the server end of the connection.
+//   - scheme: [SchemeTLS] for implicit TLS, otherwise STARTTLS.
+//   - cfg: the server's TLS config.
+func serveTLSHello(ctx context.Context, conn net.Conn, scheme string, cfg *tls.Config) {
+	defer func() { _ = conn.Close() }()
+
+	if scheme == SchemeTLS {
+		_ = tls.Server(conn, cfg).HandshakeContext(ctx)
+
+		return
+	}
+
+	_, _ = mxmpp.ReceiveSession(ctx, conn, 0, mxmpp.NewNegotiator(
+		func(*mxmpp.Session, *mxmpp.StreamConfig) mxmpp.StreamConfig {
+			return mxmpp.StreamConfig{Features: []mxmpp.StreamFeature{mxmpp.StartTLS(cfg)}}
+		},
+	))
+}
+
 // newFakeServer runs a fake XMPP server on conn. It negotiates the stream,
 // then serves stanzas until the client closes the stream.
 //
@@ -798,15 +827,77 @@ func TestWrapNegotiateError(t *testing.T) {
 	assert.Contains(t, err.Error(), "negotiating XMPP session")
 }
 
-// TestNewTLSConfig verifies that the TLS config names the host, requires TLS
-// 1.2, and skips verification only when asked.
+// TestNewTLSConfig verifies that the TLS config skips certificate
+// verification only when asked. Either way it names the server.
 func TestNewTLSConfig(t *testing.T) {
 	t.Parallel()
 
-	verified := newTLSConfig(&Config{Host: "xmpp.example.com"})
-	assert.Equal(t, "xmpp.example.com", verified.ServerName)
-	assert.Equal(t, uint16(tls.VersionTLS12), verified.MinVersion)
-	assert.False(t, verified.InsecureSkipVerify)
+	domain := jid.MustParse("jabber.example.com")
 
-	assert.True(t, newTLSConfig(&Config{Host: "xmpp.example.com", SkipTLSVerify: true}).InsecureSkipVerify)
+	assert.False(t, newTLSConfig(&Config{}, domain).InsecureSkipVerify)
+
+	insecure := newTLSConfig(&Config{SkipTLSVerify: true}, domain)
+	assert.True(t, insecure.InsecureSkipVerify)
+	assert.Equal(t, "jabber.example.com", insecure.ServerName)
+}
+
+// TestNewMelliumSessionTLSHello verifies the TLS client hello of a session.
+// RFC 6120 section 13.7.2.1 and XEP-0368 require the hello to name the domain
+// of the auth JID rather than the dial host. This holds for both implicit TLS
+// and STARTTLS. An internationalized domain is named in its ASCII form. Only
+// implicit TLS offers the xmpp-client ALPN protocol. The server records the
+// hello and then refuses the handshake, so it needs no certificate.
+func TestNewMelliumSessionTLSHello(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URL schemes and auth users with the server name and ALPN
+	// protocols the hello should carry.
+	tests := []struct {
+		name       string
+		scheme     string
+		user       string
+		wantName   string
+		wantProtos []string
+	}{
+		{name: "implicit TLS with a localpart", scheme: SchemeTLS, user: "alice", wantName: "xmpp.example.com", wantProtos: []string{alpnClient}},
+		{name: "implicit TLS with a full JID", scheme: SchemeTLS, user: "alice@jabber.example.com", wantName: "jabber.example.com", wantProtos: []string{alpnClient}},
+		{name: "STARTTLS with a full JID", scheme: Scheme, user: "alice@jabber.example.com", wantName: "jabber.example.com"},
+		{name: "internationalized domain", scheme: Scheme, user: "alice@bücher.example", wantName: "xn--bcher-kva.example"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			hellos := make(chan *tls.ClientHelloInfo, 1)
+			serverTLS := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+					hellos <- hello
+
+					return nil, errHelloRecorded
+				},
+			}
+
+			ctx := testContext(t)
+
+			client, server := net.Pipe()
+			go serveTLSHello(ctx, server, tt.scheme, serverTLS)
+
+			cfg := &Config{User: tt.user, Host: "xmpp.example.com", Password: testPassword, scheme: tt.scheme}
+
+			_, err := newMelliumSession(ctx, cfg, client)
+			require.Error(t, err)
+
+			_ = client.Close()
+
+			select {
+			case hello := <-hellos:
+				assert.Equal(t, tt.wantName, hello.ServerName)
+				assert.Equal(t, tt.wantProtos, hello.SupportedProtos)
+			case <-ctx.Done():
+				t.Fatal("the server recorded no client hello")
+			}
+		})
+	}
 }
