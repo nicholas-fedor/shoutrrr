@@ -9,13 +9,16 @@ type EventPayload struct {
 	// Deprecated: Use [Payload.CustomDetails]. The Events API v2 has no
 	// top-level details field.
 	Details any `json:"-"`
-	// Payload contains the core incident information including summary, severity, and source.
-	Payload Payload `json:"payload"`
+	// Payload contains the core incident information including summary,
+	// severity, and source. It is left out when it is empty, as for an
+	// acknowledge or resolve event.
+	Payload Payload `json:"payload,omitzero"`
 	// RoutingKey is the integration key used to route the event to the correct PagerDuty service.
 	RoutingKey string `json:"routing_key"`
 	// EventAction specifies the type of event (e.g., "trigger", "acknowledge", "resolve").
 	EventAction string `json:"event_action"`
-	// DedupKey is a unique key used for incident deduplication. If not provided, PagerDuty will auto-generate one.
+	// DedupKey identifies the alert. PagerDuty generates one for a trigger event
+	// without it, and an acknowledge or resolve event needs it.
 	DedupKey string `json:"dedup_key,omitempty"`
 	// Client identifies the monitoring client or integration sending the event.
 	Client string `json:"client,omitempty"`
@@ -73,4 +76,11 @@ type Image struct {
 	Href string `json:"href,omitempty"`
 	// Alt is the alternative text for the image.
 	Alt string `json:"alt,omitempty"`
+}
+
+// messageDetails holds the custom details of a trigger event whose details
+// prop is empty and whose message is not the summary.
+type messageDetails struct {
+	// Message is the notification message.
+	Message string `json:"message"`
 }

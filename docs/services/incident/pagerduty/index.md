@@ -17,9 +17,9 @@ The PagerDuty service URL follows this structure:
 !!! info ""
     pagerduty://[__`HOST`__[:__`PORT`__]]/__`INTEGRATION_KEY`__[?__`QUERY_PARAMETERS`__]
 
-**Components:**
+__Components:__
 
-- **Scheme**: `pagerduty://` - Identifies the service type
+- __Scheme__: `pagerduty://` - Identifies the service type
 - `HOST` (optional): PagerDuty API hostname (default: `events.pagerduty.com`)
 - `PORT` (optional): API port number (default: `443` for HTTPS)
 - `INTEGRATION_KEY`: 32-character hexadecimal string that routes events to your PagerDuty service
@@ -59,24 +59,24 @@ Before using the PagerDuty service, you need:
 
 Follow these steps to set up PagerDuty integration:
 
-1. **Log in to PagerDuty**
+1. __Log in to PagerDuty__
    - Access your PagerDuty account at [pagerduty.com](https://pagerduty.com)
 
-2. **Navigate to Services**
-   - Go to **Services** → **Service Directory** in the main navigation
+2. __Navigate to Services__
+   - Go to __Services__ → __Service Directory__ in the main navigation
 
-3. **Create or Select a Service**
+3. __Create or Select a Service__
    - Either create a new service or select an existing one
-   - If creating new: Click **+ New Service**, give it a name, and select an escalation policy
+   - If creating new: Click __+ New Service__, give it a name, and select an escalation policy
 
-4. **Add Events API v2 Integration**
-   - In the service details, click **Integrations** tab
-   - Click **+ Add another integration**
-   - Search for and select **Events API v2**
+4. __Add Events API v2 Integration__
+   - In the service details, click __Integrations__ tab
+   - Click __+ Add another integration__
+   - Search for and select __Events API v2__
    - Give the integration a name (e.g., "Shoutrrr Integration")
-   - Click **Create Integration**
+   - Click __Create Integration__
 
-5. **Copy Integration Key**
+5. __Copy Integration Key__
    - The integration key will be displayed
    - Copy this 32-character key for use in your Shoutrrr URL
 
@@ -93,17 +93,19 @@ The PagerDuty service supports the following parameters to customize incident cr
 ### Core Parameters
 
 | Parameter | Type | Description | Required | Default | Valid Values |
-|-----------|------|-------------|----------|---------|--------------|
+| ----------- | ------ | ------------- | ---------- | --------- | -------------- |
 | `severity` | string | The perceived severity of the incident | No | `error` | `info`, `warning`, `error`, `critical` |
 | `source` | string | The unique location of the affected system | No | `default` | Any string identifier |
 | `action` | string | The type of event to send | No | `trigger` | `trigger`, `acknowledge`, `resolve` |
+| `dedup_key` | string | Identifies the alert the event opens or changes | For `acknowledge` and `resolve` | - | At most 255 characters |
+| `title` | string | The summary of a trigger event | No | - | Any string |
 
 A `severity` or `action` outside its valid values is rejected when the URL is read, and a send whose params set one fails before any request.
 
 ### Additional Parameters
 
 | Parameter | Type | Description | Required | Default | Valid Values |
-|-----------|------|-------------|----------|---------|--------------|
+| ----------- | ------ | ------------- | ---------- | --------- | -------------- |
 | `details` | object | Additional custom key-value pairs for the incident | No | - | JSON object or URL-encoded string |
 | `contexts` | array | Additional context such as links or images | No | - | JSON array of context objects (only 'link' and 'image' types supported) |
 | `client` | string | Name of the monitoring client/integration | No | - | Any string |
@@ -113,10 +115,10 @@ A `severity` or `action` outside its valid values is rejected when the URL is re
 
 #### Severity Levels
 
-- **`info`**: Informational events that don't require immediate action
-- **`warning`**: Potential issues that should be monitored
-- **`error`**: Actual problems affecting system operation
-- **`critical`**: Urgent issues requiring immediate response
+- __`info`__: Informational events that don't require immediate action
+- __`warning`__: Potential issues that should be monitored
+- __`error`__: Actual problems affecting system operation
+- __`critical`__: Urgent issues requiring immediate response
 
 A sender can set a message level with the `level` param, as `Params.SetLevel` does.
 When neither the URL nor the send params set `severity`, the level picks it:
@@ -133,9 +135,25 @@ A `severity` in the URL or the send params takes precedence over the level, even
 
 #### Event Action Items
 
-- **`trigger`**: Creates a new incident or updates an existing one
-- **`acknowledge`**: Acknowledges an incident (stops escalation)
-- **`resolve`**: Resolves an incident (closes it)
+- __`trigger`__: Opens an alert, or adds to the open alert with the same `dedup_key`
+- __`acknowledge`__: Acknowledges the alert that `dedup_key` names
+- __`resolve`__: Resolves the alert that `dedup_key` names
+
+#### Title and Message
+
+A trigger event's summary is the title when one is set, and the message otherwise.
+PagerDuty uses the summary as the alert's title and limits it to 1024 characters.
+
+| Title | Summary | Custom details `message` |
+| ------- | --------- | -------------------------- |
+| Set | The title | The message |
+| Not set, message up to 1024 characters | The message | Not sent |
+| Not set, longer message | The first 1024 characters of the message | The whole message |
+
+A `message` key in the `details` parameter keeps its own value.
+
+An acknowledge or resolve event carries only the routing key, the action, and the `dedup_key`, as in PagerDuty's examples.
+Shoutrrr does not send its message, title, or other event fields.
 
 #### Details Parameter
 
@@ -155,10 +173,11 @@ Shoutrrr sends it as the event's `payload.custom_details`:
 
 The `contexts` parameter accepts a JSON array of context objects. Each context must have a `type` field. Only `link` and `image` types are supported.
 Shoutrrr sends link contexts in the event's `links` array and image contexts in its `images` array.
+The parameter also takes comma-separated `link:URL` and `image:URL` entries, and any other type is rejected in either form.
 A context's `text` becomes the link text or the image's alternative text.
 PagerDuty requires image sources to use HTTPS.
 
-**Link contexts:**
+__Link contexts:__
 
 ```json
 {
@@ -168,7 +187,7 @@ PagerDuty requires image sources to use HTTPS.
 }
 ```
 
-**Image contexts:**
+__Image contexts:__
 
 ```json
 {
@@ -201,20 +220,31 @@ PagerDuty requires image sources to use HTTPS.
 
 ### Incident Management Workflow
 
-!!! example "Acknowledge incident"
+The trigger event names its alert with a `dedup_key`, so the later events can change it.
+Replace `DEDUP_KEY` with a key of your choice, such as `db-connection-prod`.
+
+!!! example "Trigger incident"
     ```url
-    pagerduty:///INTEGRATION_KEY?action=acknowledge
+    pagerduty:///INTEGRATION_KEY?dedup_key=DEDUP_KEY
     ```
     ```bash
-    shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=acknowledge' -m 'Engineer has acknowledged the incident and is investigating'
+    shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?dedup_key=DEDUP_KEY' -m 'Database connection lost'
+    ```
+
+!!! example "Acknowledge incident"
+    ```url
+    pagerduty:///INTEGRATION_KEY?action=acknowledge&dedup_key=DEDUP_KEY
+    ```
+    ```bash
+    shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=acknowledge&dedup_key=DEDUP_KEY' -m 'Acknowledged'
     ```
 
 !!! example "Resolve incident"
     ```url
-    pagerduty:///INTEGRATION_KEY?action=resolve
+    pagerduty:///INTEGRATION_KEY?action=resolve&dedup_key=DEDUP_KEY
     ```
     ```bash
-    shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=resolve' -m 'Database connection restored, incident resolved'
+    shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=resolve&dedup_key=DEDUP_KEY' -m 'Resolved'
     ```
 
 ### Advanced Examples
@@ -243,53 +273,53 @@ The PagerDuty service supports three primary event actions that correspond to th
 
 Creates a new incident or updates an existing one with new information. This is the default action.
 
-**Use cases:**
+__Use cases:__
 
 - System failures or outages
 - Performance degradation
 - Security alerts
 - Application errors
 
-**Behavior:**
+__Behavior:__
 
-- If no incident exists for the service, creates a new one
-- If an incident exists, adds a new trigger event (may escalate if unacknowledged)
+- Opens an alert, or adds a trigger to the open alert with the same `dedup_key`
 - Includes all provided context, details, and parameters
 
 ### Acknowledge (`action=acknowledge`)
 
 Acknowledges an existing incident, stopping escalation and indicating that someone is actively working on it.
 
-**Use cases:**
+__Use cases:__
 
 - Engineer has started investigation
 - Issue has been triaged
 - Response team is assembled
 
-**Behavior:**
+__Behavior:__
 
 - Stops incident escalation
-- Records acknowledgment timestamp
-- Can include update notes in the message
+- Needs the `dedup_key` of the alert
 
 ### Resolve (`action=resolve`)
 
 Resolves an incident, marking it as completed and closing the alert cycle.
 
-**Use cases:**
+__Use cases:__
 
 - Issue has been fixed
 - Service has been restored
 - Incident is no longer relevant
 
-**Behavior:**
+__Behavior:__
 
 - Closes the incident
-- Records resolution timestamp
-- Prevents further notifications for this incident
+- Needs the `dedup_key` of the alert
 
-!!! note "Incident Deduplication"
-    PagerDuty automatically deduplicates incidents based on the integration key and incident details. Multiple triggers for the same issue will update the existing incident rather than create duplicates.
+!!! note "Alert Deduplication"
+    PagerDuty applies an event to the open alert with the same `dedup_key` and routing key.
+    A trigger event without a `dedup_key` gets a generated one and always opens a new alert.
+    An acknowledge or resolve event for an alert that is not open is dropped.
+    See PagerDuty's [Alert De-Duplication](https://docs.pagerduty.com/developer/send-alert-event#alert-de-duplication) section.
 
 ## Advanced Features
 
@@ -317,13 +347,13 @@ These details appear in the PagerDuty incident details and can be used for filte
 
 Contexts provide additional visual and navigational context to responders:
 
-**Link Contexts:**
+__Link Contexts:__
 
 - Direct responders to relevant resources
 - Include runbooks, documentation, or monitoring dashboards
 - Support both internal and external links
 
-**Image Contexts:**
+__Image Contexts:__
 
 - Attach screenshots or graphs
 - Show error visualizations or system diagrams
@@ -333,8 +363,8 @@ Contexts provide additional visual and navigational context to responders:
 
 The `client` and `client_url` parameters identify the monitoring system:
 
-- **`client`**: Name of your monitoring tool (e.g., "Prometheus", "DataDog", "Custom Monitor")
-- **`client_url`**: Direct link to the monitoring dashboard or alert details
+- __`client`__: Name of your monitoring tool (e.g., "Prometheus", "DataDog", "Custom Monitor")
+- __`client_url`__: Direct link to the monitoring dashboard or alert details
 
 This helps responders understand where the alert originated and provides quick access to additional monitoring data.
 
@@ -352,20 +382,18 @@ PagerDuty supports incident grouping based on custom details. Use consistent det
 
 ## Rate Limiting
 
-The PagerDuty Events API v2 enforces rate limits to ensure system stability:
-
-- **120 events per minute** per integration key (higher ceilings available on AIOps/enterprise tiers)
-- Rate limits are enforced per integration key, not per service
-- Exceeding limits returns HTTP 429 (Too Many Requests)
+PagerDuty limits how many events a service accepts at a time and adjusts the limit to the incoming traffic.
+An event over the limit gets HTTP 429 (Too Many Requests), and PagerDuty advises retrying it after a backoff of a few minutes.
+Shoutrrr does not retry it.
 
 ### Handling Rate Limits
 
 When rate limits are exceeded:
 
-1. **Implement backoff**: Use exponential backoff (start with 1 minute, double each retry)
-2. **Queue messages**: Buffer notifications during high-volume periods
-3. **Use multiple integrations**: Distribute load across multiple integration keys if needed
-4. **Monitor usage**: Track your API usage in PagerDuty's integration settings
+1. __Implement backoff__: Use exponential backoff (start with 1 minute, double each retry)
+2. __Queue messages__: Buffer notifications during high-volume periods
+3. __Use multiple integrations__: Distribute load across multiple integration keys if needed
+4. __Monitor usage__: Track your API usage in PagerDuty's integration settings
 
 !!! tip "Rate Limit Best Practices"
     - Implement retry logic with jitter to avoid thundering herd problems
@@ -378,29 +406,40 @@ The PagerDuty service returns standard HTTP status codes. Handle these appropria
 
 ### Success Responses
 
-- **200 OK**: Event processed successfully
-- **202 Accepted**: Event accepted for processing (asynchronous)
+- __202 Accepted__: Event accepted for processing (asynchronous)
+
+### Errors Before the Request
+
+A send fails before any request for an event that PagerDuty would reject:
+
+- A trigger event without a title or message
+- An acknowledge or resolve event without a `dedup_key`
+- A `dedup_key` over 255 characters
+- A `details` value that is not a JSON object, or a `contexts` value that does not parse
+- An encoded event over 512 KB (524,288 bytes), PagerDuty's size limit
+
+Reading a service URL rejects each of these that the URL itself sets, such as `action=resolve` without a `dedup_key`.
 
 ### Error Responses
 
-- **400 Bad Request**: Invalid request payload or parameters
+- __400 Bad Request__: Invalid request payload or parameters
   - Check integration key format (must be 32 hex characters)
   - Validate JSON structure for details/contexts
   - Ensure URLs are properly encoded
 
-- **401 Unauthorized**: Invalid or missing integration key
+- __401 Unauthorized__: Invalid or missing integration key
   - Verify the integration key is correct
   - Check that the integration hasn't been disabled
 
-- **403 Forbidden**: Integration lacks required permissions
+- __403 Forbidden__: Integration lacks required permissions
   - Ensure the integration key has appropriate permissions
   - Check service configuration in PagerDuty
 
-- **429 Too Many Requests**: Rate limit exceeded
+- __429 Too Many Requests__: Rate limit exceeded
   - Implement exponential backoff
   - Consider queuing messages
 
-- **500 Internal Server Error**: PagerDuty service error
+- __500 Internal Server Error__: PagerDuty service error
   - Retry with backoff
   - Check PagerDuty status page for outages
 
@@ -446,7 +485,7 @@ import (
 
 func main() {
     url := "pagerduty:///INTEGRATION_KEY"
-    
+
     err := shoutrrr.Send(url, "Database connection failed")
     if err != nil {
         log.Fatal(err)
@@ -468,7 +507,7 @@ import (
 
 func main() {
     url := "pagerduty:///INTEGRATION_KEY"
-    
+
     // Trigger critical incident
     params := &types.Params{
         "severity": "critical",
@@ -478,7 +517,7 @@ func main() {
         "client":   "monitoring-system",
         "client_url": "https://monitoring.example.com/alerts/123",
     }
-    
+
     err := shoutrrr.SendContext(context.Background(), url, "Production database is down", params)
     if err != nil {
         log.Fatal(err)
@@ -501,43 +540,46 @@ import (
 
 func handleIncident() {
     baseURL := "pagerduty:///INTEGRATION_KEY"
-    
-    // 1. Trigger incident
+
+    // 1. Trigger incident, naming it for the later events
     triggerParams := &types.Params{
-        "severity": "critical",
-        "source":   "web-server-01",
-        "action":   "trigger",
+        "severity":  "critical",
+        "source":    "web-server-01",
+        "action":    "trigger",
+        "dedup_key": "web-server-01-unresponsive",
     }
-    
+
     err := shoutrrr.SendContext(context.Background(), baseURL, "Web server unresponsive", triggerParams)
     if err != nil {
         log.Printf("Failed to trigger incident: %v", err)
         return
     }
-    
+
     // Simulate investigation time
     time.Sleep(5 * time.Minute)
-    
+
     // 2. Acknowledge incident
     ackParams := &types.Params{
-        "action": "acknowledge",
+        "action":    "acknowledge",
+        "dedup_key": "web-server-01-unresponsive",
     }
-    
-    err = shoutrrr.SendContext(context.Background(), baseURL, "Engineer investigating server issue", ackParams)
+
+    err = shoutrrr.SendContext(context.Background(), baseURL, "", ackParams)
     if err != nil {
         log.Printf("Failed to acknowledge incident: %v", err)
         return
     }
-    
+
     // Simulate resolution time
     time.Sleep(15 * time.Minute)
-    
+
     // 3. Resolve incident
     resolveParams := &types.Params{
-        "action": "resolve",
+        "action":    "resolve",
+        "dedup_key": "web-server-01-unresponsive",
     }
-    
-    err = shoutrrr.SendContext(context.Background(), baseURL, "Web server restarted successfully", resolveParams)
+
+    err = shoutrrr.SendContext(context.Background(), baseURL, "", resolveParams)
     if err != nil {
         log.Printf("Failed to resolve incident: %v", err)
         return
@@ -559,7 +601,7 @@ import (
 
 func sendRichIncident() {
     url := "pagerduty:///INTEGRATION_KEY"
-    
+
     params := &types.Params{
         "severity": "error",
         "source":   "ci-pipeline",
@@ -577,7 +619,7 @@ func sendRichIncident() {
                 "text": "View Commit"
             },
             {
-                "type": "link", 
+                "type": "link",
                 "href": "https://ci.example.com/pipelines/123",
                 "text": "Pipeline Details"
             },
@@ -590,7 +632,7 @@ func sendRichIncident() {
         "client":    "GitHub Actions",
         "client_url": "https://github.com/org/repo/actions/runs/456",
     }
-    
+
     err := shoutrrr.SendContext(context.Background(), url, "CI/CD pipeline failed in production deployment", params)
     if err != nil {
         log.Fatal(err)
@@ -622,14 +664,15 @@ type AlertData struct {
 
 func sendMonitoringAlert(data AlertData) error {
     url := "pagerduty:///INTEGRATION_KEY"
-    
+
     // Convert details to JSON string
     detailsJSON, err := json.Marshal(data.Details)
     if err != nil {
         return err
     }
-    
+
     params := &types.Params{
+        "title":      data.Title,
         "severity":   data.Severity,
         "source":     data.Source,
         "action":     "trigger",
@@ -637,8 +680,8 @@ func sendMonitoringAlert(data AlertData) error {
         "client":     "Custom Monitoring",
         "client_url": data.DashboardURL,
     }
-    
-    return shoutrrr.SendContext(context.Background(), url, data.Title+": "+data.Description, params)
+
+    return shoutrrr.SendContext(context.Background(), url, data.Description, params)
 }
 ```
 
@@ -663,19 +706,19 @@ shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?severity=critical' -m 'Production
 Trigger incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=trigger&severity=critical&source=web-app' -m 'Application crashed'
+shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=trigger&severity=critical&source=web-app&dedup_key=DEDUP_KEY' -m 'Application crashed'
 ```
 
 Acknowledge incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=acknowledge' -m 'DevOps team is investigating'
+shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=acknowledge&dedup_key=DEDUP_KEY' -m 'Acknowledged'
 ```
 
 Resolve incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=resolve' -m 'Application restarted successfully'
+shoutrrr send -u 'pagerduty:///INTEGRATION_KEY?action=resolve&dedup_key=DEDUP_KEY' -m 'Resolved'
 ```
 
 ### Advanced Parameters
