@@ -67,7 +67,17 @@ func startInbox(ctx context.Context, serviceURL *url.URL) (*inbox, error) {
 
 	cfg := probeConfig(serviceURL)
 
-	addr := net.JoinHostPort(cfg.Host, strconv.FormatUint(uint64(cfg.Port), 10))
+	// A URL without a port probes the scheme's default port, since the
+	// probe does not look the server up through SRV records.
+	port := cfg.Port
+	if port == 0 {
+		port = xmpp.DefaultPort
+		if serviceUsesImplicitTLS(cfg) {
+			port = xmpp.DefaultTLSPort
+		}
+	}
+
+	addr := net.JoinHostPort(cfg.Host, strconv.FormatUint(uint64(port), 10))
 
 	var d net.Dialer
 

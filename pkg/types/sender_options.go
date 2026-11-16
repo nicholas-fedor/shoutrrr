@@ -25,6 +25,12 @@ type SenderOptions struct {
 
 	// DialContext is the dial function used for non-HTTP TCP connections.
 	// If nil, services use their default dialer.
+	//
+	// XMPP also sends the DNS queries of its SRV lookup through it. They go
+	// to the system's DNS servers on port 53. Their network is "udp", or "tcp"
+	// for a truncated answer. A dial function that refuses them makes XMPP
+	// dial the URL host without the lookup. The servers SRV records name are
+	// dialed by their rooted names, with a trailing dot.
 	DialContext DialContextFunc
 
 	// Timeout, when set, is the exact fixed timeout for every service on the sender.

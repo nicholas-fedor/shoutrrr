@@ -2,9 +2,13 @@ package xmpp
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+
+	"golang.org/x/net/idna"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -18,7 +22,8 @@ type Config struct {
 	// fields.
 	standard.EnumlessConfig
 
-	// Host is the XMPP server hostname used for the TCP dial.
+	// Host is the XMPP server hostname used for the TCP dial, or the domain
+	// whose SRV records name the server.
 	Host string `desc:"XMPP server hostname" url:"Host"`
 	// User is the auth JID localpart or a full JID (local@domain).
 	User string `desc:"Auth JID localpart or full JID" url:"User"`
@@ -37,7 +42,8 @@ type Config struct {
 	To []string `desc:"Chat recipient JIDs" key:"to" optional:""`
 	// Rooms is the list of MUC room JIDs.
 	Rooms []string `desc:"MUC room JIDs" key:"rooms" optional:""`
-	// Port is the XMPP server port.
+	// Port is the XMPP server port. Zero leaves the port unset, so a send may
+	// look the server up through SRV records.
 	Port uint16 `desc:"XMPP server port" url:"Port"`
 	// DisableTLS disables encryption. Allowed only on xmpp://.
 	DisableTLS bool `default:"No" desc:"Disable TLS (xmpp:// only)" key:"disabletls"`
@@ -126,22 +132,17 @@ func (c *Config) authJIDString() string {
 //   - resolver: Resolver used to serialize configuration query keys.
 //
 // Returns:
-//   - *url.URL: a configuration URL using the stored scheme and default port
-//     when unset.
+//   - *url.URL: a configuration URL using the stored scheme, without a port
+//     when the port is unset.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	scheme := c.scheme
 	if scheme == "" {
 		scheme = Scheme
 	}
 
-	port := c.Port
-	if port == 0 {
-		port = defaultPort(scheme)
-	}
-
 	result := &url.URL{
 		Scheme:     scheme,
-		Host:       util.JoinURLHostPort(c.Host, int(port)),
+		Host:       util.JoinURLHostPort(c.Host, int(c.Port)),
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
 	}
@@ -151,6 +152,23 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
+}
+
+// hostAddress returns the address of the host itself, at its port or, when
+// the port is unset, at 5222 for xmpp:// and 5223 for xmpps://.
+//
+// Returns:
+//   - string: the host and port.
+func (c *Config) hostAddress() string {
+	port := c.Port
+	if port == 0 {
+		port = DefaultPort
+		if c.implicitTLS() {
+			port = DefaultTLSPort
+		}
+	}
+
+	return net.JoinHostPort(c.Host, strconv.FormatUint(uint64(port), 10))
 }
 
 // implicitTLS reports whether the URL uses xmpps:// implicit TLS.
@@ -183,20 +201,15 @@ func (c *Config) mucNick() string {
 
 // prepare normalizes the config and checks it.
 //
-// It drops the empty recipients and rooms, as reading a list setting does. It
-// sets the default port of the scheme for a config without a port. Reading a
-// service URL and each send run it, so a config built in code dials the port
-// its URL would and fails as its URL would.
+// It drops the empty recipients and rooms, as reading a list setting does.
+// Reading a service URL and each send run it, so a config built in code fails
+// as its URL would.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrMissingHost].
 func (c *Config) prepare() error {
 	c.To = util.NonEmpty(c.To)
 	c.Rooms = util.NonEmpty(c.Rooms)
-
-	if c.Port == 0 {
-		c.Port = defaultPort(c.scheme)
-	}
 
 	return c.validate()
 }
@@ -248,12 +261,48 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.prepare()
 }
 
+// srvService returns the SRV service that names the server for the URL's
+// scheme. XEP-0368 gives direct TLS its own records.
+//
+// Returns:
+//   - string: "xmpps-client" for xmpps://, otherwise "xmpp-client".
+func (c *Config) srvService() string {
+	if c.implicitTLS() {
+		return "xmpps-client"
+	}
+
+	return "xmpp-client"
+}
+
 // useTLS reports whether the session should encrypt the stream.
 //
 // Returns:
 //   - bool: false only when [Config.DisableTLS] is set.
 func (c *Config) useTLS() bool {
 	return !c.DisableTLS
+}
+
+// usesSRV reports whether a send looks the server up through SRV records.
+//
+// RFC 6120 section 3.2.1 resolves the auth JID's domain through its SRV
+// records, and section 3.2.3 lets a configured host and port take their
+// place. So a config looks the server up only without a port and when the
+// host is the JID's domain. A trailing dot on either name does not count. An
+// IP address has no SRV records. The two names are compared in their ASCII
+// form, so an internationalized domain matches its A-label. The config must
+// have passed its checks.
+//
+// Returns:
+//   - bool: true for a config without a port whose host is a domain name and
+//     the auth JID's domain.
+func (c *Config) usesSRV() bool {
+	if c.Port != 0 || net.ParseIP(c.Host) != nil {
+		return false
+	}
+
+	_, domain, err := splitJID(c.authJIDString())
+
+	return err == nil && strings.EqualFold(asciiDomain(c.Host), asciiDomain(domain))
 }
 
 // validate checks that required fields and JIDs are present and consistent.
@@ -306,6 +355,26 @@ func (c *Config) validate() error {
 	return nil
 }
 
+// asciiDomain returns a domain name in the ASCII form that DNS and
+// certificates use, lowercase and without a trailing dot. A name that IDNA
+// rejects, such as an IP address in brackets, is returned without its
+// trailing dot but otherwise as written.
+//
+// Parameters:
+//   - name: the domain name, in Unicode or ASCII form.
+//
+// Returns:
+//   - string: the domain name in ASCII form.
+func asciiDomain(name string) string {
+	name = strings.TrimSuffix(name, ".")
+
+	if ascii, err := idna.Lookup.ToASCII(name); err == nil {
+		return ascii
+	}
+
+	return name
+}
+
 // composeMessage prepends title to message when title is set.
 //
 // Parameters:
@@ -324,21 +393,6 @@ func composeMessage(title, message string) string {
 	}
 
 	return title + "\n" + message
-}
-
-// defaultPort returns the default c2s port for scheme.
-//
-// Parameters:
-//   - scheme: [Scheme] or [SchemeTLS].
-//
-// Returns:
-//   - uint16: [DefaultTLSPort] for xmpps, otherwise [DefaultPort].
-func defaultPort(scheme string) uint16 {
-	if scheme == SchemeTLS {
-		return DefaultTLSPort
-	}
-
-	return DefaultPort
 }
 
 // splitJID splits value into localpart and domainpart.

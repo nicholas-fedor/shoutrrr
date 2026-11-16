@@ -115,7 +115,8 @@ func main() {
 **Notes on custom clients and dialers:**
 
 - A non-nil `SenderOptions.HTTPClient` is propagated by the router to services implementing `types.HTTPClientSetter`.
-- A non-nil `SenderOptions.DialContext` is propagated to services implementing `types.DialContextSetter` (SMTP and MQTT). TLS wrapping still happens after the TCP dial.
+- A non-nil `SenderOptions.DialContext` is propagated to services implementing `types.DialContextSetter` (SMTP, MQTT, and XMPP).
+  TLS wrapping still happens after the TCP dial.
 - `DialContext` must be safe for concurrent use. A custom dialer bypasses MQTT `all_proxy`; implement proxying in the function if needed.
 - Custom clients usually bypass `HTTP_PROXY`/`HTTPS_PROXY` unless their `Transport.Proxy` is configured to consult the environment.
 - All default timeouts/TLS behavior is preserved when no custom client or dialer is supplied.
@@ -239,7 +240,10 @@ Some services send their credentials in a header of their own, such as Gotify's 
 
 ### Custom DialContext
 
-A custom `DialContext` applies the same destination policy to SMTP and MQTT TCP connections.
+A custom `DialContext` applies the same destination policy to SMTP, MQTT, and XMPP TCP connections.
+XMPP sends the DNS queries of its SRV lookup through it too, to the system's DNS servers on port 53.
+A `DialContext` that refuses them makes XMPP dial the URL host directly, at its port or at 5222 or 5223 without one.
+The servers that SRV records name reach the `DialContext` with a trailing dot, such as `xmpp.example.net.:5222`, so a policy that matches host names should allow the dot.
 HTTP services continue to use `HTTPClient`.
 
 ### Service Compatibility

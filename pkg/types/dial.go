@@ -12,9 +12,10 @@ import (
 // service should use its default dialer.
 type DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
-// DialContextSetter is implemented by services that accept a custom TCP dial
+// DialContextSetter is implemented by services that accept a custom dial
 // function for non-HTTP connections. This enables callers to control egress
-// and destination policy without global side effects.
+// and destination policy without global side effects. [SenderOptions.DialContext]
+// lists the connections it opens.
 type DialContextSetter interface {
 	// SetDialContext sets the function the service uses to open TCP
 	// connections.
