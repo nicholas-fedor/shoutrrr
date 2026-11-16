@@ -2181,6 +2181,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#title_and_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title and Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#details_parameter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2418,6 +2429,17 @@
     <span class="md-ellipsis">
       
         Success Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors_before_the_request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors Before the Request
       
     </span>
   </a>
@@ -3644,6 +3666,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#title_and_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title and Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#details_parameter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3881,6 +3914,17 @@
     <span class="md-ellipsis">
       
         Success Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors_before_the_request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors Before the Request
       
     </span>
   </a>
@@ -4331,7 +4375,7 @@
 <p><strong>contexts</strong> - Additional context links or images (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>dedup_key</strong> - A unique key used for incident deduplication (<strong>Required</strong>)</p>
+<p><strong>dedup_key</strong> - Identifies the alert, at most 255 characters. Acknowledge and resolve events need it (<strong>Required</strong>)</p>
 </li>
 <li>
 <p><strong>details</strong> - Additional details about the incident (JSON string that will be parsed into an object) (<strong>Required</strong>)</p>
@@ -4347,6 +4391,10 @@
 <li>
 <p><strong>source</strong> - The unique location of the affected system, preferably a hostname or FQDN; required
   Default: <code>default</code></p>
+</li>
+<li>
+<p><strong>title</strong> - Notification title, sent as the event summary
+  Default: <em>empty</em></p>
 </li>
 </ul>
 <h3 id="url_components">URL Components<a class="headerlink" href="#url_components" title="Permanent link">&para;</a></h3>
@@ -4472,6 +4520,22 @@ Includes severity and source parameters</p>
 <td><code>trigger</code></td>
 <td><code>trigger</code>, <code>acknowledge</code>, <code>resolve</code></td>
 </tr>
+<tr>
+<td><code>dedup_key</code></td>
+<td>string</td>
+<td>Identifies the alert the event opens or changes</td>
+<td>For <code>acknowledge</code> and <code>resolve</code></td>
+<td>-</td>
+<td>At most 255 characters</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>The summary of a trigger event</td>
+<td>No</td>
+<td>-</td>
+<td>Any string</td>
+</tr>
 </tbody>
 </table>
 <p>A <code>severity</code> or <code>action</code> outside its valid values is rejected when the URL is read, and a send whose params set one fails before any request.</p>
@@ -4562,10 +4626,42 @@ When neither the URL nor the send params set <code>severity</code>, the level pi
 A <code>severity</code> in the URL or the send params takes precedence over the level, even when it is set to the default.</p>
 <h4 id="event_action_items">Event Action Items<a class="headerlink" href="#event_action_items" title="Permanent link">&para;</a></h4>
 <ul>
-<li><strong><code>trigger</code></strong>: Creates a new incident or updates an existing one</li>
-<li><strong><code>acknowledge</code></strong>: Acknowledges an incident (stops escalation)</li>
-<li><strong><code>resolve</code></strong>: Resolves an incident (closes it)</li>
+<li><strong><code>trigger</code></strong>: Opens an alert, or adds to the open alert with the same <code>dedup_key</code></li>
+<li><strong><code>acknowledge</code></strong>: Acknowledges the alert that <code>dedup_key</code> names</li>
+<li><strong><code>resolve</code></strong>: Resolves the alert that <code>dedup_key</code> names</li>
 </ul>
+<h4 id="title_and_message">Title and Message<a class="headerlink" href="#title_and_message" title="Permanent link">&para;</a></h4>
+<p>A trigger event's summary is the title when one is set, and the message otherwise.
+PagerDuty uses the summary as the alert's title and limits it to 1024 characters.</p>
+<table>
+<thead>
+<tr>
+<th>Title</th>
+<th>Summary</th>
+<th>Custom details <code>message</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Set</td>
+<td>The title</td>
+<td>The message</td>
+</tr>
+<tr>
+<td>Not set, message up to 1024 characters</td>
+<td>The message</td>
+<td>Not sent</td>
+</tr>
+<tr>
+<td>Not set, longer message</td>
+<td>The first 1024 characters of the message</td>
+<td>The whole message</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>message</code> key in the <code>details</code> parameter keeps its own value.</p>
+<p>An acknowledge or resolve event carries only the routing key, the action, and the <code>dedup_key</code>, as in PagerDuty's examples.
+Shoutrrr does not send its message, title, or other event fields.</p>
 <h4 id="details_parameter">Details Parameter<a class="headerlink" href="#details_parameter" title="Permanent link">&para;</a></h4>
 <p>The <code>details</code> parameter accepts a JSON object with custom key-value pairs.
 Shoutrrr sends it as the event's <code>payload.custom_details</code>:</p>
@@ -4579,6 +4675,7 @@ Shoutrrr sends it as the event's <code>payload.custom_details</code>:</p>
 <h4 id="contexts_parameter">Contexts Parameter<a class="headerlink" href="#contexts_parameter" title="Permanent link">&para;</a></h4>
 <p>The <code>contexts</code> parameter accepts a JSON array of context objects. Each context must have a <code>type</code> field. Only <code>link</code> and <code>image</code> types are supported.
 Shoutrrr sends link contexts in the event's <code>links</code> array and image contexts in its <code>images</code> array.
+The parameter also takes comma-separated <code>link:URL</code> and <code>image:URL</code> entries, and any other type is rejected in either form.
 A context's <code>text</code> becomes the link text or the image's alternative text.
 PagerDuty requires image sources to use HTTPS.</p>
 <p><strong>Link contexts:</strong></p>
@@ -4613,18 +4710,27 @@ PagerDuty requires image sources to use HTTPS.</p>
 </code></pre></div></p>
 </div>
 <h3 id="incident_management_workflow">Incident Management Workflow<a class="headerlink" href="#incident_management_workflow" title="Permanent link">&para;</a></h3>
+<p>The trigger event names its alert with a <code>dedup_key</code>, so the later events can change it.
+Replace <code>DEDUP_KEY</code> with a key of your choice, such as <code>db-connection-prod</code>.</p>
+<div class="admonition example">
+<p class="admonition-title">Trigger incident</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?dedup_key=DEDUP_KEY
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection lost'</span>
+</code></pre></div></p>
+</div>
 <div class="admonition example">
 <p class="admonition-title">Acknowledge incident</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=acknowledge
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=acknowledge&amp;dedup_key=DEDUP_KEY
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Engineer has acknowledged the incident and is investigating'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge&amp;dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Acknowledged'</span>
 </code></pre></div></p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Resolve incident</p>
-<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=resolve
+<p><div class="highlight"><pre><span></span><code>pagerduty:///INTEGRATION_KEY?action=resolve&amp;dedup_key=DEDUP_KEY
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Database connection restored, incident resolved'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve&amp;dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Resolved'</span>
 </code></pre></div></p>
 </div>
 <h3 id="advanced_examples">Advanced Examples<a class="headerlink" href="#advanced_examples" title="Permanent link">&para;</a></h3>
@@ -4655,8 +4761,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 </ul>
 <p><strong>Behavior:</strong></p>
 <ul>
-<li>If no incident exists for the service, creates a new one</li>
-<li>If an incident exists, adds a new trigger event (may escalate if unacknowledged)</li>
+<li>Opens an alert, or adds a trigger to the open alert with the same <code>dedup_key</code></li>
 <li>Includes all provided context, details, and parameters</li>
 </ul>
 <h3 id="acknowledge_actionacknowledge">Acknowledge (<code>action=acknowledge</code>)<a class="headerlink" href="#acknowledge_actionacknowledge" title="Permanent link">&para;</a></h3>
@@ -4670,8 +4775,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <p><strong>Behavior:</strong></p>
 <ul>
 <li>Stops incident escalation</li>
-<li>Records acknowledgment timestamp</li>
-<li>Can include update notes in the message</li>
+<li>Needs the <code>dedup_key</code> of the alert</li>
 </ul>
 <h3 id="resolve_actionresolve">Resolve (<code>action=resolve</code>)<a class="headerlink" href="#resolve_actionresolve" title="Permanent link">&para;</a></h3>
 <p>Resolves an incident, marking it as completed and closing the alert cycle.</p>
@@ -4684,12 +4788,14 @@ PagerDuty requires image sources to use HTTPS.</p>
 <p><strong>Behavior:</strong></p>
 <ul>
 <li>Closes the incident</li>
-<li>Records resolution timestamp</li>
-<li>Prevents further notifications for this incident</li>
+<li>Needs the <code>dedup_key</code> of the alert</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title">Incident Deduplication</p>
-<p>PagerDuty automatically deduplicates incidents based on the integration key and incident details. Multiple triggers for the same issue will update the existing incident rather than create duplicates.</p>
+<p class="admonition-title">Alert Deduplication</p>
+<p>PagerDuty applies an event to the open alert with the same <code>dedup_key</code> and routing key.
+A trigger event without a <code>dedup_key</code> gets a generated one and always opens a new alert.
+An acknowledge or resolve event for an alert that is not open is dropped.
+See PagerDuty's <a href="https://docs.pagerduty.com/developer/send-alert-event#alert-de-duplication">Alert De-Duplication</a> section.</p>
 </div>
 <h2 id="advanced_features">Advanced Features<a class="headerlink" href="#advanced_features" title="Permanent link">&para;</a></h2>
 <h3 id="custom_details">Custom Details<a class="headerlink" href="#custom_details" title="Permanent link">&para;</a></h3>
@@ -4737,12 +4843,9 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="p">}</span>
 </code></pre></div>
 <h2 id="rate_limiting">Rate Limiting<a class="headerlink" href="#rate_limiting" title="Permanent link">&para;</a></h2>
-<p>The PagerDuty Events API v2 enforces rate limits to ensure system stability:</p>
-<ul>
-<li><strong>120 events per minute</strong> per integration key (higher ceilings available on AIOps/enterprise tiers)</li>
-<li>Rate limits are enforced per integration key, not per service</li>
-<li>Exceeding limits returns HTTP 429 (Too Many Requests)</li>
-</ul>
+<p>PagerDuty limits how many events a service accepts at a time and adjusts the limit to the incoming traffic.
+An event over the limit gets HTTP 429 (Too Many Requests), and PagerDuty advises retrying it after a backoff of a few minutes.
+Shoutrrr does not retry it.</p>
 <h3 id="handling_rate_limits">Handling Rate Limits<a class="headerlink" href="#handling_rate_limits" title="Permanent link">&para;</a></h3>
 <p>When rate limits are exceeded:</p>
 <ol>
@@ -4763,9 +4866,18 @@ PagerDuty requires image sources to use HTTPS.</p>
 <p>The PagerDuty service returns standard HTTP status codes. Handle these appropriately in your applications:</p>
 <h3 id="success_responses">Success Responses<a class="headerlink" href="#success_responses" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>200 OK</strong>: Event processed successfully</li>
 <li><strong>202 Accepted</strong>: Event accepted for processing (asynchronous)</li>
 </ul>
+<h3 id="errors_before_the_request">Errors Before the Request<a class="headerlink" href="#errors_before_the_request" title="Permanent link">&para;</a></h3>
+<p>A send fails before any request for an event that PagerDuty would reject:</p>
+<ul>
+<li>A trigger event without a title or message</li>
+<li>An acknowledge or resolve event without a <code>dedup_key</code></li>
+<li>A <code>dedup_key</code> over 255 characters</li>
+<li>A <code>details</code> value that is not a JSON object, or a <code>contexts</code> value that does not parse</li>
+<li>An encoded event over 512 KB (524,288 bytes), PagerDuty's size limit</li>
+</ul>
+<p>Reading a service URL rejects each of these that the URL itself sets, such as <code>action=resolve</code> without a <code>dedup_key</code>.</p>
 <h3 id="error_responses">Error Responses<a class="headerlink" href="#error_responses" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>400 Bad Request</strong>: Invalid request payload or parameters</li>
@@ -4885,11 +4997,12 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="kd">func</span><span class="w"> </span><span class="nx">handleIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">baseURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"pagerduty:///INTEGRATION_KEY"</span>
 
-<span class="w">    </span><span class="c1">// 1. Trigger incident</span>
+<span class="w">    </span><span class="c1">// 1. Trigger incident, naming it for the later events</span>
 <span class="w">    </span><span class="nx">triggerParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
-<span class="w">        </span><span class="s">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s">"critical"</span><span class="p">,</span>
-<span class="w">        </span><span class="s">"source"</span><span class="p">:</span><span class="w">   </span><span class="s">"web-server-01"</span><span class="p">,</span>
-<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">   </span><span class="s">"trigger"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"severity"</span><span class="p">:</span><span class="w">  </span><span class="s">"critical"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"source"</span><span class="p">:</span><span class="w">    </span><span class="s">"web-server-01"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">    </span><span class="s">"trigger"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"dedup_key"</span><span class="p">:</span><span class="w"> </span><span class="s">"web-server-01-unresponsive"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
 <span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server unresponsive"</span><span class="p">,</span><span class="w"> </span><span class="nx">triggerParams</span><span class="p">)</span>
@@ -4903,10 +5016,11 @@ PagerDuty requires image sources to use HTTPS.</p>
 
 <span class="w">    </span><span class="c1">// 2. Acknowledge incident</span>
 <span class="w">    </span><span class="nx">ackParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
-<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w"> </span><span class="s">"acknowledge"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">    </span><span class="s">"acknowledge"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"dedup_key"</span><span class="p">:</span><span class="w"> </span><span class="s">"web-server-01-unresponsive"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Engineer investigating server issue"</span><span class="p">,</span><span class="w"> </span><span class="nx">ackParams</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">,</span><span class="w"> </span><span class="nx">ackParams</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Failed to acknowledge incident: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span>
@@ -4917,10 +5031,11 @@ PagerDuty requires image sources to use HTTPS.</p>
 
 <span class="w">    </span><span class="c1">// 3. Resolve incident</span>
 <span class="w">    </span><span class="nx">resolveParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
-<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w"> </span><span class="s">"resolve"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">    </span><span class="s">"resolve"</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"dedup_key"</span><span class="p">:</span><span class="w"> </span><span class="s">"web-server-01-unresponsive"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server restarted successfully"</span><span class="p">,</span><span class="w"> </span><span class="nx">resolveParams</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">,</span><span class="w"> </span><span class="nx">resolveParams</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Failed to resolve incident: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span>
@@ -4957,7 +5072,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="s">                "text": "View Commit"</span>
 <span class="s">            },</span>
 <span class="s">            {</span>
-<span class="s">                "type": "link", </span>
+<span class="s">                "type": "link",</span>
 <span class="s">                "href": "https://ci.example.com/pipelines/123",</span>
 <span class="s">                "text": "Pipeline Details"</span>
 <span class="s">            },</span>
@@ -5007,6 +5122,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="w">    </span><span class="p">}</span>
 
 <span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">"title"</span><span class="p">:</span><span class="w">      </span><span class="nx">data</span><span class="p">.</span><span class="nx">Title</span><span class="p">,</span>
 <span class="w">        </span><span class="s">"severity"</span><span class="p">:</span><span class="w">   </span><span class="nx">data</span><span class="p">.</span><span class="nx">Severity</span><span class="p">,</span>
 <span class="w">        </span><span class="s">"source"</span><span class="p">:</span><span class="w">     </span><span class="nx">data</span><span class="p">.</span><span class="nx">Source</span><span class="p">,</span>
 <span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">     </span><span class="s">"trigger"</span><span class="p">,</span>
@@ -5015,7 +5131,7 @@ PagerDuty requires image sources to use HTTPS.</p>
 <span class="w">        </span><span class="s">"client_url"</span><span class="p">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">DashboardURL</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">Title</span><span class="o">+</span><span class="s">": "</span><span class="o">+</span><span class="nx">data</span><span class="p">.</span><span class="nx">Description</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">Description</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <h2 id="cli_examples">CLI Examples<a class="headerlink" href="#cli_examples" title="Permanent link">&para;</a></h2>
@@ -5028,13 +5144,13 @@ PagerDuty requires image sources to use HTTPS.</p>
 </code></pre></div>
 <h3 id="incident_lifecycle_management">Incident Lifecycle Management<a class="headerlink" href="#incident_lifecycle_management" title="Permanent link">&para;</a></h3>
 <p>Trigger incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=trigger&amp;severity=critical&amp;source=web-app'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application crashed'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=trigger&amp;severity=critical&amp;source=web-app&amp;dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application crashed'</span>
 </code></pre></div>
 <p>Acknowledge incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'DevOps team is investigating'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=acknowledge&amp;dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Acknowledged'</span>
 </code></pre></div>
 <p>Resolve incident:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Application restarted successfully'</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'pagerduty:///INTEGRATION_KEY?action=resolve&amp;dedup_key=DEDUP_KEY'</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">'Resolved'</span>
 </code></pre></div>
 <h3 id="advanced_parameters">Advanced Parameters<a class="headerlink" href="#advanced_parameters" title="Permanent link">&para;</a></h3>
 <p>With custom details:</p>
@@ -5164,7 +5280,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> <
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 16, 2026 17:48:46 UTC"><span class="timeago" datetime="2026-11-16T17:48:46+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 16, 2026 17:48:46 UTC">2026-11-16</span>
   </span>
 
     
