@@ -28,11 +28,13 @@ type Config struct {
 	Host string `desc:"API server hostname (with optional port)" url:"host"`
 	// Type selects a channel or a direct message. Empty sends to a channel.
 	Type MessageType `desc:"Message type (channel or direct)" key:"type" optional:""`
-	// Stream is the channel that a channel message goes to. A direct message
-	// uses it as the recipient list when To is empty.
+	// Stream is the channel that a channel message goes to, which every
+	// channel message needs. A direct message uses it as the recipient list
+	// when To is empty.
 	Stream string `desc:"Target stream name" key:"stream" optional:""`
 	// Topic is the topic of a channel message. A send without a topic uses
-	// Title as the topic.
+	// Title as the topic. Without either, the topic is empty, which Zulip 10.0
+	// and later read as the channel's general chat.
 	Topic string `desc:"Stream topic" key:"topic" optional:""`
 	// Title is prepended to the message when Topic is also set. A send without
 	// a topic uses it as the topic instead.
@@ -40,7 +42,8 @@ type Config struct {
 	// To lists the recipients of a direct message as comma-separated user IDs
 	// or e-mail addresses. A list cannot mix the two.
 	To string `desc:"Comma-separated user IDs or emails for DMs" key:"to" optional:""`
-	// ReadBySender marks the message as read by its sender.
+	// ReadBySender marks the message as read by its sender. It needs Zulip 8.0
+	// or later.
 	ReadBySender bool `default:"No" desc:"Mark the message read by its sender" key:"read_by_sender" optional:""`
 	// SkipTLSVerify skips verification of the server's TLS certificate.
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
@@ -50,7 +53,8 @@ type Config struct {
 const (
 	// MessageTypeChannel sends a message to a channel (stream).
 	MessageTypeChannel MessageType = "channel"
-	// MessageTypeDirect sends a direct message to users.
+	// MessageTypeDirect sends a direct message to users. It needs Zulip 7.0 or
+	// later.
 	MessageTypeDirect MessageType = "direct"
 )
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -44,6 +45,9 @@ type DefaultHTTPClient struct {
 
 // registerResponse represents the relevant fields from the Zulip register endpoint.
 type registerResponse struct {
+	// QueueID identifies the event queue the register request created, or is
+	// empty when the response omits it.
+	QueueID string `json:"queue_id"`
 	// MaxMessageLength is the maximum message length in characters, or zero
 	// when the response omits it.
 	MaxMessageLength int `json:"max_message_length"`
@@ -104,6 +108,11 @@ const topicMaxLength = 60
 // falls back to the default limits and leaves the message request the rest of
 // the budget.
 const registerTimeout = 10 * time.Second
+
+// deleteQueueTimeout caps the event queue delete at the end of a send. The
+// message has been sent by then, so a slow delete holds the send for at most
+// this long.
+const deleteQueueTimeout = 5 * time.Second
 
 // maxErrorBodySize limits how much of a non-OK response body we read to prevent
 // memory exhaustion from huge error bodies returned by the server.
@@ -224,7 +233,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize. A params
-//     error or the error from the config's checks, such as [ErrMissingAPIKey],
+//     error, the error from the config's checks, such as [ErrMissingAPIKey],
+//     or a missing recipient ([ErrMissingRecipient] or [ErrMixedRecipients])
 //     fails the send before any request. Otherwise the send failure, or nil on
 //     success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
@@ -251,13 +261,26 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
+	if config.Type == MessageTypeDirect {
+		if err := validateDirectRecipients(parseRecipients(directRecipients(config))); err != nil {
+			return err
+		}
+	} else if config.Stream == "" {
+		return ErrMissingRecipient
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
 	// The limits lookup and the message go through the same client.
 	httpClient := s.sendClient(ctx, config)
 
-	contentMax, topicMax := s.limits(ctx, httpClient, config)
+	contentMax, topicMax, queueID := s.limits(ctx, httpClient, config)
+	if queueID != "" {
+		// The queue is deleted after the message, so the message does not
+		// wait for the delete.
+		defer deleteQueue(ctx, httpClient, config, queueID)
+	}
 
 	topicLength := len([]rune(config.Topic))
 	if topicLength > topicMax {
@@ -284,14 +307,6 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		)
 	}
 
-	if config.Type == MessageTypeDirect {
-		if err := validateDirectRecipients(parseRecipients(directRecipients(config))); err != nil {
-			return err
-		}
-	} else if config.Stream == "" {
-		return ErrMissingRecipient
-	}
-
 	return s.doSend(ctx, httpClient, config, message)
 }
 
@@ -313,8 +328,9 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 }
 
 // ServiceTimeout reports the send budget of Zulip. The first send calls the
-// register endpoint for server limits before the message request, so the
-// budget covers both requests.
+// register endpoint for server limits before the message request, and deletes
+// the event queue the register request creates after it. The budget covers
+// all of them.
 //
 // Parameters:
 //   - params: unused. The budget does not depend on send parameters.
@@ -348,6 +364,38 @@ func (s *Service) currentLimits() (contentMax, topicMax int) { //nolint:nonamedr
 	return s.contentMaxSize, s.topicMaxLength
 }
 
+// deleteQueue deletes an event queue, which Zulip would otherwise keep for 10
+// minutes without a poll. A failed delete is not reported, since Zulip then
+// removes the queue on its own.
+//
+// Parameters:
+//   - ctx: bounds the request, further bounded to 5 seconds.
+//   - httpClient: the HTTP client of the send.
+//   - config: the checked configuration of the send.
+//   - queueID: the ID of the queue to delete.
+func deleteQueue(ctx context.Context, httpClient types.HTTPClient, config *Config, queueID string) {
+	ctx, cancel := context.WithTimeout(ctx, deleteQueueTimeout)
+	defer cancel()
+
+	form := url.Values{}
+	form.Set("queue_id", queueID)
+
+	req, err := newRequest(ctx, http.MethodDelete, config, "/api/v1/events", form)
+	if err != nil {
+		return
+	}
+
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return
+	}
+
+	// Reading the short response to its end lets the next send reuse the
+	// connection.
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxErrorBodySize)) //nolint:errcheck // A failed read only keeps the connection from being reused.
+	_ = res.Body.Close()
+}
+
 // doSend sends the notification to Zulip using the configured API URL.
 //
 // Parameters:
@@ -360,21 +408,10 @@ func (s *Service) currentLimits() (contentMax, topicMax int) { //nolint:nonamedr
 //   - error: [ErrResponseStatusFailure] for a status other than 200, with up to
 //     [maxErrorBodySize] bytes of the body, or the request error.
 func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, config *Config, message string) error {
-	apiURL := s.getAPIURL(config)
-
-	payload := CreatePayload(config, message)
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		apiURL,
-		strings.NewReader(payload.Encode()),
-	)
+	req, err := newRequest(ctx, http.MethodPost, config, "/api/v1/messages", CreatePayload(config, message))
 	if err != nil {
-		return fmt.Errorf("creating request: %w", redact.URLError(err))
+		return err
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := httpClient.Do(req)
 	if err != nil {
@@ -404,7 +441,8 @@ func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, confi
 }
 
 // fetchLimits calls the Zulip register endpoint to fetch server-side size
-// limits.
+// limits. The endpoint always creates an event queue, so the request
+// subscribes it to no events.
 //
 // Parameters:
 //   - ctx: bounds the request, further bounded by [registerTimeout].
@@ -412,25 +450,23 @@ func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, confi
 //   - config: the checked configuration of the send that looks the limits up.
 //
 // Returns:
-//   - registerResponse: the limits the server reported, zero for any it did not.
+//   - registerResponse: the limits the server reported, zero for any it did
+//     not, and the ID of the queue the request created.
 //   - bool: whether the server answered with a 200 status and a JSON body.
 func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient, config *Config) (registerResponse, bool) {
 	var reg registerResponse
-
-	registerURL := s.getRegisterURL(config)
 
 	ctx, cancel := context.WithTimeout(ctx, registerTimeout)
 	defer cancel()
 
 	form := url.Values{}
+	form.Set("event_types", "[]")
 	form.Set("fetch_event_types", `["realm"]`)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, strings.NewReader(form.Encode()))
+	req, err := newRequest(ctx, http.MethodPost, config, "/api/v1/register", form)
 	if err != nil {
 		return reg, false
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := httpClient.Do(req)
 	if err != nil {
@@ -455,38 +491,6 @@ func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient, 
 	return reg, true
 }
 
-// getAPIURL constructs the API URL for Zulip based on the Config.
-//
-// Parameters:
-//   - config: the configuration for this send.
-//
-// Returns:
-//   - string: the messages endpoint URL, with the bot credentials as userinfo.
-func (s *Service) getAPIURL(config *Config) string {
-	return (&url.URL{
-		User:   url.UserPassword(config.BotMail, config.BotKey),
-		Host:   config.Host,
-		Path:   "/api/v1/messages",
-		Scheme: "https",
-	}).String()
-}
-
-// getRegisterURL constructs the register API URL for Zulip based on the Config.
-//
-// Parameters:
-//   - config: the configuration for this send.
-//
-// Returns:
-//   - string: the register endpoint URL, with the bot credentials as userinfo.
-func (s *Service) getRegisterURL(config *Config) string {
-	return (&url.URL{
-		User:   url.UserPassword(config.BotMail, config.BotKey),
-		Host:   config.Host,
-		Path:   "/api/v1/register",
-		Scheme: "https",
-	}).String()
-}
-
 // limits returns the message and topic limits, asking the server on the first
 // send and again on later sends until the server answers. One send makes the
 // request while concurrent sends wait for it, or stop waiting when their own
@@ -502,13 +506,20 @@ func (s *Service) getRegisterURL(config *Config) string {
 // Returns:
 //   - contentMax: the maximum message length in characters.
 //   - topicMax: the maximum topic length in characters.
-func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient, config *Config) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
+//   - queueID: the event queue that this send's limits request created,
+//     which the send deletes, or empty when it made no request or the server
+//     named no queue.
+func (s *Service) limits(
+	ctx context.Context,
+	httpClient types.HTTPClient,
+	config *Config,
+) (contentMax, topicMax int, queueID string) { //nolint:nonamedreturns // Same-type returns need names.
 	s.limitsMu.Lock()
 
 	if s.limitsFetched {
 		defer s.limitsMu.Unlock()
 
-		return s.contentMaxSize, s.topicMaxLength
+		return s.contentMaxSize, s.topicMaxLength, ""
 	}
 
 	if done := s.limitsDone; done != nil {
@@ -519,7 +530,9 @@ func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient, confi
 		case <-ctx.Done():
 		}
 
-		return s.currentLimits()
+		contentMax, topicMax = s.currentLimits()
+
+		return contentMax, topicMax, ""
 	}
 
 	done := make(chan struct{})
@@ -544,7 +557,39 @@ func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient, confi
 
 	close(done)
 
-	return s.contentMaxSize, s.topicMaxLength
+	return s.contentMaxSize, s.topicMaxLength, reg.QueueID
+}
+
+// newRequest builds a form-encoded request to a Zulip API endpoint. The bot
+// credentials go in the URL's userinfo, which net/http sends as basic auth.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - method: the HTTP method.
+//   - config: the configuration for this send.
+//   - path: the endpoint path, such as /api/v1/messages.
+//   - form: the request form, sent as the body.
+//
+// Returns:
+//   - *http.Request: the request.
+//   - error: the error from building the request, with its URL redacted by
+//     [redact.URLError].
+func newRequest(ctx context.Context, method string, config *Config, path string, form url.Values) (*http.Request, error) {
+	endpoint := &url.URL{
+		User:   url.UserPassword(config.BotMail, config.BotKey),
+		Host:   config.Host,
+		Path:   path,
+		Scheme: "https",
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", redact.URLError(err))
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return req, nil
 }
 
 // sendClient returns the HTTP client for a send's requests, the limits lookup

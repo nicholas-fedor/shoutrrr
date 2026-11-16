@@ -10,9 +10,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
+// channelMessageType is the API's message type for a channel message. Every
+// Zulip version accepts it, while "channel" needs Zulip 9.0 or later.
+const channelMessageType = "stream"
+
 // CreatePayload builds a form-encoded payload for the Zulip messages API.
 // A direct message lists its recipients as a JSON list of user IDs when every
-// recipient is a number, or of e-mail addresses otherwise.
+// recipient is a number, or of e-mail addresses otherwise. A channel message
+// always carries its topic, which is empty when none is set, since Zulip
+// requires the parameter.
 //
 // Parameters:
 //   - config: the configuration for this send.
@@ -23,14 +29,9 @@ import (
 func CreatePayload(config *Config, message string) url.Values {
 	form := url.Values{}
 
-	msgType := config.Type
-	if msgType == "" {
-		msgType = MessageTypeChannel
-	}
+	if config.Type == MessageTypeDirect {
+		form.Set("type", string(MessageTypeDirect))
 
-	form.Set("type", string(msgType))
-
-	if msgType == MessageTypeDirect {
 		recipients := directRecipients(config)
 		recipientList := parseRecipients(recipients)
 
@@ -51,14 +52,12 @@ func CreatePayload(config *Config, message string) url.Values {
 			form.Set("to", string(b))
 		}
 	} else {
+		form.Set("type", channelMessageType)
 		form.Set("to", config.Stream)
+		form.Set("topic", config.Topic)
 	}
 
 	form.Set("content", message)
-
-	if config.Topic != "" && msgType != MessageTypeDirect {
-		form.Set("topic", config.Topic)
-	}
 
 	if config.ReadBySender {
 		form.Set("read_by_sender", "true")

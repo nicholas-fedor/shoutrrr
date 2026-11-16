@@ -18,8 +18,8 @@
 //   - BotKey: The bot's API key for authentication (required)
 //   - Host: The Zulip server host name, IPv4 address, or bracketed IPv6 address, with an optional port (required)
 //   - Type: Message type, "channel" or "direct" (optional, defaults to channel)
-//   - Stream: The target stream (channel) name (optional)
-//   - Topic: The target topic within the stream (optional)
+//   - Stream: The target stream (channel) name (required for channel messages)
+//   - Topic: The target topic within the stream (optional, empty when neither it nor Title is set)
 //   - Title: Notification title prepended to message content (optional)
 //   - To: Comma-separated user IDs or e-mail addresses for direct messages, not both (optional)
 //   - ReadBySender: Whether to mark sent DM read by the bot (optional, default false)
@@ -31,12 +31,20 @@
 // field or "to" param (comma separated emails/IDs). The "stream" field can be used as fallback
 // recipient for direct if To is not set.
 //
+// # Zulip Versions
+//
+// A channel message is sent with the message type "stream", which every Zulip version
+// accepts. A direct message needs Zulip 7.0 or later, and read_by_sender needs Zulip 8.0
+// or later. An empty topic posts to the channel's general chat on Zulip 10.0 or later.
+//
 // # Server-Side Limits
 //
 // On first send, the service fetches max_message_length and max_topic_length from the
 // Zulip /api/v1/register endpoint (realm section). Falls back to built-in defaults (10000
 // characters content, 60 characters topic) if the call fails or returns zero/ non-success,
 // and asks again on the next send after a failed call. Both limits count Unicode characters.
+// The register request creates an event queue, which the service deletes at the end of
+// that send.
 //
 // # Usage Example
 //
