@@ -36,7 +36,7 @@ var (
 		"invalid event action: must be one of 'trigger', 'acknowledge', or 'resolve'",
 	)
 
-	// errInvalidContextType is returned when a context type is not one of the allowed values for JSON format.
+	// errInvalidContextType is returned when a context type, in either contexts format, is not link or image.
 	errInvalidContextType = errors.New(
 		"invalid context type: must be one of 'link' or 'image'",
 	)
@@ -46,6 +46,22 @@ var (
 
 	// errMissingSrcForImageContext is returned when an image context is missing the src field.
 	errMissingSrcForImageContext = errors.New("missing src for image context")
+
+	// errMissingDedupKey is returned for an acknowledge or resolve event without
+	// a dedup key, which PagerDuty needs to find the alert.
+	errMissingDedupKey = errors.New("acknowledge and resolve events need a dedup_key")
+
+	// errDedupKeyTooLong is returned for a dedup key longer than PagerDuty's
+	// limit of 255 characters.
+	errDedupKeyTooLong = errors.New("dedup_key is longer than 255 characters")
+
+	// errMissingSummary is returned for a trigger event without a title or
+	// message, since PagerDuty requires a summary.
+	errMissingSummary = errors.New("trigger event has no title or message")
+
+	// errEventTooLarge is returned for an encoded event larger than PagerDuty's
+	// limit of 512 KB.
+	errEventTooLarge = errors.New("event is larger than 512 KB")
 
 	// errPagerDutyNotificationFailed is returned when PagerDuty returns a non-2xx status code.
 	errPagerDutyNotificationFailed = errors.New("PagerDuty notification failed")

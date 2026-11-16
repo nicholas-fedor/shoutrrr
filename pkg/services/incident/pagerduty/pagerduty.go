@@ -2,6 +2,7 @@ package pagerduty
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -43,6 +44,23 @@ const (
 	defaultHTTPTimeout = 30 * time.Second
 	// maxMessageLength is the maximum permitted length of the summary property.
 	maxMessageLength = 1024
+	// maxDedupKeyLength is the maximum permitted length of the dedup key, in
+	// characters.
+	maxDedupKeyLength = 255
+	// maxEventSize is the largest encoded event PagerDuty accepts, 512 KB.
+	maxEventSize = 512 * 1024
+
+	// actionTrigger is the event action that opens an alert.
+	actionTrigger = "trigger"
+	// actionAcknowledge is the event action that acknowledges the alert its
+	// dedup key names.
+	actionAcknowledge = "acknowledge"
+	// actionResolve is the event action that resolves the alert its dedup key
+	// names.
+	actionResolve = "resolve"
+	// detailsMessageKey is the custom details key that holds the message when
+	// it is not the summary.
+	detailsMessageKey = "message"
 
 	// contextTypeLink is the context type of a link.
 	contextTypeLink = "link"
@@ -96,7 +114,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // See https://developer.pagerduty.com/docs/events-api-v2-overview.
 //
 // Parameters:
-//   - message: the event summary.
+//   - message: the notification message, sent as the summary of a trigger event without a title.
 //   - params: per-send parameters for the event.
 //
 // Returns:
@@ -113,13 +131,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Parameters:
 //   - ctx: bounds the event request.
-//   - message: the event summary.
+//   - message: the notification message, sent as the summary of a trigger event without a title.
 //   - params: per-send parameters for the event.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize. A params
-//     error or the error from the config's checks, such as an invalid
-//     severity, fails the send before any request. Otherwise the payload or
+//     error, the error from the config's checks, or an event that cannot be
+//     built or is too large fails the send before any request. Otherwise the
 //     request failure, or nil on success.
 func (s *Service) SendContext(
 	ctx context.Context,
@@ -220,64 +238,58 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 // newEventPayload builds an Events API v2 event from the message and the
 // config of one send.
 //
-// The summary is cut to 1024 characters. The details prop becomes the custom
-// details, and the contexts prop becomes the links and images.
+// An acknowledge or resolve event names only its alert, as PagerDuty's
+// examples show, so it carries the routing key, the action, and the dedup key.
+// A trigger event's summary is the title, or the message when there is no
+// title, cut to 1024 characters. A message that is not the summary goes to the
+// custom details as "message", unless the details prop has that key. The
+// contexts prop becomes the links and images.
 //
 // Parameters:
-//   - message: the event summary.
+//   - message: the notification message.
 //   - payloadFields: the send's config, with its params applied and checked.
 //
 // Returns:
 //   - EventPayload: the event.
-//   - error: details that are not a JSON object, or invalid contexts.
+//   - error: an error for a trigger event without a title or message, details
+//     that are not a JSON object, or invalid contexts.
 func newEventPayload(message string, payloadFields *Config) (EventPayload, error) {
-	// The maximum permitted length of this property is 1024 characters.
-	runes := []rune(message)
-	if len(runes) > maxMessageLength {
-		message = string(runes[:maxMessageLength])
-	}
-
 	result := EventPayload{
-		Payload: Payload{
-			Summary:  message,
-			Severity: payloadFields.Severity,
-			Source:   payloadFields.Source,
-		},
 		RoutingKey:  payloadFields.IntegrationKey,
 		EventAction: payloadFields.Action,
+		DedupKey:    payloadFields.DedupKey,
 	}
 
-	// Add optional dedup_key if provided
-	if payloadFields.DedupKey != "" {
-		result.DedupKey = payloadFields.DedupKey
+	if payloadFields.Action != actionTrigger {
+		return result, nil
 	}
 
-	// Custom details must be a JSON object, so arrays, scalars, and null are rejected.
-	if payloadFields.Details != "" {
-		var details map[string]any
-		if err := json.Unmarshal([]byte(payloadFields.Details), &details, jsonopts.UserInput); err != nil || details == nil {
-			return EventPayload{}, fmt.Errorf("%w: %q", errInvalidDetails, payloadFields.Details)
-		}
-
-		result.Payload.CustomDetails = details
+	summary := cmp.Or(payloadFields.Title, message)
+	if summary == "" {
+		return EventPayload{}, errMissingSummary
 	}
 
-	if payloadFields.Client != "" {
-		result.Client = payloadFields.Client
+	summary = cutSummary(summary)
+
+	details, err := parseDetails(payloadFields.Details)
+	if err != nil {
+		return EventPayload{}, err
 	}
 
-	if payloadFields.ClientURL != "" {
-		result.ClientURL = payloadFields.ClientURL
+	contexts, err := parseContexts(payloadFields.Contexts)
+	if err != nil {
+		return EventPayload{}, fmt.Errorf("parsing contexts: %w", err)
 	}
 
-	if payloadFields.Contexts != "" {
-		contexts, err := parseContexts(payloadFields.Contexts)
-		if err != nil {
-			return EventPayload{}, fmt.Errorf("failed to parse contexts: %w", err)
-		}
-
-		result.Links, result.Images = linksAndImages(contexts)
+	result.Payload = Payload{
+		CustomDetails: customDetails(details, message, summary),
+		Summary:       summary,
+		Severity:      payloadFields.Severity,
+		Source:        payloadFields.Source,
 	}
+	result.Client = payloadFields.Client
+	result.ClientURL = payloadFields.ClientURL
+	result.Links, result.Images = linksAndImages(contexts)
 
 	return result, nil
 }
@@ -290,14 +302,19 @@ func newEventPayload(message string, payloadFields *Config) (EventPayload, error
 //   - payload: the event to send.
 //
 // Returns:
-//   - error: [errPagerDutyNotificationFailed] for a status outside 2xx, with the
-//     message from up to [httpbody.MaxSize] bytes of the body, or the
-//     encoding or request error.
+//   - error: an error for an encoded event over 512 KB, before any request. An
+//     error for a status outside 2xx, with the message from up to
+//     [httpbody.MaxSize] bytes of the body. Otherwise the encoding or request
+//     error.
 func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *EventPayload) error {
 	// Marshal the payload into JSON format
 	jsonBody, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	if len(jsonBody) > maxEventSize {
+		return fmt.Errorf("%w: %d bytes", errEventTooLarge, len(jsonBody))
 	}
 
 	jsonBuffer := bytes.NewBuffer(jsonBody)
@@ -367,43 +384,62 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 // - "link:http://example.com" -> {Type: "link", Href: "http://example.com"}
 // - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}.
 //
+// Both formats take only link and image contexts.
+//
 // Parameters:
 //   - contextsStr: the contexts, as a JSON array or in the legacy format.
 //
 // Returns:
 //   - []PagerDutyContext: the contexts, or nil for an empty string.
-//   - error: a format error, such as [errInvalidContextType] for a JSON entry
-//     or [errInvalidContextFormat] for a legacy entry.
+//   - error: a format error, such as an unsupported context type or a legacy
+//     entry without a colon.
 func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	if contextsStr == "" {
 		return nil, nil
 	}
 
-	// First, attempt to parse as JSON array
+	// Input that is not a JSON array is read in the legacy comma-separated
+	// format.
 	var result []PagerDutyContext
-	if err := json.Unmarshal([]byte(contextsStr), &result, jsonopts.UserInput); err == nil {
-		// Validate Type field and required fields for each context in JSON format
-		for _, ctx := range result {
-			if ctx.Type != contextTypeLink && ctx.Type != contextTypeImage {
-				return nil, fmt.Errorf("%w: found %q", errInvalidContextType, ctx.Type)
-			}
-
-			if ctx.Type == contextTypeLink && ctx.Href == "" {
-				return nil, fmt.Errorf("%w: %+v", errMissingHrefForLinkContext, ctx)
-			}
-
-			if ctx.Type == contextTypeImage && ctx.Src == "" {
-				return nil, fmt.Errorf("%w: %+v", errMissingSrcForImageContext, ctx)
-			}
+	if err := json.Unmarshal([]byte(contextsStr), &result, jsonopts.UserInput); err != nil {
+		result, err = parseLegacyContexts(contextsStr)
+		if err != nil {
+			return nil, err
 		}
-
-		return result, nil
 	}
 
-	// Fall back to legacy comma-separated parsing
-	// Split the input string by commas to get individual context entries
+	for _, ctx := range result {
+		if ctx.Type != contextTypeLink && ctx.Type != contextTypeImage {
+			return nil, fmt.Errorf("%w: found %q", errInvalidContextType, ctx.Type)
+		}
+
+		if ctx.Type == contextTypeLink && ctx.Href == "" {
+			return nil, fmt.Errorf("%w: %+v", errMissingHrefForLinkContext, ctx)
+		}
+
+		if ctx.Type == contextTypeImage && ctx.Src == "" {
+			return nil, fmt.Errorf("%w: %+v", errMissingSrcForImageContext, ctx)
+		}
+	}
+
+	return result, nil
+}
+
+// parseLegacyContexts reads contexts in the legacy comma-separated
+// type:value format, skipping empty entries. An image entry's value is its
+// source, and any other entry's value is its link, so the context checks
+// treat the types of both formats alike.
+//
+// Parameters:
+//   - contextsStr: the comma-separated type:value entries.
+//
+// Returns:
+//   - []PagerDutyContext: the contexts, with their types as written.
+//   - error: an error for an entry without a colon, or with an empty type or
+//     value.
+func parseLegacyContexts(contextsStr string) ([]PagerDutyContext, error) {
 	contexts := strings.Split(contextsStr, ",")
-	result = make([]PagerDutyContext, 0, len(contexts))
+	result := make([]PagerDutyContext, 0, len(contexts))
 
 	for _, ctx := range contexts {
 		// Trim whitespace from each context entry
@@ -429,34 +465,95 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 			return nil, fmt.Errorf("%w: %q", errEmptyContextTypeOrValue, ctx)
 		}
 
-		var ctxVar PagerDutyContext
-
-		// Map context types to appropriate PagerDutyContext fields
-		switch contextType {
-		case "link":
-			// Create a link context with href
-			//nolint:exhaustruct_v5 // link type only needs Type+Href
-			ctxVar = PagerDutyContext{Type: "link", Href: value}
-		case "image":
-			// Create an image context with src
-			//nolint:exhaustruct_v5 // image type only needs Type+Src
-			ctxVar = PagerDutyContext{Type: "image", Src: value}
-		case "text":
-			// Skip text contexts
-			continue
-		default:
-			return nil, fmt.Errorf(
-				"%w: unsupported context type %q",
-				errInvalidContextFormat,
-				contextType,
-			)
+		//nolint:exhaustruct_v5 // A legacy entry has no text.
+		ctxVar := PagerDutyContext{Type: contextType, Href: value}
+		if contextType == contextTypeImage {
+			//nolint:exhaustruct_v5 // A legacy entry has no text.
+			ctxVar = PagerDutyContext{Type: contextType, Src: value}
 		}
 
-		// Add the parsed context to the result slice
 		result = append(result, ctxVar)
 	}
 
 	return result, nil
+}
+
+// parseDetails reads the details prop, a JSON object of custom details.
+//
+// Parameters:
+//   - details: the details prop, or an empty string for none.
+//
+// Returns:
+//   - map[string]any: the custom details, or nil for an empty prop.
+//   - error: an error for details that are not a JSON object, such as an
+//     array, a scalar, or null.
+func parseDetails(details string) (map[string]any, error) {
+	if details == "" {
+		return nil, nil //nolint:nilnil // An empty prop means no custom details.
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(details), &result, jsonopts.UserInput); err != nil || result == nil {
+		return nil, fmt.Errorf("%w: %q", errInvalidDetails, details)
+	}
+
+	return result, nil
+}
+
+// cutSummary cuts a summary to 1024 characters, PagerDuty's limit.
+//
+// Parameters:
+//   - summary: the summary.
+//
+// Returns:
+//   - string: the summary, or its first 1024 characters.
+func cutSummary(summary string) string {
+	// A summary of at most 1024 bytes holds at most 1024 characters.
+	if len(summary) <= maxMessageLength {
+		return summary
+	}
+
+	count := 0
+	for i := range summary {
+		if count == maxMessageLength {
+			return summary[:i]
+		}
+
+		count++
+	}
+
+	return summary
+}
+
+// customDetails returns the custom details of a trigger event. A message
+// that is not the summary goes to the details as "message", unless the
+// details prop has that key.
+//
+// Parameters:
+//   - details: the parsed details prop, or nil.
+//   - message: the notification message.
+//   - summary: the event summary, after cutting.
+//
+// Returns:
+//   - any: the custom details, or nil when there are none.
+func customDetails(details map[string]any, message, summary string) any {
+	if message == "" || message == summary {
+		if details == nil {
+			return nil
+		}
+
+		return details
+	}
+
+	if details == nil {
+		return messageDetails{Message: message}
+	}
+
+	if _, set := details[detailsMessageKey]; !set {
+		details[detailsMessageKey] = message
+	}
+
+	return details
 }
 
 // linksAndImages converts parsed contexts into the links and images of an
@@ -515,7 +612,7 @@ func validateSeverity(severity string) error {
 //     acknowledge, or resolve.
 func validateEventAction(action string) error {
 	switch action {
-	case "trigger", "acknowledge", "resolve":
+	case actionTrigger, actionAcknowledge, actionResolve:
 		return nil
 	default:
 		return errInvalidEventAction

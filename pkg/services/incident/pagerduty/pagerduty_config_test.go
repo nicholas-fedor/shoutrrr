@@ -2,6 +2,7 @@ package pagerduty
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,7 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name: "event props",
 			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey +
-				"?severity=critical&source=my-app&action=resolve&dedup_key=disk-db1&client=my-monitor" +
+				"?severity=critical&source=my-app&action=resolve&dedup_key=disk-db1&client=my-monitor&title=Disk%20full" +
 				"&client_url=https://example.com&details=%7B%22key%22%3A%22value%22%7D&contexts=link:http://example.com",
 			want: Config{
 				Host:           "events.pagerduty.com",
@@ -76,6 +77,7 @@ func TestConfigSetURL(t *testing.T) {
 				Source:         "my-app",
 				Action:         "resolve",
 				DedupKey:       "disk-db1",
+				Title:          "Disk full",
 				Details:        `{"key":"value"}`,
 				Contexts:       "link:http://example.com",
 				Client:         "my-monitor",
@@ -103,7 +105,9 @@ func TestConfigSetURL(t *testing.T) {
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without an
 // integration key, a key that is not 32 hexadecimal characters, a port above
-// 65535, and an unknown query prop.
+// 65535, and an unknown query prop. It also rejects an acknowledge event
+// without a dedup key, a dedup key over 255 characters, details that are not
+// a JSON object, and an unsupported context type.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -125,6 +129,14 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid severity", rawURL: "pagerduty:///" + testIntegrationKey + "?severity=fatal", wantErr: errInvalidSeverity},
 		{name: "invalid action", rawURL: "pagerduty:///" + testIntegrationKey + "?action=snooze", wantErr: errInvalidEventAction},
 		{name: "unbracketed IPv6 host", rawURL: "pagerduty://2001:db8::1/" + testIntegrationKey, wantErr: util.ErrInvalidHost},
+		{name: "acknowledge without a dedup key", rawURL: "pagerduty:///" + testIntegrationKey + "?action=acknowledge", wantErr: errMissingDedupKey},
+		{name: "details not an object", rawURL: "pagerduty:///" + testIntegrationKey + "?details=%5B1%5D", wantErr: errInvalidDetails},
+		{name: "text context", rawURL: "pagerduty:///" + testIntegrationKey + "?contexts=text:Disk%20full", wantErr: errInvalidContextType},
+		{
+			name:    "dedup key over 255 characters",
+			rawURL:  "pagerduty:///" + testIntegrationKey + "?dedup_key=" + strings.Repeat("a", 256),
+			wantErr: errDedupKeyTooLong,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,9 +199,9 @@ func TestConfigGetURL(t *testing.T) {
 		{
 			name: "event props",
 			rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey +
-				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1",
+				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1&title=Disk+full",
 			want: "pagerduty://events.pagerduty.com/" + testIntegrationKey +
-				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1",
+				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1&title=Disk+full",
 		},
 		{
 			name:   "default host and port",
@@ -251,7 +263,7 @@ func TestConfigQueryResolver(t *testing.T) {
 
 		assert.Empty(t, config.Enums())
 		assert.Equal(t,
-			[]string{"action", "client", "client_url", "contexts", "dedup_key", "details", "severity", "source"},
+			[]string{"action", "client", "client_url", "contexts", "dedup_key", "details", "severity", "source", "title"},
 			format.GetConfigQueryResolver(config).QueryFields())
 	})
 }

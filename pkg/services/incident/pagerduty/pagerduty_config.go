@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -25,9 +26,13 @@ type Config struct {
 	Source string `default:"default" desc:"The unique location of the affected system, preferably a hostname or FQDN; required" key:"source"`
 	// Action is the event type: trigger, acknowledge, or resolve.
 	Action string `default:"trigger" desc:"The type of event (trigger, acknowledge, or resolve)" key:"action"`
-	// DedupKey identifies the alert, so later events with the same key update
-	// or resolve it.
-	DedupKey string `desc:"A unique key used for incident deduplication" key:"dedup_key"`
+	// DedupKey identifies the alert, so later events with the same key update,
+	// acknowledge, or resolve it. Acknowledge and resolve events need it, and
+	// it holds at most 255 characters.
+	DedupKey string `desc:"Identifies the alert, at most 255 characters. Acknowledge and resolve events need it" key:"dedup_key"`
+	// Title becomes the summary of a trigger event, and the message then goes
+	// to the custom details.
+	Title string `default:"" desc:"Notification title, sent as the event summary" key:"title"`
 	// Details is a JSON object of custom details about the event.
 	Details string `desc:"Additional details about the incident (JSON string that will be parsed into an object)" key:"details"`
 	// Contexts lists links and images for the event, as a JSON array or as
@@ -173,8 +178,8 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 	return c.prepare()
 }
 
-// validate checks the host, the integration key, the severity, and the event
-// action of every event.
+// validate checks the host, the integration key, the severity, the event
+// action, the dedup key, the details, and the contexts of every event.
 //
 // Reading a service URL and each send run it, so a config built in code or
 // changed by a param fails before a request.
@@ -182,8 +187,11 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidHost] for a host that holds a
 //     port or brackets. An error for a missing integration key or one that is
-//     not 32 hexadecimal characters. Otherwise an error for a severity or event
-//     action that PagerDuty does not accept, or nil.
+//     not 32 hexadecimal characters. An error for a severity or event action
+//     that PagerDuty does not accept. An error for an acknowledge or resolve
+//     event without a dedup key, or a dedup key over 255 characters. An
+//     error for details that are not a JSON object or contexts that do not
+//     parse. Otherwise nil.
 func (c *Config) validate() error {
 	if err := util.ValidateHostName(c.Host); err != nil {
 		return fmt.Errorf("host: %w", err)
@@ -201,5 +209,26 @@ func (c *Config) validate() error {
 		return err
 	}
 
-	return validateEventAction(c.Action)
+	if err := validateEventAction(c.Action); err != nil {
+		return err
+	}
+
+	if c.Action != actionTrigger && c.DedupKey == "" {
+		return errMissingDedupKey
+	}
+
+	// A key of at most 255 bytes holds at most 255 characters.
+	if len(c.DedupKey) > maxDedupKeyLength && utf8.RuneCountInString(c.DedupKey) > maxDedupKeyLength {
+		return errDedupKeyTooLong
+	}
+
+	if _, err := parseDetails(c.Details); err != nil {
+		return err
+	}
+
+	if _, err := parseContexts(c.Contexts); err != nil {
+		return fmt.Errorf("parsing contexts: %w", err)
+	}
+
+	return nil
 }

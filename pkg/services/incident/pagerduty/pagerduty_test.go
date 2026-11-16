@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -227,28 +228,54 @@ func TestSend(t *testing.T) {
 		},
 		{
 			name:    "URL props",
-			rawURL:  testServiceURL + "?severity=critical&source=beszel&action=resolve&dedup_key=srv01/HTTP&client=Beszel&client_url=https://beszel.example.com",
+			rawURL:  testServiceURL + "?severity=critical&source=beszel&dedup_key=srv01/HTTP&client=Beszel&client_url=https://beszel.example.com",
 			message: "An example alert message",
 			wantURL: testEndpoint,
 			wantBody: `{"payload":{"summary":"An example alert message","severity":"critical","source":"beszel"},` +
-				`"routing_key":"` + testIntegrationKey + `","event_action":"resolve","dedup_key":"srv01/HTTP",` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger","dedup_key":"srv01/HTTP",` +
 				`"client":"Beszel","client_url":"https://beszel.example.com"}`,
+		},
+		{
+			name: "resolve names only the alert",
+			rawURL: testServiceURL + "?action=resolve&dedup_key=srv01/HTTP&title=Recovered&client=Beszel" +
+				"&client_url=https://beszel.example.com&details=%7B%22host%22%3A%22srv01%22%7D&contexts=link:https://example.com",
+			message:  "",
+			wantURL:  testEndpoint,
+			wantBody: `{"routing_key":"` + testIntegrationKey + `","event_action":"resolve","dedup_key":"srv01/HTTP"}`,
 		},
 		{
 			name:    "params",
 			rawURL:  testServiceURL + "?severity=critical",
 			message: "Disk recovered",
-			params:  &types.Params{"severity": "info", "source": "db1", "action": "acknowledge", "dedup_key": "disk-db1"},
+			params:  &types.Params{"severity": "info", "source": "db1"},
 			wantURL: testEndpoint,
 			wantBody: `{"payload":{"summary":"Disk recovered","severity":"info","source":"db1"},` +
-				`"routing_key":"` + testIntegrationKey + `","event_action":"acknowledge","dedup_key":"disk-db1"}`,
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "dedup key of 255 characters",
+			rawURL:  testServiceURL,
+			message: "Disk full",
+			params:  &types.Params{"dedup_key": strings.Repeat("é", 255)},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk full","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger","dedup_key":"` + strings.Repeat("é", 255) + `"}`,
+		},
+		{
+			name:    "summary of 1024 characters",
+			rawURL:  testServiceURL,
+			message: strings.Repeat("é", 1024),
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
 		},
 		{
 			name:    "summary cut to 1024 characters",
 			rawURL:  testServiceURL,
 			message: strings.Repeat("a", 1100),
 			wantURL: testEndpoint,
-			wantBody: `{"payload":{"summary":"` + strings.Repeat("a", 1024) + `","severity":"error","source":"default"},` +
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("a", 1024) + `","severity":"error","source":"default",` +
+				`"custom_details":{"message":"` + strings.Repeat("a", 1100) + `"}},` +
 				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
 		},
 		{
@@ -256,7 +283,56 @@ func TestSend(t *testing.T) {
 			rawURL:  testServiceURL,
 			message: strings.Repeat("é", 1100),
 			wantURL: testEndpoint,
-			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default"},` +
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default",` +
+				`"custom_details":{"message":"` + strings.Repeat("é", 1100) + `"}},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "title as summary",
+			rawURL:  testServiceURL + "?title=Disk%20full",
+			message: "db1 is at 95%",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk full","severity":"error","source":"default",` +
+				`"custom_details":{"message":"db1 is at 95%"}},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "title param beside details",
+			rawURL:  testServiceURL,
+			message: "db1 is at 95%",
+			params:  &types.Params{"title": "Disk full", "details": `{"host":"db1"}`},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk full","severity":"error","source":"default",` +
+				`"custom_details":{"host":"db1","message":"db1 is at 95%"}},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "message in details kept",
+			rawURL:  testServiceURL,
+			message: "db1 is at 95%",
+			params:  &types.Params{"title": "Disk full", "details": `{"message":"see the runbook"}`},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk full","severity":"error","source":"default",` +
+				`"custom_details":{"message":"see the runbook"}},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "title without a message",
+			rawURL:  testServiceURL,
+			message: "",
+			params:  &types.Params{"title": "Disk full"},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk full","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "title cut to 1024 characters",
+			rawURL:  testServiceURL,
+			message: "db1 is at 95%",
+			params:  &types.Params{"title": strings.Repeat("é", 1100)},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default",` +
+				`"custom_details":{"message":"db1 is at 95%"}},` +
 				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
 		},
 		{
@@ -283,7 +359,7 @@ func TestSend(t *testing.T) {
 		},
 		{
 			name:    "comma-separated contexts",
-			rawURL:  testServiceURL + "?contexts=link:https://example.com/logs,text:Ignored,image:https://example.com/graph.png",
+			rawURL:  testServiceURL + "?contexts=link:https://example.com/logs,image:https://example.com/graph.png",
 			message: "High CPU usage",
 			wantURL: testEndpoint,
 			wantBody: `{"payload":{"summary":"High CPU usage","severity":"error","source":"default"},` +
@@ -348,7 +424,7 @@ func TestNewEventPayloadOptionalFields(t *testing.T) {
 
 	config := *newTestService(t, testServiceURL).Config
 	config.Details = `{"key":"value","count":2}`
-	config.Contexts = "link:https://example.com,text:Ignored,image:https://example.com/img.png"
+	config.Contexts = "link:https://example.com,image:https://example.com/img.png"
 
 	payload, err := newEventPayload("message", &config)
 
@@ -358,6 +434,25 @@ func TestNewEventPayloadOptionalFields(t *testing.T) {
 	assert.Equal(t, []Image{{Src: "https://example.com/img.png"}}, payload.Images)
 	assert.Nil(t, payload.Details)
 	assert.Nil(t, payload.Contexts)
+}
+
+// TestNewEventPayloadInvalidProps verifies that the event builder rejects
+// details and contexts that the config's checks would reject, for a config
+// that skipped them.
+func TestNewEventPayloadInvalidProps(t *testing.T) {
+	t.Parallel()
+
+	config := *newTestService(t, testServiceURL).Config
+	config.Details = "[1]"
+
+	_, err := newEventPayload("message", &config)
+	require.ErrorIs(t, err, errInvalidDetails)
+
+	config.Details = ""
+	config.Contexts = "text:Disk full"
+
+	_, err = newEventPayload("message", &config)
+	require.ErrorIs(t, err, errInvalidContextType)
 }
 
 // TestNewEventPayloadDetailsRepeatedKey verifies that a details prop that
@@ -396,6 +491,8 @@ func TestSendRejectsInvalidEvents(t *testing.T) {
 		{name: "details number", params: &types.Params{"details": "42"}, wantErr: errInvalidDetails},
 		{name: "details null", params: &types.Params{"details": "null"}, wantErr: errInvalidDetails},
 		{name: "invalid contexts", params: &types.Params{"contexts": "link"}, wantErr: errInvalidContextFormat},
+		{name: "resolve without a dedup key", params: &types.Params{"action": "resolve"}, wantErr: errMissingDedupKey},
+		{name: "dedup key over 255 characters", params: &types.Params{"dedup_key": strings.Repeat("é", 256)}, wantErr: errDedupKeyTooLong},
 	}
 
 	for _, tt := range tests {
@@ -415,6 +512,60 @@ func TestSendRejectsInvalidEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSendRejectsEventWithoutSummary verifies that a trigger event without a
+// title or message fails before any request.
+func TestSendRejectsEventWithoutSummary(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send("", nil), errMissingSummary)
+}
+
+// TestSendEventSizeLimit verifies that an encoded event of 512 KB (524,288
+// bytes) is sent and one byte more fails before any request.
+func TestSendEventSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	// With a title, the message is sent in the custom details, where each
+	// letter a takes one byte. The size of an event with a one-letter message
+	// gives the size of the rest of the event.
+	params := &types.Params{"title": "Disk full"}
+	config := *newTestService(t, testServiceURL).Config
+	config.Title = "Disk full"
+
+	payload, err := newEventPayload("a", &config)
+	require.NoError(t, err)
+
+	body, err := json.Marshal(payload, jsonopts.Default)
+	require.NoError(t, err)
+
+	atLimit := strings.Repeat("a", maxEventSize-len(body)+1)
+
+	t.Run("at the limit", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send(atLimit, params))
+		assert.Len(t, captured.body, maxEventSize)
+	})
+
+	t.Run("over the limit", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.Send(atLimit+"a", params), errEventTooLarge)
+	})
 }
 
 // TestSendErrorResponses verifies that a send fails with
@@ -603,7 +754,7 @@ func TestSetHTTPClient(t *testing.T) {
 
 // TestParseContexts verifies that parseContexts reads a JSON array of link
 // and image contexts, with member names in any case, or the comma-separated
-// type:value format, where text contexts and empty entries are skipped.
+// type:value format, where empty entries are skipped.
 func TestParseContexts(t *testing.T) {
 	t.Parallel()
 
@@ -616,7 +767,6 @@ func TestParseContexts(t *testing.T) {
 		{name: "empty", input: "", want: nil},
 		{name: "link", input: "link:http://example.com", want: []PagerDutyContext{{Type: "link", Href: "http://example.com"}}},
 		{name: "image", input: "image:http://example.com/img.png", want: []PagerDutyContext{{Type: "image", Src: "http://example.com/img.png"}}},
-		{name: "text only", input: "text:Some text", want: []PagerDutyContext{}},
 		{
 			name:  "several with spaces and empty entries",
 			input: " link:http://example.com , ,image: http://example.com/img.png,",
@@ -669,7 +819,7 @@ func TestParseContextsErrors(t *testing.T) {
 		{name: "missing colon", input: "link", wantErr: errInvalidContextFormat},
 		{name: "empty type", input: ":http://example.com", wantErr: errEmptyContextTypeOrValue},
 		{name: "empty value", input: "link: ", wantErr: errEmptyContextTypeOrValue},
-		{name: "unsupported type", input: "video:http://example.com", wantErr: errInvalidContextFormat},
+		{name: "text", input: "link:http://example.com,text:Some text", wantErr: errInvalidContextType},
 		{name: "JSON with an unsupported type", input: `[{"type":"text","text":"x"}]`, wantErr: errInvalidContextType},
 		{name: "JSON link without href", input: `[{"type":"link"}]`, wantErr: errMissingHrefForLinkContext},
 		{name: "JSON image without src", input: `[{"type":"image"}]`, wantErr: errMissingSrcForImageContext},
