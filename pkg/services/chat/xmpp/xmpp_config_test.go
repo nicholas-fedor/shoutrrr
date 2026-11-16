@@ -323,6 +323,7 @@ func TestConfigUsesSRV(t *testing.T) {
 		{name: "localpart", config: Config{Host: "example.com", User: "alice"}, want: true},
 		{name: "full JID on its domain", config: Config{Host: "Example.com", User: "alice@example.COM"}, want: true},
 		{name: "full JID on its rooted domain", config: Config{Host: "example.com.", User: "alice@example.com"}, want: true},
+		{name: "host ending in an ideographic full stop", config: Config{Host: "example.com。", User: "alice@example.com"}, want: true},
 		{name: "Unicode host with an A-label JID", config: Config{Host: "bücher.example", User: "alice@xn--bcher-kva.example"}, want: true},
 		{name: "A-label host with a Unicode JID", config: Config{Host: "xn--bcher-kva.example", User: "alice@bücher.example"}, want: true},
 		{name: "port", config: Config{Host: "example.com", User: "alice", Port: DefaultPort}},
@@ -341,4 +342,33 @@ func TestConfigUsesSRV(t *testing.T) {
 
 	assert.Equal(t, "xmpp-client", (&Config{scheme: Scheme}).srvService())
 	assert.Equal(t, "xmpps-client", (&Config{scheme: SchemeTLS}).srvService())
+}
+
+// TestASCIIDomain verifies that a domain name becomes the lowercase ASCII
+// form DNS and certificates use, without a trailing separator, whether it is
+// a dot or the ideographic full stop U+3002. A bracketed IPv6 address, which
+// IDNA rejects, stays as written.
+func TestASCIIDomain(t *testing.T) {
+	t.Parallel()
+
+	// tests lists domain names with the ASCII form each should take.
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "example.com", want: "example.com"},
+		{name: "Example.COM.", want: "example.com"},
+		{name: "example.com。", want: "example.com"},
+		{name: "bücher.example", want: "xn--bcher-kva.example"},
+		{name: "bücher.example。", want: "xn--bcher-kva.example"},
+		{name: "[2001:db8::1]", want: "[2001:db8::1]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, asciiDomain(tt.name))
+		})
+	}
 }

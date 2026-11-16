@@ -356,9 +356,10 @@ func (c *Config) validate() error {
 }
 
 // asciiDomain returns a domain name in the ASCII form that DNS and
-// certificates use, lowercase and without a trailing dot. A name that IDNA
-// rejects, such as an IP address in brackets, is returned without its
-// trailing dot but otherwise as written.
+// certificates use, lowercase and without a trailing dot. IDNA maps other
+// label separators, such as the ideographic full stop U+3002, to a dot, so
+// a trailing one goes too. A name that IDNA rejects, such as an IP address in
+// brackets, is returned without its trailing dot but otherwise as written.
 //
 // Parameters:
 //   - name: the domain name, in Unicode or ASCII form.
@@ -369,7 +370,7 @@ func asciiDomain(name string) string {
 	name = strings.TrimSuffix(name, ".")
 
 	if ascii, err := idna.Lookup.ToASCII(name); err == nil {
-		return ascii
+		return strings.TrimSuffix(ascii, ".")
 	}
 
 	return name
