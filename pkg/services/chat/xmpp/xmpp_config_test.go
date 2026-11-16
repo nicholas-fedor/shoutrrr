@@ -43,20 +43,20 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "localpart user and chat recipient",
 			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
-			want:   Config{Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
+			want:   Config{Host: "xmpp.example.com", User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
 		},
 		{
 			name:   "full auth JID distinct from the dial host",
 			rawURL: "xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com",
 			want: Config{
-				Host: "xmpp.example.com", Port: DefaultPort, User: "alice@jabber.example.com", Password: "secret",
+				Host: "xmpp.example.com", User: "alice@jabber.example.com", Password: "secret",
 				To: []string{"bob@jabber.example.com"}, scheme: Scheme,
 			},
 		},
 		{
-			name:   "xmpps default port",
+			name:   "xmpps without a port",
 			rawURL: "xmpps://alice:secret@xmpp.example.com/?to=bob@example.com",
-			want:   Config{Host: "xmpp.example.com", Port: DefaultTLSPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: SchemeTLS},
+			want:   Config{Host: "xmpp.example.com", User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: SchemeTLS},
 		},
 		{
 			name: "rooms, nick, room password, and custom port",
@@ -73,14 +73,14 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "disabletls on xmpp, skiptlsverify, and title",
 			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes&skiptlsverify=yes&title=Alert",
 			want: Config{
-				Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret",
+				Host: "xmpp.example.com", User: "alice", Password: "secret",
 				To: []string{"bob@example.com"}, Title: "Alert", DisableTLS: true, SkipTLSVerify: true, scheme: Scheme,
 			},
 		},
 		{
 			name:   "empty targets dropped",
 			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=,bob@example.com,&rooms=",
-			want:   Config{Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
+			want:   Config{Host: "xmpp.example.com", User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
 		},
 	}
 
@@ -161,14 +161,16 @@ func TestConfigSetURLErrors(t *testing.T) {
 		require.NoError(t, config.SetURL(parseTestURL(t, "xmpp://carol:other@xmpp.example.com/?to=dave@example.com")))
 
 		assert.Equal(t, Config{
-			Host: "xmpp.example.com", Port: DefaultPort, User: "carol", Password: "other",
+			Host: "xmpp.example.com", User: "carol", Password: "other",
 			To: []string{"dave@example.com"}, scheme: Scheme,
 		}, *config)
 	})
 }
 
 // TestConfigGetURL verifies that GetURL round-trips through SetURL, keeps the
-// xmpps scheme, defaults the scheme and port, and leaves out empty user info.
+// xmpps scheme, defaults the scheme, and leaves out an unset port and empty
+// user info. An unset port must stay unset, since a send then looks the
+// server up through SRV records.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -193,20 +195,14 @@ func TestConfigGetURL(t *testing.T) {
 		})
 	}
 
-	t.Run("default scheme and port", func(t *testing.T) {
+	t.Run("default scheme without a port", func(t *testing.T) {
 		t.Parallel()
 
 		serviceURL := (&Config{Host: "xmpp.example.com", User: "alice", Password: "secret"}).GetURL()
 
 		assert.Equal(t, Scheme, serviceURL.Scheme)
-		assert.Equal(t, "5222", serviceURL.Port())
+		assert.Empty(t, serviceURL.Port())
 		assert.Equal(t, "alice", serviceURL.User.Username())
-	})
-
-	t.Run("default xmpps port", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, "5223", (&Config{Host: "xmpp.example.com", scheme: SchemeTLS}).GetURL().Port())
 	})
 
 	t.Run("no user", func(t *testing.T) {
@@ -308,4 +304,71 @@ func TestConfigPrepareDropsEmptyEntries(t *testing.T) {
 	assert.Nil(t, config.Rooms)
 	assert.Equal(t, []string{"", "bob@example.com", ""}, to)
 	assert.Equal(t, []string{"", ""}, rooms)
+}
+
+// TestConfigUsesSRV verifies when a send looks its server up through SRV
+// records. Only a config without a port whose host is the auth JID's domain,
+// in any case, does. A port, an IP address, or a full JID on another host
+// names the server directly. An internationalized domain matches its A-label.
+// Each URL scheme reads its own SRV service.
+func TestConfigUsesSRV(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs with whether they look the server up.
+	tests := []struct {
+		name   string
+		config Config
+		want   bool
+	}{
+		{name: "localpart", config: Config{Host: "example.com", User: "alice"}, want: true},
+		{name: "full JID on its domain", config: Config{Host: "Example.com", User: "alice@example.COM"}, want: true},
+		{name: "full JID on its rooted domain", config: Config{Host: "example.com.", User: "alice@example.com"}, want: true},
+		{name: "host ending in an ideographic full stop", config: Config{Host: "example.com。", User: "alice@example.com"}, want: true},
+		{name: "Unicode host with an A-label JID", config: Config{Host: "bücher.example", User: "alice@xn--bcher-kva.example"}, want: true},
+		{name: "A-label host with a Unicode JID", config: Config{Host: "xn--bcher-kva.example", User: "alice@bücher.example"}, want: true},
+		{name: "port", config: Config{Host: "example.com", User: "alice", Port: DefaultPort}},
+		{name: "full JID on another host", config: Config{Host: "xmpp.example.com", User: "alice@example.com"}},
+		{name: "IPv4 address", config: Config{Host: "192.0.2.10", User: "alice"}},
+		{name: "IPv6 address", config: Config{Host: "2001:db8::1", User: "alice"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.config.usesSRV())
+		})
+	}
+
+	assert.Equal(t, "xmpp-client", (&Config{scheme: Scheme}).srvService())
+	assert.Equal(t, "xmpps-client", (&Config{scheme: SchemeTLS}).srvService())
+}
+
+// TestASCIIDomain verifies that a domain name becomes the lowercase ASCII
+// form DNS and certificates use, without a trailing separator, whether it is
+// a dot or the ideographic full stop U+3002. A bracketed IPv6 address, which
+// IDNA rejects, stays as written.
+func TestASCIIDomain(t *testing.T) {
+	t.Parallel()
+
+	// tests lists domain names with the ASCII form each should take.
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "example.com", want: "example.com"},
+		{name: "Example.COM.", want: "example.com"},
+		{name: "example.com。", want: "example.com"},
+		{name: "bücher.example", want: "xn--bcher-kva.example"},
+		{name: "bücher.example。", want: "xn--bcher-kva.example"},
+		{name: "[2001:db8::1]", want: "[2001:db8::1]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, asciiDomain(tt.name))
+		})
+	}
 }

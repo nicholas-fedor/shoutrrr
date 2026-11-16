@@ -3301,8 +3301,10 @@ func runSendBudget(t *testing.T, fx *fixture) failure {
 
 			return answer(req)
 		})
-		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
-			record(ctx)
+		dial := func(ctx context.Context, _, address string) (net.Conn, error) {
+			if !isDNSQuery(address) {
+				record(ctx)
+			}
 
 			return nil, errDial
 		}
@@ -3402,8 +3404,10 @@ func runSendKeepsDeadline(t *testing.T, fx *fixture) failure {
 
 			return answer(req)
 		})
-		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
-			record(ctx)
+		dial := func(ctx context.Context, _, address string) (net.Conn, error) {
+			if !isDNSQuery(address) {
+				record(ctx)
+			}
 
 			return nil, errDial
 		}
@@ -4061,6 +4065,22 @@ func (e *env) dial(ctx context.Context, _, address string) (net.Conn, error) {
 	}
 
 	return nil, errDial
+}
+
+// isDNSQuery reports whether a dial is a DNS query, such as an XMPP SRV
+// lookup sends through the injected dialer. The resolver gives each query its
+// own timeout of 5 seconds by default. That timeout falls within the send's
+// deadline, so the deadline checks judge only the other dials.
+//
+// Parameters:
+//   - address: the dialed address.
+//
+// Returns:
+//   - bool: true for a dial to port 53.
+func isDNSQuery(address string) bool {
+	_, port, err := net.SplitHostPort(address)
+
+	return err == nil && port == "53"
 }
 
 // holdIfMarked waits until ctx ends when holdMarked is set and ctx carries

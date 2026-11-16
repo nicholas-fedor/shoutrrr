@@ -2,6 +2,8 @@ package xmpp_test
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/dns/dnsmessage"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/xmpp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -60,17 +63,38 @@ type connection struct {
 	hasDeadline bool
 }
 
-// fakeServer stands in for an XMPP server. Its dial function connects to a
-// [net.Pipe] whose server end discards what it receives, and its session
-// factory returns a recordingSession over that connection. It records each
-// connection a send opens.
+// dialAttempt records one dial other than a DNS query.
+type dialAttempt struct {
+	// deadline is the dial context's deadline, or the zero time for a context
+	// without one.
+	deadline time.Time
+	// addr is the dialed address.
+	addr string
+}
+
+// fakeServer stands in for an XMPP server and its DNS server. Its dial
+// function connects to a [net.Pipe]. A dial to port 53 reaches a DNS server
+// that answers the SRV records in srv and NXDOMAIN for any other name. Any
+// other dial reaches a server end that discards what it receives, unless its
+// address is in refuse. The session factory returns a recordingSession over
+// the connection. It records each address a send dials, the DNS queries, and
+// each connection a send opens.
 type fakeServer struct {
 	// dials maps each dialed connection to its network and address.
 	dials map[net.Conn][2]string
-	// mu guards dials and connections.
-	mu sync.Mutex
+	// srv holds the SRV records the DNS server answers, by query name, such
+	// as "_xmpp-client._tcp.example.com.".
+	srv map[string][]dnsmessage.SRVResource
+	// refuse holds the addresses whose dial fails.
+	refuse map[string]bool
+	// queries holds the name of each DNS query, in order.
+	queries []string
+	// attempts holds each dial other than a DNS query, in order.
+	attempts []dialAttempt
 	// connections holds each negotiated connection, in order.
 	connections []connection
+	// mu guards every other field.
+	mu sync.Mutex
 }
 
 // Service URLs and limits shared by the tests.
@@ -83,7 +107,17 @@ const (
 	// testTimeout bounds every send, so a send that blocks fails the test
 	// instead of hanging it.
 	testTimeout = 10 * time.Second
+	// dnsPort is the port of every DNS query the resolver dials.
+	dnsPort = "53"
+	// domainURL is a service URL whose host is the auth JID's domain, with no
+	// port, so a send looks the server up through SRV records.
+	domainURL = "xmpp://alice:secret@example.com/?to=bob@example.com"
+	// clientSRV is the name of the STARTTLS SRV records of example.com.
+	clientSRV = "_xmpp-client._tcp.example.com."
 )
+
+// errRefused is the error a dial to a refused address returns.
+var errRefused = errors.New("connection refused")
 
 // Close records that the session was closed and closes its connection.
 //
@@ -127,23 +161,45 @@ func (s *recordingSession) SendToRoom(_ context.Context, room, nick, password, b
 	return nil
 }
 
-// Dial records the dial and connects to a [net.Pipe] whose server end
-// discards everything it receives until the client end closes.
+// Dial records the dial and connects to a [net.Pipe]. A dial to port 53
+// reaches the DNS server, a refused address fails, and any other dial reaches
+// a server end that discards everything it receives until the client end
+// closes.
 //
 // Parameters:
-//   - ctx: unused.
+//   - ctx: the dial's context, whose deadline is recorded.
 //   - network: the network to dial.
 //   - addr: the address to dial.
 //
 // Returns:
 //   - net.Conn: the client end of the pipe.
 //   - error: nil.
-func (f *fakeServer) Dial(_ context.Context, network, addr string) (net.Conn, error) {
+func (f *fakeServer) Dial(ctx context.Context, network, addr string) (net.Conn, error) {
 	client, server := net.Pipe()
 
+	if _, port, _ := net.SplitHostPort(addr); port == dnsPort {
+		go f.serveDNS(server)
+
+		return client, nil
+	}
+
+	deadline, _ := ctx.Deadline()
+
 	f.mu.Lock()
-	f.dials[client] = [2]string{network, addr}
+	f.attempts = append(f.attempts, dialAttempt{deadline: deadline, addr: addr})
+	refused := f.refuse[addr]
+
+	if !refused {
+		f.dials[client] = [2]string{network, addr}
+	}
 	f.mu.Unlock()
+
+	if refused {
+		_ = client.Close()
+		_ = server.Close()
+
+		return nil, errRefused
+	}
 
 	go func() {
 		_, _ = io.Copy(io.Discard, server)
@@ -182,6 +238,86 @@ func (f *fakeServer) NewSession(ctx context.Context, cfg *xmpp.Config, conn net.
 	return session, nil
 }
 
+// addresses returns the addresses of the dials so far, other than DNS
+// queries, and whether any DNS query was made.
+//
+// Returns:
+//   - []string: the dialed addresses, in order.
+//   - bool: true when the resolver queried the DNS server.
+func (f *fakeServer) addresses() ([]string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	addrs := make([]string, 0, len(f.attempts))
+	for _, attempt := range f.attempts {
+		addrs = append(addrs, attempt.addr)
+	}
+
+	return addrs, len(f.queries) > 0
+}
+
+// answerDNS builds the answer to one DNS query: the SRV records of the queried
+// name, or NXDOMAIN when there are none.
+//
+// Parameters:
+//   - query: the query message.
+//
+// Returns:
+//   - []byte: the answer message.
+//   - error: the error from parsing the query or building the answer.
+func (f *fakeServer) answerDNS(query []byte) ([]byte, error) {
+	var parser dnsmessage.Parser
+
+	header, err := parser.Start(query)
+	if err != nil {
+		return nil, err
+	}
+
+	question, err := parser.Question()
+	if err != nil {
+		return nil, err
+	}
+
+	f.mu.Lock()
+	f.queries = append(f.queries, question.Name.String())
+	records := f.srv[question.Name.String()]
+	f.mu.Unlock()
+
+	rcode := dnsmessage.RCodeSuccess
+	if len(records) == 0 {
+		rcode = dnsmessage.RCodeNameError
+	}
+
+	builder := dnsmessage.NewBuilder(nil, dnsmessage.Header{
+		ID:            header.ID,
+		Response:      true,
+		Authoritative: true,
+		RCode:         rcode,
+	})
+	builder.EnableCompression()
+
+	if err := builder.StartQuestions(); err != nil {
+		return nil, err
+	}
+
+	if err := builder.Question(question); err != nil {
+		return nil, err
+	}
+
+	if err := builder.StartAnswers(); err != nil {
+		return nil, err
+	}
+
+	for i := range records {
+		resource := dnsmessage.ResourceHeader{Name: question.Name, Type: dnsmessage.TypeSRV, Class: dnsmessage.ClassINET, TTL: 60}
+		if err := builder.SRVResource(resource, records[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	return builder.Finish()
+}
+
 // opened returns the connections opened so far.
 //
 // Returns:
@@ -191,6 +327,41 @@ func (f *fakeServer) opened() []connection {
 	defer f.mu.Unlock()
 
 	return append([]connection(nil), f.connections...)
+}
+
+// serveDNS answers the DNS queries on conn until the resolver closes it. The
+// resolver frames each message with a two-byte length, as over TCP, because
+// conn is not a [net.PacketConn].
+//
+// Parameters:
+//   - conn: the server end of the connection.
+func (f *fakeServer) serveDNS(conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+
+	for {
+		var size uint16
+		if err := binary.Read(conn, binary.BigEndian, &size); err != nil {
+			return
+		}
+
+		query := make([]byte, size)
+		if _, err := io.ReadFull(conn, query); err != nil {
+			return
+		}
+
+		answer, err := f.answerDNS(query)
+		if err != nil {
+			return
+		}
+
+		if err := binary.Write(conn, binary.BigEndian, uint16(len(answer))); err != nil {
+			return
+		}
+
+		if _, err := conn.Write(answer); err != nil {
+			return
+		}
+	}
 }
 
 // newTestService returns a service initialized from rawURL that logs to the
@@ -209,7 +380,7 @@ func newTestService(t *testing.T, rawURL string) (*xmpp.Service, *fakeServer) {
 	serviceURL, err := url.Parse(rawURL)
 	require.NoError(t, err)
 
-	server := &fakeServer{dials: map[net.Conn][2]string{}}
+	server := &fakeServer{dials: map[net.Conn][2]string{}, srv: map[string][]dnsmessage.SRVResource{}, refuse: map[string]bool{}}
 	service := &xmpp.Service{}
 	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 	service.SetDialContext(server.Dial)
@@ -329,6 +500,194 @@ func TestIntegrationSendConnection(t *testing.T) {
 			assert.True(t, conn.session.closed)
 		})
 	}
+}
+
+// srvRecord returns an SRV record for target at port and priority.
+//
+// Parameters:
+//   - target: the target host, rooted with a trailing dot, or "." for none.
+//   - port: the target port.
+//   - priority: the record's priority. Lower comes first.
+//
+// Returns:
+//   - dnsmessage.SRVResource: the record.
+func srvRecord(target string, port, priority uint16) dnsmessage.SRVResource {
+	return dnsmessage.SRVResource{Priority: priority, Weight: 1, Port: port, Target: dnsmessage.MustNewName(target)}
+}
+
+// TestIntegrationSendSRV verifies how a send finds its server. Without a
+// port, a host that is the auth JID's domain is looked up through the SRV
+// records of the URL's scheme, and the targets are dialed in order until one
+// connects, each at its rooted name. Without records, the host is dialed at
+// the scheme's default port. A configured port skips the lookup. The DNS
+// queries go through the injected dial function.
+func TestIntegrationSendSRV(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and SRV records with the addresses the send
+	// should dial and whether it should look anything up.
+	tests := []struct {
+		srv          map[string][]dnsmessage.SRVResource
+		name         string
+		rawURL       string
+		wantAttempts []string
+		wantLookup   bool
+	}{
+		{
+			name:         "STARTTLS record",
+			rawURL:       domainURL,
+			srv:          map[string][]dnsmessage.SRVResource{clientSRV: {srvRecord("xmpp.example.net.", 5300, 10)}},
+			wantAttempts: []string{"xmpp.example.net.:5300"},
+			wantLookup:   true,
+		},
+		{
+			name:         "direct TLS record",
+			rawURL:       "xmpps://alice:secret@example.com/?to=bob@example.com",
+			srv:          map[string][]dnsmessage.SRVResource{"_xmpps-client._tcp.example.com.": {srvRecord("xmpp.example.net.", 443, 10)}},
+			wantAttempts: []string{"xmpp.example.net.:443"},
+			wantLookup:   true,
+		},
+		{
+			name:         "direct TLS without its own record",
+			rawURL:       "xmpps://alice:secret@example.com/?to=bob@example.com",
+			srv:          map[string][]dnsmessage.SRVResource{clientSRV: {srvRecord("xmpp.example.net.", 5222, 10)}},
+			wantAttempts: []string{"example.com:5223"},
+			wantLookup:   true,
+		},
+		{
+			name:         "root target beside another",
+			rawURL:       domainURL,
+			srv:          map[string][]dnsmessage.SRVResource{clientSRV: {srvRecord(".", 0, 10), srvRecord("xmpp.example.net.", 5222, 20)}},
+			wantAttempts: []string{"xmpp.example.net.:5222"},
+			wantLookup:   true,
+		},
+		{
+			name:   "first target that connects",
+			rawURL: domainURL,
+			srv: map[string][]dnsmessage.SRVResource{clientSRV: {
+				srvRecord("backup.example.net.", 5222, 20),
+				srvRecord("primary.example.net.", 5222, 10),
+			}},
+			wantAttempts: []string{"primary.example.net.:5222"},
+			wantLookup:   true,
+		},
+		{
+			name:         "internationalized domain",
+			rawURL:       "xmpp://alice:secret@bücher.example/?to=bob@example.com",
+			srv:          map[string][]dnsmessage.SRVResource{"_xmpp-client._tcp.xn--bcher-kva.example.": {srvRecord("xmpp.example.net.", 5222, 10)}},
+			wantAttempts: []string{"xmpp.example.net.:5222"},
+			wantLookup:   true,
+		},
+		{
+			name:         "no records",
+			rawURL:       domainURL,
+			wantAttempts: []string{"example.com:5222"},
+			wantLookup:   true,
+		},
+		{
+			name:         "configured port",
+			rawURL:       "xmpp://alice:secret@example.com:5222/?to=bob@example.com",
+			srv:          map[string][]dnsmessage.SRVResource{clientSRV: {srvRecord("xmpp.example.net.", 5300, 10)}},
+			wantAttempts: []string{"example.com:5222"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service, server := newTestService(t, tt.rawURL)
+			server.srv = tt.srv
+
+			require.NoError(t, service.SendContext(sendContext(t), "hello", nil))
+
+			attempts, lookedUp := server.addresses()
+			assert.Equal(t, tt.wantAttempts, attempts)
+			assert.Equal(t, tt.wantLookup, lookedUp)
+
+			connections := server.opened()
+			require.Len(t, connections, 1)
+			assert.Equal(t, tt.wantAttempts[len(tt.wantAttempts)-1], connections[0].addr)
+		})
+	}
+}
+
+// TestIntegrationSendSRVNextTarget verifies that a refused target gives way to
+// the next. Every target but the last gets at most 10 seconds of a caller's
+// longer deadline, and the last gets the deadline as it is.
+func TestIntegrationSendSRVNextTarget(t *testing.T) {
+	t.Parallel()
+
+	service, server := newTestService(t, domainURL)
+	server.srv = map[string][]dnsmessage.SRVResource{clientSRV: {
+		srvRecord("primary.example.net.", 5222, 10),
+		srvRecord("backup.example.net.", 5222, 20),
+	}}
+	server.refuse["primary.example.net.:5222"] = true
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+	defer cancel()
+
+	want, _ := ctx.Deadline()
+
+	require.NoError(t, service.SendContext(ctx, "hello", nil))
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	require.Len(t, server.attempts, 2)
+	assert.Equal(t, "primary.example.net.:5222", server.attempts[0].addr)
+	assert.WithinDuration(t, time.Now().Add(10*time.Second), server.attempts[0].deadline, 5*time.Second)
+	assert.Equal(t, dialAttempt{deadline: want, addr: "backup.example.net.:5222"}, server.attempts[1])
+}
+
+// TestIntegrationSendSRVErrors verifies the sends that SRV records fail. When
+// every target is ".", the domain offers no XMPP service, so nothing is
+// dialed. When every target is refused, the error names each, and the host
+// itself is not tried, as RFC 6120 section 3.2.1 asks.
+func TestIntegrationSendSRVErrors(t *testing.T) {
+	t.Parallel()
+
+	// rootTargets lists records whose targets are all ".".
+	rootTargets := map[string][]dnsmessage.SRVResource{
+		"one record":  {srvRecord(".", 0, 10)},
+		"two records": {srvRecord(".", 0, 10), srvRecord(".", 0, 20)},
+	}
+
+	for name, records := range rootTargets {
+		t.Run("no XMPP service with "+name, func(t *testing.T) {
+			t.Parallel()
+
+			service, server := newTestService(t, domainURL)
+			server.srv = map[string][]dnsmessage.SRVResource{clientSRV: records}
+
+			require.ErrorIs(t, service.SendContext(sendContext(t), "hello", nil), xmpp.ErrServiceNotOffered)
+
+			attempts, _ := server.addresses()
+			assert.Empty(t, attempts)
+		})
+	}
+
+	t.Run("every target refused", func(t *testing.T) {
+		t.Parallel()
+
+		service, server := newTestService(t, domainURL)
+		server.srv = map[string][]dnsmessage.SRVResource{clientSRV: {
+			srvRecord("primary.example.net.", 5222, 10),
+			srvRecord("backup.example.net.", 5222, 20),
+		}}
+		server.refuse["primary.example.net.:5222"] = true
+		server.refuse["backup.example.net.:5222"] = true
+
+		err := service.SendContext(sendContext(t), "hello", nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "dialing primary.example.net.:5222")
+		assert.Contains(t, err.Error(), "dialing backup.example.net.:5222")
+
+		attempts, _ := server.addresses()
+		assert.Equal(t, []string{"primary.example.net.:5222", "backup.example.net.:5222"}, attempts)
+	})
 }
 
 // TestIntegrationSendMessageContent verifies that the message reaches chat

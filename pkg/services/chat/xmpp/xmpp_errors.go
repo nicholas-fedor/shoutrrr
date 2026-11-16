@@ -34,6 +34,11 @@ var (
 	// ErrAuthenticationFailed is returned when SASL authentication is rejected.
 	ErrAuthenticationFailed = errors.New("authentication failed")
 
+	// ErrServiceNotOffered is returned when the domain's SRV records say it
+	// offers no XMPP service for the URL's scheme. Every record's target is
+	// then ".".
+	ErrServiceNotOffered = errors.New("the domain offers no XMPP service for this scheme")
+
 	// ErrJoinInProgress is returned when a session already waits for a join to
 	// the same room.
 	ErrJoinInProgress = errors.New("a join to this room is already in progress")

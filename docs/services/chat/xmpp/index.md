@@ -8,12 +8,12 @@ Upstream docs: <https://xmpp.org/>
 
 The XMPP service supports two URL schemes for connection security:
 
-- __`xmpp://`__: STARTTLS on port 5222 by default
+- __`xmpp://`__: STARTTLS, default port 5222
 
 !!! Info ""
     xmpp://__`USER`__:__`PASSWORD`__@__`HOST`__[:__`PORT`__]/?to=__`JID`__[&rooms=__`ROOM_JID`__]
 
-- __`xmpps://`__: implicit TLS on port 5223 by default
+- __`xmpps://`__: implicit TLS, default port 5223
 
 !!! Info ""
     xmpps://__`USER`__:__`PASSWORD`__@__`HOST`__[:__`PORT`__]/?to=__`JID`__[&rooms=__`ROOM_JID`__]
@@ -33,15 +33,37 @@ The URL userinfo is the login identity:
 xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com
 ```
 
-Shoutrrr connects to `HOST` itself and does not look up the domain's SRV records.
 The server's certificate is checked against the domain of the JID, as RFC 6120 requires.
 In the example, that domain is `jabber.example.com`.
 With a full JID, `HOST` can therefore be any name or address of the server.
 
+## Finding the Server
+
+Without a port, Shoutrrr finds the server through the SRV records of the JID's domain, as RFC 6120 prefers.
+This applies when `HOST` is the JID's domain, which it always is for a localpart user.
+
+- `xmpp://` reads the `_xmpp-client._tcp` records, and `xmpps://` reads the `_xmpps-client._tcp` records that XEP-0368 defines.
+- Shoutrrr dials the servers they name in order of priority and weight, until one connects.
+  Each server but the last gets at most 10 seconds.
+- Without records, Shoutrrr dials `HOST` at port 5222 for `xmpp://`, or 5223 for `xmpps://`.
+- Once the domain has records, `HOST` itself is not dialed.
+- A single record whose target is `.` means the domain offers no XMPP service for the scheme, so the send fails.
+
+Shoutrrr dials `HOST` without a lookup in three cases.
+
+- The URL has a port, which Shoutrrr dials.
+- The user is a full JID whose domain is not `HOST`.
+- `HOST` is an IP address.
+
+In the last two cases, Shoutrrr dials the scheme's default port.
+
+A custom dial function set through the Go API also carries the DNS queries.
+One that refuses them makes Shoutrrr dial `HOST` as it would without records.
+
 ## TLS
 
-- Use `xmpp://` for STARTTLS (default port 5222).
-- Use `xmpps://` for implicit TLS (default port 5223). Shoutrrr offers the `xmpp-client` ALPN protocol, as XEP-0368 asks.
+- Use `xmpp://` for STARTTLS.
+- Use `xmpps://` for implicit TLS. Shoutrrr offers the `xmpp-client` ALPN protocol, as XEP-0368 asks.
 - Use `disabletls=yes` only with `xmpp://` for plaintext on a trusted network. Combining it with `xmpps://` is rejected.
 - Use `skiptlsverify=yes` to skip certificate verification (self-signed or internal TLS). TLS 1.2 remains the minimum.
 

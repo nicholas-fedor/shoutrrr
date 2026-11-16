@@ -51,8 +51,11 @@ type recordingSession struct {
 
 // Values shared by the service tests.
 const (
-	// chatURL is a service URL with one chat recipient.
-	chatURL = "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com"
+	// chatURL is a service URL with one chat recipient. Its port means a
+	// send dials the host without an SRV lookup.
+	chatURL = "xmpp://alice:secret@xmpp.example.com:5222/?to=bob@example.com"
+	// dnsPort is the port of every DNS query the resolver dials.
+	dnsPort = "53"
 )
 
 // Errors returned by the failing test doubles.
@@ -63,6 +66,8 @@ var (
 	errRoom = errors.New("room failed")
 	// errNegotiate is the error a failing session factory returns.
 	errNegotiate = errors.New("negotiate failed")
+	// errDNSRefused is the error the test dialers return for a DNS query.
+	errDNSRefused = errors.New("DNS query refused")
 )
 
 // Close records that the session was closed.
@@ -123,7 +128,7 @@ func (s *recordingSession) SendToRoom(
 // Returns:
 //   - types.DialContextFunc: the dial function.
 func pipeDialer() types.DialContextFunc {
-	return func(context.Context, string, string) (net.Conn, error) {
+	return withoutDNS(func(context.Context, string, string) (net.Conn, error) {
 		client, server := net.Pipe()
 
 		go func() {
@@ -132,6 +137,24 @@ func pipeDialer() types.DialContextFunc {
 		}()
 
 		return client, nil
+	})
+}
+
+// withoutDNS returns dial with the DNS queries of an SRV lookup refused, so a
+// send whose config looks its server up falls back to the host at once.
+//
+// Parameters:
+//   - dial: the dial function for every other address.
+//
+// Returns:
+//   - types.DialContextFunc: the dial function.
+func withoutDNS(dial types.DialContextFunc) types.DialContextFunc {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if _, port, _ := net.SplitHostPort(addr); port == dnsPort {
+			return nil, errDNSRefused
+		}
+
+		return dial(ctx, network, addr)
 	}
 }
 
@@ -273,7 +296,8 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 
 // TestSendDialsConfiguredAddress verifies that a send dials TCP to the
 // configured host and port. A config built in code without a port dials the
-// scheme's default port, as a URL without one does.
+// scheme's default port when its SRV lookup finds nothing, as a URL without
+// one does. Here the dial function refuses the DNS queries.
 func TestSendDialsConfiguredAddress(t *testing.T) {
 	t.Parallel()
 
@@ -285,6 +309,11 @@ func TestSendDialsConfiguredAddress(t *testing.T) {
 	}{
 		{name: "configured port", change: func(*Config) {}, wantAddr: "xmpp.example.com:5225"},
 		{name: "no port", change: func(config *Config) { config.Port = 0 }, wantAddr: "xmpp.example.com:5222"},
+		{
+			name:     "no port with implicit TLS",
+			change:   func(config *Config) { config.Port, config.scheme = 0, SchemeTLS },
+			wantAddr: "xmpp.example.com:5223",
+		},
 	}
 
 	for _, tt := range tests {
@@ -298,13 +327,13 @@ func TestSendDialsConfiguredAddress(t *testing.T) {
 			)
 
 			service := newTestService(t, "xmpp://alice:secret@xmpp.example.com:5225/?to=bob@example.com", &recordingSession{})
-			service.SetDialContext(func(ctx context.Context, gotNetwork, gotAddr string) (net.Conn, error) {
+			service.SetDialContext(withoutDNS(func(ctx context.Context, gotNetwork, gotAddr string) (net.Conn, error) {
 				mu.Lock()
 				network, addr = gotNetwork, gotAddr
 				mu.Unlock()
 
 				return pipeDialer()(ctx, gotNetwork, gotAddr)
-			})
+			}))
 			tt.change(service.Config)
 
 			require.NoError(t, service.Send("hello", nil))
@@ -570,9 +599,9 @@ func TestSendThroughDefaultSession(t *testing.T) {
 		return &recordingSession{}, nil
 	})
 	service.SetSessionFactory(nil)
-	service.SetDialContext(func(context.Context, string, string) (net.Conn, error) {
+	service.SetDialContext(withoutDNS(func(context.Context, string, string) (net.Conn, error) {
 		return client, nil
-	})
+	}))
 
 	require.NoError(t, service.Send("hello", nil))
 

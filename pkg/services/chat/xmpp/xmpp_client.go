@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/net/idna"
 	"mellium.im/sasl"
 	"mellium.im/xmlstream"
 	"mellium.im/xmpp/jid"
@@ -207,11 +206,7 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 //   - *tls.Config: a TLS config with TLS 1.2 as the minimum version.
 func newTLSConfig(cfg *Config, domain jid.JID) *tls.Config {
 	// Mellium keeps a domain in Unicode, but certificates name it in ASCII.
-	// IDNA rejects a bracketed IPv6 literal, so that name stays as written.
-	serverName := domain.String()
-	if ascii, err := idna.Lookup.ToASCII(serverName); err == nil {
-		serverName = ascii
-	}
+	serverName := asciiDomain(domain.String())
 
 	var config *tls.Config
 	if cfg.SkipTLSVerify {
