@@ -1619,6 +1619,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#zulip_versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zulip Versions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tls" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2836,6 +2847,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#zulip_versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zulip Versions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tls" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2951,20 +2973,19 @@ For a self-hosted server, the host can also be a single-label name such as <code
 Zulip authenticates every request with both, so a URL that leaves out either one is rejected.
 So is a URL with an empty API key.</p>
 <h2 id="stream_and_topic">Stream and Topic<a class="headerlink" href="#stream_and_topic" title="Permanent link">&para;</a></h2>
-<p>Both <code>stream</code> and <code>topic</code> are optional. They can be provided in the service URL or overridden
-at send time using <code>types.Params</code>:</p>
+<p>The <code>stream</code>, <code>topic</code>, and <code>title</code> values can be provided in the service URL or overridden at send time using <code>types.Params</code>:</p>
 <ul>
-<li><strong>Stream</strong>: The name of the Zulip stream to send messages to (e.g., <code>general</code>, <code>alerts</code>)</li>
-<li><strong>Topic</strong>: The message topic within the stream (e.g., <code>server-monitoring</code>). Zulip topics keep
-  conversations organized within a stream.</li>
-<li><strong>Title</strong>: A notification title that is prepended to the message content. If no <code>topic</code> is
-  set, the <code>title</code> is used as the topic instead.</li>
+<li><strong>Stream</strong>: The name of the Zulip stream to send messages to (e.g., <code>general</code>, <code>alerts</code>). A channel message needs a stream, so a send without one fails before any request.</li>
+<li><strong>Topic</strong>: The message topic within the stream (e.g., <code>server-monitoring</code>). Zulip topics keep conversations organized within a stream.</li>
+<li><strong>Title</strong>: A notification title that is prepended to the message content. If no <code>topic</code> is set, the <code>title</code> is used as the topic instead.</li>
 </ul>
-<p>If neither is specified, the message is sent to the default stream configured for the bot.</p>
+<p>Without a topic or a title, the message is sent with an empty topic.
+Zulip 10.0 and later post it to the stream's general chat, unless the organization requires topics.
+Older servers reject a message without a topic.</p>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
-<p class="admonition-title">Basic notification (default stream)</p>
-<div class="highlight"><pre><span></span><code>zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com
+<p class="admonition-title">Basic notification</p>
+<div class="highlight"><pre><span></span><code>zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?stream=alerts
 </code></pre></div>
 </div>
 <div class="admonition example">
@@ -3027,6 +3048,39 @@ User IDs are sent to Zulip as numbers.</p>
 <div class="highlight"><pre><span></span><code>zulip://alerts-bot%40zulip.example.com:BOT_KEY@zulip.example.com?type=direct&amp;to=dana@example.com,kai@example.com
 </code></pre></div>
 </div>
+<h2 id="zulip_versions">Zulip Versions<a class="headerlink" href="#zulip_versions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Zulip version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Channel messages</td>
+<td>Any</td>
+</tr>
+<tr>
+<td>Direct messages</td>
+<td>7.0 or later</td>
+</tr>
+<tr>
+<td><code>read_by_sender</code></td>
+<td>8.0 or later</td>
+</tr>
+<tr>
+<td>An empty topic, posted to the stream's general chat</td>
+<td>10.0 or later</td>
+</tr>
+<tr>
+<td>Server-side limits</td>
+<td>4.0 or later, and older servers use the defaults</td>
+</tr>
+</tbody>
+</table>
+<p>A channel message is the default, also selected with <code>type=channel</code>.
+Shoutrrr sends it to Zulip with the message type <code>stream</code>, which every Zulip version accepts.</p>
 <h2 id="tls">TLS<a class="headerlink" href="#tls" title="Permanent link">&para;</a></h2>
 <p>Zulip sends over HTTPS.
 Set <code>skiptlsverify=yes</code> when the server's certificate cannot be verified, such as the self-signed one that Zulip's installer creates with <code>--self-signed-cert</code>.
@@ -3038,6 +3092,8 @@ Shoutrrr logs a warning the first time a send skips certificate verification thr
 <h2 id="server-side_limits">Server-Side Limits<a class="headerlink" href="#server-side_limits" title="Permanent link">&para;</a></h2>
 <p>The service fetches <code>max_message_length</code> and <code>max_topic_length</code> from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 characters for content and 60 characters for topics. Like Zulip, the length checks count Unicode characters, not bytes.</p>
 <p>When the request fails, the next send asks again. Once the server answers, the service keeps its limits.</p>
+<p>The register endpoint always creates an event queue on the server.
+Shoutrrr subscribes it to no events and deletes it at the end of that send.</p>
 
 
 
@@ -3060,7 +3116,7 @@ Shoutrrr logs a warning the first time a send skips certificate verification thr
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 10, 2026 03:15:37 UTC"><span class="timeago" datetime="2026-11-10T03:15:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 10, 2026 03:15:37 UTC">2026-11-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 16, 2026 00:15:09 UTC"><span class="timeago" datetime="2026-11-16T00:15:09+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 16, 2026 00:15:09 UTC">2026-11-16</span>
   </span>
 
     
