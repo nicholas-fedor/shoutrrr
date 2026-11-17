@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Read generic settings in any case and limit notifiarr fields by @nicholas-fedor in [#2249](https://github.com/nicholas-fedor/shoutrrr/pull/2249)
 - Join the title and message with util.TitledMessage by @nicholas-fedor in [#2244](https://github.com/nicholas-fedor/shoutrrr/pull/2244)
 - Require a dedup_key to acknowledge or resolve and send the title by @nicholas-fedor in [#2236](https://github.com/nicholas-fedor/shoutrrr/pull/2236)
 - Verify the server's certificate against the JID domain by @nicholas-fedor in [#2230](https://github.com/nicholas-fedor/shoutrrr/pull/2230)
