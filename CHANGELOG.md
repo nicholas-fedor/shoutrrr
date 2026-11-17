@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Join the title and message with util.TitledMessage by @nicholas-fedor in [#2244](https://github.com/nicholas-fedor/shoutrrr/pull/2244)
 - Require a dedup_key to acknowledge or resolve and send the title by @nicholas-fedor in [#2236](https://github.com/nicholas-fedor/shoutrrr/pull/2236)
 - Verify the server's certificate against the JID domain by @nicholas-fedor in [#2230](https://github.com/nicholas-fedor/shoutrrr/pull/2230)
 - Send channel messages that every Zulip version accepts by @nicholas-fedor in [#2228](https://github.com/nicholas-fedor/shoutrrr/pull/2228)
@@ -55,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/setup-go action to v7.1.0 by @renovate[bot] in [#2245](https://github.com/nicholas-fedor/shoutrrr/pull/2245)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 493a07e by @renovate[bot] in [#2241](https://github.com/nicholas-fedor/shoutrrr/pull/2241)
 - Update binwiederhier/ntfy:latest docker digest to 038da2b by @renovate[bot] in [#2232](https://github.com/nicholas-fedor/shoutrrr/pull/2232)
 - Update binwiederhier/ntfy:latest docker digest to 771309a by @renovate[bot] in [#2202](https://github.com/nicholas-fedor/shoutrrr/pull/2202)
