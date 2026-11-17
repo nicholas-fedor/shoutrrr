@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Apply url queries and send params through one loop by @nicholas-fedor in [#2251](https://github.com/nicholas-fedor/shoutrrr/pull/2251)
 - Check URL schemes and mention kinds with strings.Cut by @nicholas-fedor in [#2247](https://github.com/nicholas-fedor/shoutrrr/pull/2247)
 
 ### Tests
