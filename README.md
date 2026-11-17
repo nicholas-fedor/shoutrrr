@@ -52,7 +52,8 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 - [Supported Services](#supported-services)
   - [Service Discovery](#service-discovery)
 - [Contributors ✨](#contributors-)
-- [Related Project(s)](#related-projects)
+- [Used By](#used-by)
+- [Related Projects](#related-projects)
 
 ## Full Documentation
 
@@ -464,12 +465,18 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
-## Related Project(s)
+## Used By
 
-- [Watchtower](https://github.com/nicholas-fedor/watchtower) - Automate Docker container image updates.
+- [Watchtower](https://github.com/nicholas-fedor/watchtower) - Automates Docker container image updates.
+- [Beszel](https://github.com/henrygd/beszel) - Lightweight server monitoring with historical data, Docker stats, and alerts.
+- [Arcane](https://github.com/getarcaneapp/arcane) - A modern web interface for managing Docker.
+- [Scrutiny](https://github.com/AnalogJ/scrutiny) - Hard drive S.M.A.R.T. monitoring with historical trends and real-world failure thresholds.
+- [Backrest](https://github.com/garethgeorge/backrest) - A web interface and orchestrator for restic backups.
+- [HomeBox](https://github.com/sysadminsmedia/homebox) - An inventory and organization system for the home.
+- [evcc](https://github.com/evcc-io/evcc) - An electric vehicle charge controller that charges from solar power.
+
+[See every project that uses Shoutrrr](https://shoutrrr.nickfedor.com/latest/used-by/).
+
+## Related Projects
+
 - [Shoutrrr GitHub Action](https://github.com/nicholas-fedor/shoutrrr-action) - Notifications using Shoutrrr in GitHub Actions.
-- [Bezel](https://github.com/henrygd/beszel) - A lightweight server monitoring platform that includes Docker statistics, historical data, and alert functions.
-- [WatchYourLAN](https://github.com/aceberg/WatchYourLAN) - Lightweight network IP scanner with web GUI.
-- [DNSControl](https://github.com/StackExchange/dnscontrol)- Infrastructure as code for DNS.
-- [docker-volume-backup](https://github.com/offen/docker-volume-backup) - Backup Docker volumes locally or to any S3, WebDAV, Azure Blob Storage, Dropbox, Google Drive or SSH compatible storage.
-- [BirdNET-Go](https://github.com/tphakala/birdnet-go) - An AI solution for continuous avian monitoring and identification.
