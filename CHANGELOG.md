@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Add a used by page for projects that use shoutrrr by @nicholas-fedor in [#2260](https://github.com/nicholas-fedor/shoutrrr/pull/2260)
+
 ### Chores
 
 - Update module golang.org/x/tools to v0.53.0 by @renovate[bot] in [#2258](https://github.com/nicholas-fedor/shoutrrr/pull/2258)
