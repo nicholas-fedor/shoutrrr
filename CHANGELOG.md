@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 493a07e by @renovate[bot] in [#2241](https://github.com/nicholas-fedor/shoutrrr/pull/2241)
 - Update binwiederhier/ntfy:latest docker digest to 038da2b by @renovate[bot] in [#2232](https://github.com/nicholas-fedor/shoutrrr/pull/2232)
 - Update binwiederhier/ntfy:latest docker digest to 771309a by @renovate[bot] in [#2202](https://github.com/nicholas-fedor/shoutrrr/pull/2202)
 - Update dependency backrefs to v8.3 by @renovate[bot] in [#2174](https://github.com/nicholas-fedor/shoutrrr/pull/2174)
