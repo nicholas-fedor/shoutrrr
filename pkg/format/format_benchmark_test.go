@@ -57,6 +57,46 @@ func BenchmarkPropKeyResolverSet(b *testing.B) {
 	}
 }
 
+// BenchmarkUpdateConfigFromParams measures applying send params to a copy of
+// the config, as every send that has params does. The known case also carries
+// params that are not config keys, as a webhook's payload fields are.
+func BenchmarkUpdateConfigFromParams(b *testing.B) {
+	resolver := format.NewPropKeyResolver(&ntfy.Config{})
+
+	// cases lists the update functions with the params each applies.
+	cases := []struct {
+		update func(types.ServiceConfig, *types.Params) error
+		params types.Params
+		name   string
+	}{
+		{
+			name:   "params",
+			params: types.Params{"title": "Backup", "Priority": "high"},
+			update: func(config types.ServiceConfig, params *types.Params) error {
+				return resolver.UpdateConfigFromParams(config, params)
+			},
+		},
+		{
+			name:   "known params",
+			params: types.Params{"title": "Backup", "Priority": "high", "source": "backup", "host": "db1"},
+			update: resolver.UpdateConfigFromKnownParams,
+		},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				config := ntfy.Config{}
+				if err := tc.update(&config, &tc.params); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkKeepsDefault measures checking whether a send keeps a property's
 // default, as services do on each send to map the message level.
 //
