@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- Report deprecated params without allocating on a typical send by @nicholas-fedor in [#2264](https://github.com/nicholas-fedor/shoutrrr/pull/2264)
+
 ### Documentation
 
 - List the projects that use shoutrrr in a used by section by @nicholas-fedor in [#2262](https://github.com/nicholas-fedor/shoutrrr/pull/2262)
