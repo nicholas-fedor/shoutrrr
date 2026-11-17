@@ -148,10 +148,12 @@ const (
 	maxMentionIDs = 100
 	// everyoneMentions is the allowed mention type for @everyone and @here.
 	everyoneMentions = "everyone"
-	// userMentionPrefix starts a user mention in the mentions key.
-	userMentionPrefix = "user:"
-	// roleMentionPrefix starts a role mention in the mentions key.
-	roleMentionPrefix = "role:"
+	// userMentionKind names a user mention in the mentions key, before the
+	// colon and the user ID.
+	userMentionKind = "user"
+	// roleMentionKind names a role mention in the mentions key, before the
+	// colon and the role ID.
+	roleMentionKind = "role"
 )
 
 // Embed limits from Discord's message documentation, in characters.
@@ -187,6 +189,10 @@ var noMentions = allowedMentions{Parse: nil, Users: nil, Roles: nil}
 //   - string: the mention as Discord writes it, such as @here or <@&ID>.
 //   - error: an error wrapping [ErrInvalidMention] for any other mention.
 func (a *allowedMentions) add(mention string) (string, error) {
+	kind, mentionID, _ := strings.Cut(mention, ":")
+
+	// A kind matches only at its own byte length. Unicode folding alone reads
+	// ſ as s, so uſer would match user.
 	switch {
 	case strings.EqualFold(mention, "everyone"), strings.EqualFold(mention, "here"):
 		if !slices.Contains(a.Parse, everyoneMentions) {
@@ -194,20 +200,18 @@ func (a *allowedMentions) add(mention string) (string, error) {
 		}
 
 		return "@" + strings.ToLower(mention), nil
-	case hasPrefixFold(mention, userMentionPrefix) && isSnowflake(mention[len(userMentionPrefix):]):
-		id := mention[len(userMentionPrefix):]
-		if !slices.Contains(a.Users, id) {
-			a.Users = append(a.Users, id)
+	case len(kind) == len(userMentionKind) && strings.EqualFold(kind, userMentionKind) && isSnowflake(mentionID):
+		if !slices.Contains(a.Users, mentionID) {
+			a.Users = append(a.Users, mentionID)
 		}
 
-		return "<@" + id + ">", nil
-	case hasPrefixFold(mention, roleMentionPrefix) && isSnowflake(mention[len(roleMentionPrefix):]):
-		id := mention[len(roleMentionPrefix):]
-		if !slices.Contains(a.Roles, id) {
-			a.Roles = append(a.Roles, id)
+		return "<@" + mentionID + ">", nil
+	case len(kind) == len(roleMentionKind) && strings.EqualFold(kind, roleMentionKind) && isSnowflake(mentionID):
+		if !slices.Contains(a.Roles, mentionID) {
+			a.Roles = append(a.Roles, mentionID)
 		}
 
-		return "<@&" + id + ">", nil
+		return "<@&" + mentionID + ">", nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrInvalidMention, mention)
 	}
@@ -555,17 +559,4 @@ func fitEmbed(embed *embedItem, budget int) {
 			embed.Footer = nil
 		}
 	}
-}
-
-// hasPrefixFold reports whether text starts with prefix, ignoring ASCII and
-// Unicode letter case.
-//
-// Parameters:
-//   - text: the text.
-//   - prefix: the prefix.
-//
-// Returns:
-//   - bool: whether text starts with prefix.
-func hasPrefixFold(text, prefix string) bool {
-	return len(text) >= len(prefix) && strings.EqualFold(text[:len(prefix)], prefix)
 }

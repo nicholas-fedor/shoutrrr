@@ -32,7 +32,11 @@ type JSON struct {
 //   - icon: an http or https URL for [JSON.IconURL], an emoji name for
 //     [JSON.IconEmoji], or empty to clear both.
 func (j *JSON) SetIcon(icon string) {
-	if hasPrefixFold(icon, "http://") || hasPrefixFold(icon, "https://") {
+	scheme, _, found := strings.Cut(icon, "://")
+	// A scheme matches only at its own byte length. Unicode folding alone reads
+	// ſ as s, so httpſ would match https.
+	if found && (len(scheme) == len("http") && strings.EqualFold(scheme, "http") ||
+		len(scheme) == len("https") && strings.EqualFold(scheme, "https")) {
 		j.IconURL, j.IconEmoji = icon, ""
 
 		return
@@ -85,17 +89,4 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 	}
 
 	return payloadBytes, nil
-}
-
-// hasPrefixFold reports whether s begins with prefix, ignoring letter case
-// under Unicode simple case folding.
-//
-// Parameters:
-//   - s: the string to check.
-//   - prefix: the prefix.
-//
-// Returns:
-//   - bool: true when s begins with prefix in any case.
-func hasPrefixFold(s, prefix string) bool {
-	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }
