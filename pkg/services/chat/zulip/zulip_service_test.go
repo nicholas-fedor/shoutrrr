@@ -49,6 +49,16 @@ type cannedResponse struct {
 	statusCode int
 }
 
+// trackedBody is a response body that records whether it was read to its end
+// before it was closed.
+type trackedBody struct {
+	// Reader supplies the body.
+	*strings.Reader
+
+	// drainedAtClose is true when Close found nothing left to read.
+	drainedAtClose bool
+}
+
 // fakeZulip records the register, queue delete, and message requests a fake
 // Zulip client receives.
 type fakeZulip struct {
@@ -97,6 +107,16 @@ var (
 	// defaultLimits is the register response with Zulip's default limits.
 	defaultLimits = cannedResponse{statusCode: http.StatusOK, body: defaultLimitsBody}
 )
+
+// Close records whether the body was read to its end first.
+//
+// Returns:
+//   - error: always nil.
+func (b *trackedBody) Close() error {
+	b.drainedAtClose = b.Len() == 0
+
+	return nil
+}
 
 // newFakeClient returns a mock HTTP client that answers register requests
 // with register, queue delete requests with success, and message requests
@@ -1083,6 +1103,21 @@ func TestSetHTTPClient(t *testing.T) {
 			assert.Same(t, client, service.client.Prefer(service.HTTPClient))
 		})
 	}
+}
+
+// TestDeleteQueueReadsReply verifies that the queue delete's reply is read to
+// its end before it is closed, so the next send can reuse the connection.
+func TestDeleteQueueReadsReply(t *testing.T) {
+	t.Parallel()
+
+	body := &trackedBody{Reader: strings.NewReader(`{"result":"success","msg":""}`), drainedAtClose: false}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).Return(&http.Response{StatusCode: http.StatusOK, Body: body}, nil).Once()
+
+	config := &Config{BotMail: "bot@example.com", BotKey: testBotKey, Host: "zulip.example.com"}
+
+	deleteQueue(t.Context(), client, config, "1517975029:0")
+	assert.True(t, body.drainedAtClose)
 }
 
 // TestDoSendRedactsUnparsableURL verifies that a host that makes the request

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
@@ -223,6 +224,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) er
 		return fmt.Errorf("sending HTTP request to IFTTT webhook: %w", redact.URLError(err))
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {

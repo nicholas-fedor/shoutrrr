@@ -132,6 +132,17 @@ type countedBody struct {
 	read *atomic.Int64
 }
 
+// endTrackedBody is a response body that records whether it was read to its
+// end before it was closed.
+type endTrackedBody struct {
+	// r is the body's content.
+	r *strings.Reader
+	// closed is true once Close was called.
+	closed atomic.Bool
+	// drainedAtClose is true when Close found nothing left to read.
+	drainedAtClose atomic.Bool
+}
+
 // contextMarker keys a value on the caller's context, so a check can tell whether
 // that context reached a request or dial.
 type contextMarker struct{}
@@ -1044,6 +1055,84 @@ func TestIntegrationEmptyFragment(t *testing.T) {
 
 			require.ErrorIs(t, err, router.ErrEmptyFragment)
 		})
+	}
+}
+
+// TestIntegrationResponsesReadToEnd verifies that every HTTP service reads
+// each reply to its end before it closes it, for a success and an error
+// status. A reply closed early leaves the transport to read the rest in the
+// background, and a request sent right after it can then need a new
+// connection.
+func TestIntegrationResponsesReadToEnd(t *testing.T) {
+	t.Parallel()
+
+	for _, fx := range fixtures {
+		if fx.kind != netHTTP {
+			continue
+		}
+
+		for _, status := range []int{cmp.Or(fx.status, http.StatusOK), http.StatusInternalServerError} {
+			t.Run(fmt.Sprintf("%s %d", fx.scheme, status), func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu     sync.Mutex
+					bodies []*endTrackedBody
+				)
+
+				client := httpClientFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Body != nil {
+						_, _ = io.Copy(io.Discard, req.Body)
+						_ = req.Body.Close()
+					}
+
+					content := cmp.Or(fx.body, "{}")
+					body := &endTrackedBody{r: strings.NewReader(content)}
+
+					mu.Lock()
+
+					bodies = append(bodies, body)
+
+					mu.Unlock()
+
+					return &http.Response{
+						StatusCode:    status,
+						Status:        fmt.Sprintf("%d %s", status, http.StatusText(status)),
+						Header:        http.Header{"Content-Type": []string{"application/json"}},
+						Body:          body,
+						ContentLength: int64(len(content)),
+						Request:       req,
+					}, nil
+				})
+
+				// Services that retry an error status wait between attempts, so the
+				// send runs on synctest's fake clock.
+				synctest.Test(t, func(t *testing.T) {
+					serviceRouter, err := router.NewWithOptions(
+						log.New(io.Discard, "", 0),
+						types.SenderOptions{HTTPClient: client},
+					)
+					require.NoError(t, err)
+
+					service, err := serviceRouter.Locate(fx.url)
+					require.NoError(t, err)
+
+					defer closeService(t, service)
+
+					_ = service.Send("contract message", nil)
+				})
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				require.NotEmpty(t, bodies, "the service made no request")
+
+				for i, body := range bodies {
+					assert.True(t, body.closed.Load(), "response %d was not closed", i)
+					assert.True(t, body.drainedAtClose.Load(), "response %d was closed before it was read to its end", i)
+				}
+			})
+		}
 	}
 }
 
@@ -4299,4 +4388,27 @@ func (b *countedBody) Read(p []byte) (int, error) {
 	b.read.Add(int64(n))
 
 	return n, err
+}
+
+// Close records that the body was closed and whether it was read to its end.
+//
+// Returns:
+//   - error: always nil.
+func (b *endTrackedBody) Close() error {
+	b.drainedAtClose.Store(b.r.Len() == 0)
+	b.closed.Store(true)
+
+	return nil
+}
+
+// Read reads from the body's content.
+//
+// Parameters:
+//   - p: the buffer to read into.
+//
+// Returns:
+//   - int: the number of bytes read.
+//   - error: [io.EOF] at the end of the content.
+func (b *endTrackedBody) Read(p []byte) (int, error) {
+	return b.r.Read(p)
 }

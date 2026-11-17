@@ -171,6 +171,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("posting to %s: %w", util.JoinURLHost(config.Host, config.Port), redact.URLError(err))
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {

@@ -32,6 +32,16 @@ type lastChunkReader struct {
 	done bool
 }
 
+// closeRecorder is a response body that counts the bytes read through it and
+// records whether it was closed.
+type closeRecorder struct {
+	// countingReader counts the bytes read.
+	countingReader
+
+	// closed is true once Close was called.
+	closed bool
+}
+
 // errRead is the failure returned by the readers in TestReadError.
 var errRead = errors.New("read failed")
 
@@ -48,6 +58,72 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	c.n += int64(n)
 
 	return n, err
+}
+
+// Close records that the body was closed.
+//
+// Returns:
+//   - error: always nil.
+func (c *closeRecorder) Close() error {
+	c.closed = true
+
+	return nil
+}
+
+// TestLimit verifies that a limited body reads at most [httpbody.MaxSize]+1
+// bytes. Its Close reads the rest of a body whose declared length is within
+// the limit before it closes the body, and closes a body of unknown or larger
+// length without reading on.
+func TestLimit(t *testing.T) {
+	t.Parallel()
+
+	// tests lists body sizes and declared lengths with the bytes a read to the
+	// end takes, and the bytes taken by a 10-byte read followed by a Close.
+	tests := map[string]struct {
+		size          int64
+		length        int64
+		wantRead      int64
+		wantAfterRead int64
+	}{
+		"within the limit":        {size: 100, length: 100, wantRead: 100, wantAfterRead: 100},
+		"at the limit":            {size: httpbody.MaxSize, length: httpbody.MaxSize, wantRead: httpbody.MaxSize, wantAfterRead: httpbody.MaxSize},
+		"declared over the limit": {size: 3 * httpbody.MaxSize, length: 3 * httpbody.MaxSize, wantRead: httpbody.MaxSize + 1, wantAfterRead: 10},
+		"unknown length":          {size: 100, length: -1, wantRead: 100, wantAfterRead: 10},
+		"unknown length over it":  {size: 3 * httpbody.MaxSize, length: -1, wantRead: httpbody.MaxSize + 1, wantAfterRead: 10},
+	}
+
+	for name, tt := range tests {
+		t.Run(name+" read", func(t *testing.T) {
+			t.Parallel()
+
+			body := &closeRecorder{r: strings.NewReader(strings.Repeat("a", int(tt.size)))}
+			limited := httpbody.Limit(body, tt.length)
+
+			read, err := io.Copy(io.Discard, limited)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRead, read)
+			assert.False(t, body.closed)
+
+			require.NoError(t, limited.Close())
+			assert.Equal(t, tt.wantRead, body.n)
+			assert.True(t, body.closed)
+		})
+
+		t.Run(name+" close after a partial read", func(t *testing.T) {
+			t.Parallel()
+
+			body := &closeRecorder{r: strings.NewReader(strings.Repeat("a", int(tt.size)))}
+			limited := httpbody.Limit(body, tt.length)
+
+			_, err := io.ReadFull(limited, make([]byte, 10))
+			require.NoError(t, err)
+			require.NoError(t, limited.Close())
+
+			assert.Equal(t, tt.wantAfterRead, body.n)
+			assert.True(t, body.closed)
+		})
+	}
 }
 
 // TestRead verifies that a body within the limit is returned whole, and that a

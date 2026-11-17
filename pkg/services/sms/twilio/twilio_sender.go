@@ -6,7 +6,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -120,16 +119,12 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 		return fmt.Errorf("sending request to Twilio API: %w", redact.URLError(err))
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return parseAPIError(res)
 	}
-
-	// Whatever the Debug record leaves unread is read to its end, which lets
-	// the connection carry the next request.
-	reader := io.LimitReader(res.Body, httpbody.MaxSize)
-	defer func() { _, _ = io.Copy(io.Discard, reader) }() //nolint:errcheck // A failed read only keeps the connection from being reused.
 
 	// The reply only feeds a Debug record, so without Debug it is not decoded.
 	if !s.Slog().Enabled(ctx, slog.LevelDebug) {
@@ -139,7 +134,7 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 	// Twilio created the message, so a reply that cannot be read is only
 	// logged.
 	var reply messageReply
-	if err := json.UnmarshalRead(reader, &reply, jsonopts.Default); err != nil {
+	if err := json.UnmarshalRead(res.Body, &reply, jsonopts.Default); err != nil {
 		s.LogAttrs(ctx, slog.LevelDebug, "message created, reply not read", slog.Any(logging.KeyError, err))
 
 		return nil

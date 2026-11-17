@@ -339,6 +339,7 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 		return fmt.Errorf("failed to send notification to PagerDuty: %w", redact.URLError(err))
 	}
 
+	resp.Body = httpbody.Limit(resp.Body, resp.ContentLength)
 	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status indicates success (2xx)

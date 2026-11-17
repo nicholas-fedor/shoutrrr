@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
@@ -309,6 +310,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 	}
 
 	if res != nil && res.Body != nil {
+		res.Body = httpbody.Limit(res.Body, res.ContentLength)
 		defer func() {
 			_ = res.Body.Close()
 		}()

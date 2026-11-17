@@ -5,7 +5,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -390,9 +389,7 @@ func deleteQueue(ctx context.Context, httpClient types.HTTPClient, config *Confi
 		return
 	}
 
-	// Reading the short response to its end lets the next send reuse the
-	// connection.
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxErrorBodySize)) //nolint:errcheck // A failed read only keeps the connection from being reused.
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	_ = res.Body.Close()
 }
 
@@ -418,6 +415,7 @@ func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, confi
 		return fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
@@ -473,6 +471,7 @@ func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient, 
 		return reg, false
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
