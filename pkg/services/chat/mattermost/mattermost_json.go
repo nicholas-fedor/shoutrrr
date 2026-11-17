@@ -7,6 +7,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // JSON represents the payload structure for Mattermost notifications.
@@ -31,17 +32,13 @@ type JSON struct {
 //   - icon: an http or https URL for [JSON.IconURL], an emoji name for
 //     [JSON.IconEmoji], or empty to clear both.
 func (j *JSON) SetIcon(icon string) {
-	j.IconURL = ""
-	j.IconEmoji = ""
+	if hasPrefixFold(icon, "http://") || hasPrefixFold(icon, "https://") {
+		j.IconURL, j.IconEmoji = icon, ""
 
-	if icon != "" {
-		lower := strings.ToLower(icon)
-		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
-			j.IconURL = icon
-		} else {
-			j.IconEmoji = icon
-		}
+		return
 	}
+
+	j.IconURL, j.IconEmoji = "", icon
 }
 
 // CreateJSONPayload generates a JSON payload for the Mattermost service.
@@ -49,25 +46,17 @@ func (j *JSON) SetIcon(icon string) {
 // Parameters:
 //   - config: the configuration with the message options.
 //   - message: the message to send.
-//   - params: optional title, username, channel, and icon overrides.
+//   - params: optional username and channel overrides. The send applies
+//     every other param to config first.
 //
 // Returns:
 //   - []byte: the JSON payload.
-//   - error: the encoding error.
+//   - error: [ErrMessageMissing] when the title and message are both empty, or
+//     the encoding error.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
-	// Extract title from params if provided, before building the text
-	title := config.Title
-
-	if params != nil {
-		if value, found := (*params)["title"]; found {
-			title = value
-		}
-	}
-
-	// Prepend title to message when present
-	text := message
-	if title != "" {
-		text = title + "\n" + message
+	text := util.TitledMessage(config.Title, message)
+	if text == "" {
+		return nil, ErrMessageMissing
 	}
 
 	payload := JSON{
@@ -78,8 +67,6 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		IconURL:   "",
 	}
 
-	icon := config.Icon
-
 	if params != nil {
 		if value, found := (*params)[userNameParam]; found {
 			payload.UserName = value
@@ -88,13 +75,9 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		if value, found := (*params)[channelParam]; found {
 			payload.Channel = value
 		}
-
-		if value, found := (*params)["icon"]; found {
-			icon = value
-		}
 	}
 
-	payload.SetIcon(icon)
+	payload.SetIcon(config.Icon)
 
 	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
@@ -102,4 +85,17 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 	}
 
 	return payloadBytes, nil
+}
+
+// hasPrefixFold reports whether s begins with prefix, ignoring letter case
+// under Unicode simple case folding.
+//
+// Parameters:
+//   - s: the string to check.
+//   - prefix: the prefix.
+//
+// Returns:
+//   - bool: true when s begins with prefix in any case.
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }

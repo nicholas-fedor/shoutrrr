@@ -67,6 +67,7 @@ twilio://<AccountSID>:<AuthToken>@<MessagingSID>/<RecipientPhone>
 | `AuthToken`      | Twilio Auth Token                               | `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`   |
 | `MessagingSID`   | Messaging Service SID or sender phone number    | `MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | `RecipientPhone` | Destination phone number in E.164 format        | `+1234567890`                        |
+| `apikey` (query) | API key SID, with its secret as the `AuthToken` | `SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 
 ## Running the Tests
 
@@ -100,7 +101,7 @@ go test ./testing/e2e/twilio/ -v -run TestTwilioServiceID
 ### Test Behavior
 
 - Tests will **skip** (not fail) if `SHOUTRRR_TWILIO_URL` is not set
-- Two of the three tests send actual SMS messages — monitor your Twilio account and recipient device during test runs
+- Two of the three tests send actual SMS messages, so monitor your Twilio account and recipient device during test runs
 - The service ID test only validates the service identifier and does not send any messages
 
 ### Expected Output

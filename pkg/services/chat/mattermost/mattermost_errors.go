@@ -13,6 +13,9 @@ var (
 	)
 	// ErrInvalidURL indicates that the provided URL is invalid.
 	ErrInvalidURL = errors.New("invalid URL: scheme must be http or https and host must be present")
+	// ErrMessageMissing indicates a send without a title or message, which
+	// leaves the text that Mattermost requires empty.
+	ErrMessageMissing = errors.New("no title or message to send")
 	// ErrHostMissing indicates a config without a Mattermost server host.
 	ErrHostMissing = errors.New("host missing from config")
 	// ErrNotEnoughArguments indicates that the API URL does not include enough arguments.
