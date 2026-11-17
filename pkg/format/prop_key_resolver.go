@@ -192,23 +192,25 @@ func (pkr *PropKeyResolver) DeprecatedKeys() []Deprecation {
 //   - []Deprecation: the deprecated keys in lower case with their primary
 //     keys, sorted by key.
 func (pkr *PropKeyResolver) DeprecatedParams(params *types.Params) []Deprecation {
-	if params == nil {
-		return []Deprecation{}
+	deprecations := []Deprecation{}
+	if params == nil || len(pkr.deprecatedKeys) == 0 {
+		return deprecations
 	}
 
-	used := map[string]bool{}
-
+	// Services check their params on every send, and a send seldom holds a
+	// deprecated key, so nothing is allocated until one turns up.
 	for key := range *params {
-		if key = strings.ToLower(key); pkr.deprecatedKeys[key] != "" {
-			used[key] = true
+		name := strings.ToLower(key)
+
+		replacement, deprecated := pkr.deprecatedKeys[name]
+		if !deprecated || slices.ContainsFunc(deprecations, func(d Deprecation) bool { return d.Name == name }) {
+			continue
 		}
+
+		deprecations = append(deprecations, Deprecation{Name: name, Replacement: replacement})
 	}
 
-	deprecations := make([]Deprecation, 0, len(used))
-
-	for _, key := range slices.Sorted(maps.Keys(used)) {
-		deprecations = append(deprecations, Deprecation{Name: key, Replacement: pkr.deprecatedKeys[key]})
-	}
+	slices.SortFunc(deprecations, func(a, b Deprecation) int { return strings.Compare(a.Name, b.Name) })
 
 	return deprecations
 }

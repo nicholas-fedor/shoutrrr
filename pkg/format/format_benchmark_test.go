@@ -97,6 +97,32 @@ func BenchmarkUpdateConfigFromParams(b *testing.B) {
 	}
 }
 
+// BenchmarkDeprecatedParams measures reporting the deprecated keys among send
+// params, as services with deprecated keys do on each send. The usual send
+// holds none.
+func BenchmarkDeprecatedParams(b *testing.B) {
+	resolver := format.NewPropKeyResolver(&ntfy.Config{})
+
+	// cases lists params without and with a deprecated key.
+	cases := []struct {
+		params types.Params
+		name   string
+	}{
+		{name: "none", params: types.Params{"title": "Backup", "level": "warning"}},
+		{name: "deprecated", params: types.Params{"title": "Backup", "DisableTLSVerification": "yes"}},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				_ = resolver.DeprecatedParams(&tc.params)
+			}
+		})
+	}
+}
+
 // BenchmarkKeepsDefault measures checking whether a send keeps a property's
 // default, as services do on each send to map the message level.
 //
