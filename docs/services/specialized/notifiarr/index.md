@@ -211,19 +211,22 @@ The service sends a POST request with a JSON payload containing the notification
   - `text.content`: Optional content text above the main message
   - `text.description`: The notification message content
   - `text.footer`: Optional footer text for the embed
-  - `text.fields`: Optional array of field objects with title, text, and inline properties
+  - `text.fields`: Optional array of at most 25 field objects with title, text, and inline properties
   - `ping.pingUser`: Discord user ID to mention (parsed from the first `<@123>` mention in message)
   - `ping.pingRole`: Discord role ID to mention (parsed from the first `<@&123>` mention in message)
 
 ### Response
 
-Successful requests return a 2xx status code. The service logs the server response for debugging purposes.
+Any 2xx status counts as delivered, as in Notifiarr's own client.
+The service logs the status at Debug.
+It does not log the body, which can echo the request.
 
 ### Error Handling
 
 The service handles various error conditions:
 
 - **Empty Message**: Returns an error if the message is empty
+- **Too Many Fields**: Returns an error before the request if the `fields` param holds more than 25 fields, the most Notifiarr accepts
 - **Invalid API Key**: Server returns authentication errors
 - **Network Issues**: Connection timeouts or network failures
 - **Server Errors**: Unexpected HTTP status codes from the Notifiarr API

@@ -27,15 +27,15 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
-// TestDefaultConfig verifies the default config: a JSON content type and POST
-// requests, with title and message under their own keys.
+// TestDefaultConfig verifies the default config: no content type of its own,
+// so the payload format decides it, and POST requests, with title and message
+// under their own keys.
 func TestDefaultConfig(t *testing.T) {
 	t.Parallel()
 
 	config, _ := DefaultConfig()
 
 	assert.Equal(t, &Config{
-		ContentType:   "application/json",
 		TitleKey:      "title",
 		MessageKey:    "message",
 		RequestMethod: "POST",
@@ -136,6 +136,13 @@ func TestConfigSetURL(t *testing.T) {
 			wantWebhook:  "https://example.com/?template=passed",
 			wantTemplate: "captured",
 		},
+		{
+			name:         "prop keys in any case",
+			rawURL:       "generic://example.com/?Template=captured&SkipTLSVerify=yes&Foo=bar",
+			wantWebhook:  "https://example.com/?Foo=bar",
+			wantTemplate: "captured", wantSkipVerify: true,
+		},
+		{name: "escaped prop key in another case", rawURL: "generic://example.com/?__Template=passed", wantWebhook: "https://example.com/?Template=passed"},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +164,14 @@ func TestConfigSetURL(t *testing.T) {
 		config, _ := DefaultConfig()
 
 		require.ErrorIs(t, config.SetURL(parseTestURL(t, "generic://example.com?disabletls=maybe")), format.ErrInvalidBoolValue)
+	})
+
+	t.Run("prop key in two spellings", func(t *testing.T) {
+		t.Parallel()
+
+		config, _ := DefaultConfig()
+
+		require.ErrorIs(t, config.SetURL(parseTestURL(t, "generic://example.com?method=GET&Method=PUT")), format.ErrConflictingKeys)
 	})
 }
 
@@ -181,6 +196,8 @@ func TestConfigGetURL(t *testing.T) {
 				"&contenttype=a%2Fb&template=f&title=t",
 		},
 		{name: "escaped prop key", rawURL: "generic://example.com/?__template=passed", want: "generic://example.com/?__template=passed"},
+		{name: "escaped prop key in another case", rawURL: "generic://example.com/?__Method=passed", want: "generic://example.com/?__Method=passed"},
+		{name: "content type", rawURL: "generic://example.com/?contenttype=application%2Fjson", want: "generic://example.com/?contenttype=application%2Fjson"},
 		{name: "skiptlsverify", rawURL: "generic://example.com/hook?skiptlsverify=yes", want: "generic://example.com/hook?skiptlsverify=Yes"},
 	}
 

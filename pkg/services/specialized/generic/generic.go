@@ -286,16 +286,8 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
-	// Determine content type based on payload format
-	contentType := config.ContentType
-	if config.Template == "" {
-		// When no template is specified, payload is plain text
-		contentType = "text/plain"
-	}
-
-	// Set content type header
+	contentType := config.requestContentType()
 	req.Header.Set("Content-Type", contentType)
-	// Set accept header
 	req.Header.Set("Accept", contentType)
 
 	for key, value := range config.headers {
@@ -349,24 +341,37 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 
 // createSendParams constructs parameters for sending a notification.
 //
+// The config's title goes under the title key when it is set or a title param
+// is given. A param named after the title key replaces it.
+//
 // Parameters:
-//   - config: the configuration with the title and message keys.
-//   - params: the send params, whose title param moves to the title key.
+//   - config: the configuration for this send, with the send params already
+//     applied.
+//   - params: the send params.
 //   - message: the message, set under the message key.
 //
 // Returns:
 //   - types.Params: the params for the payload.
 func createSendParams(config *Config, params types.Params, message string) types.Params {
-	// Initialize new params map
-	sendParams := types.Params{}
+	sendParams := make(types.Params, len(params)+1)
+	titled := config.Title != ""
 
 	for key, val := range params {
-		// Copy params, mapping title key if necessary
-		if key == types.TitleKey {
-			key = config.TitleKey
+		// The resolver matches a param by its lower-case key, so a title param
+		// in any case has already set the config's title. strings.EqualFold
+		// folds some letters differently, such as İ and ſ, so the key is
+		// lowercased as the resolver does.
+		if lower := strings.ToLower(key); lower == types.TitleKey {
+			titled = true
+
+			continue
 		}
 
 		sendParams[key] = val
+	}
+
+	if _, found := sendParams[config.TitleKey]; titled && !found {
+		sendParams[config.TitleKey] = config.Title
 	}
 
 	// Add the message

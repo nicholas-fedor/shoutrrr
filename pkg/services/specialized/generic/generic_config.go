@@ -22,8 +22,10 @@ type Config struct {
 	headers map[string]string
 	// extraData holds the additional data to include in JSON payloads.
 	extraData map[string]string
-	// ContentType is the Content-Type header of the request.
-	ContentType string `default:"application/json" desc:"The default value of the Content-Type header (dynamically set based on payload format)" key:"contenttype"`
+	// ContentType is the Content-Type header of the request. Empty means
+	// text/plain without a template, since the payload is then the message as
+	// it is. With a template, empty means application/json.
+	ContentType string `default:"" desc:"The Content-Type header, by default text/plain without a template and application/json with one" key:"contenttype"`
 	// Template names the payload template: empty to send the message as is,
 	// JSON for a JSON object, or a template loaded into the service.
 	Template string `desc:"The template used for creating the request payload" key:"template" optional:""`
@@ -48,6 +50,10 @@ const (
 	Scheme = "generic"
 	// DefaultWebhookScheme is the webhook scheme unless TLS is disabled.
 	DefaultWebhookScheme = "https"
+	// plainContentType is the default content type without a template.
+	plainContentType = "text/plain"
+	// templateContentType is the default content type with a template.
+	templateContentType = "application/json"
 )
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
@@ -219,6 +225,22 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	serviceURL.Scheme = Scheme
 
 	return &serviceURL
+}
+
+// requestContentType returns the Content-Type of a request, as
+// [Config.ContentType] describes.
+//
+// Returns:
+//   - string: the content type.
+func (c *Config) requestContentType() string {
+	switch {
+	case c.ContentType != "":
+		return c.ContentType
+	case c.Template == "":
+		return plainContentType
+	default:
+		return templateContentType
+	}
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.

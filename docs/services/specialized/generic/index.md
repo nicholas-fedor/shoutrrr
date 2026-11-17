@@ -31,6 +31,7 @@ The following adds webhook-specific information:
 
 By using the built-in `JSON` template (`template=json`) you can create a generic JSON payload.
 The keys used for `title` and `message` can be overridden by supplying the params/query values `titleKey` and `messageKey`.
+A `title` in the URL fills the title key, unless the send gives a `title` param.
 The other send params are added to the JSON object as they are.
 A param named after one of the [Query/Param Props](#queryparam_props) also sets that prop for the send, whatever its letter case.
 An invalid value for a prop fails the send.
@@ -67,6 +68,12 @@ When using the JSON template, you can add additional key/value pairs to the JSON
     generic://webhook.example.com/alert?$source=shoutrrr
     ```
 
+## Content type
+
+Without a template, the request body is the message as it is, and it is sent as `text/plain`.
+With a template, such as `template=json`, it is sent as `application/json`.
+Set `contenttype` to send another `Content-Type`, such as `contenttype=application/json` for a message that is already JSON.
+
 ## Shortcut URL
 
 You can just add `generic+` as a prefix to your target URL to use it with the generic service.
@@ -98,11 +105,14 @@ generic+https://example.com/api/v1/postStuff
 ## Forwarded query variables
 
 All query variables that are not listed in the [Query/Param Props](#queryparam_props) section will be forwarded to the target endpoint.
+The prop names match in any letter case, so `Method=GET` sets the method.
+A URL that names one prop in two spellings, such as `method` and `Method`, is rejected.
 If you need to pass a query variable that _is_ reserved, you can prefix it with two underscores (`__`).
+The prefix works in any letter case too, so `__Method=x` forwards `Method=x`.
 
 !!! Example
-    The URL `generic+https://example.com/api/v1/postStuff?contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff` using the `Content-Type: text/plain` header.
-    If instead escaped, `generic+https://example.com/api/v1/postStuff?__contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff?contenttype=text/plain` using the `Content-Type: application/json` header (as it's the default).
+    The URL `generic+https://example.com/api/v1/postStuff?contenttype=application/json` would send a POST message to `https://example.com/api/v1/postStuff` using the `Content-Type: application/json` header.
+    If instead escaped, `generic+https://example.com/api/v1/postStuff?__contenttype=application/json` would send a POST message to `https://example.com/api/v1/postStuff?contenttype=application/json` using the `Content-Type: text/plain` header, the default for a message sent without a template.
 
 !!! example
     ```url

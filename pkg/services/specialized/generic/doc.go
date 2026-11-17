@@ -19,10 +19,14 @@
 //
 // # Configuration Options
 //
-// The following query parameters can be used to configure the service:
+// The following query parameters can be used to configure the service. Their
+// names match in any case, and one name in two spellings is an error:
 //
 //   - template: payload template ("json" for JSON format, or custom template name)
-//   - contenttype: HTTP Content-Type header (default: "application/json")
+//   - contenttype: HTTP Content-Type header (default: "text/plain" without a
+//     template and "application/json" with one)
+//   - title: the title, sent under the title key unless a title param is
+//     given
 //   - method: HTTP method (default: "POST")
 //   - disabletls: set to "yes" to use HTTP instead of HTTPS
 //   - skiptlsverify: set to "yes" to skip verification of the server's TLS
@@ -58,9 +62,10 @@
 //
 // Query parameters that name configuration options, such as template or
 // skiptlsverify, configure the service. The others are forwarded to the
-// webhook. Prefix a key with "__" to forward it even when it names an option,
-// such as __template=passed. The disabletls option has no effect here,
-// because the scheme of the shortcut URL decides whether TLS is used.
+// webhook. Prefix a key with "__" to forward it even when it names an option
+// in any case, such as __template=passed or __Method=passed. The disabletls
+// option has no effect here, because the scheme of the shortcut URL decides
+// whether TLS is used.
 //
 // # Examples
 //
