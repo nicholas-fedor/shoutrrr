@@ -13,7 +13,7 @@
 
 services:
   mailpit:
-    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     container_name: shoutrrr-smtp-mailpit
     ports:
       - "127.0.0.1:1587:1025"
@@ -27,7 +27,7 @@ services:
       - ./certs:/certs:ro
 
   mailpit-tls:
-    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     container_name: shoutrrr-smtp-mailpit-tls
     ports:
       - "127.0.0.1:1465:1025"
