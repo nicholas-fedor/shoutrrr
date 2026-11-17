@@ -113,4 +113,4 @@ You can optionally specify the __`title`__ parameter in the URL.
 When set, the title goes on its own line before the message.
 The __`apikey`__ parameter sets the API key SID, as [API Keys](#api_keys) describes.
 
-Please refer to the [Twilio SMS API documentation](https://www.twilio.com/docs/sms/api/message-resource#create-a-message-resource) for more information.
+Please refer to the [Twilio SMS API documentation](https://www.twilio.com/docs/messaging/api/message-resource#create-a-message-resource) for more information.

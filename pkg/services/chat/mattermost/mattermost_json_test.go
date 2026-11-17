@@ -40,59 +40,66 @@ func TestJSONSetIcon(t *testing.T) {
 	}
 }
 
-// TestCreateJSONPayload verifies the payload built from the config and params:
-// the title prefix, and the user name, channel, and icon overrides.
+// TestCreateJSONPayload verifies the payload built from the config and params.
+// The title goes on its own line before the message, and either is sent
+// alone. A payload without either fails. The user name and channel params
+// override the config.
 func TestCreateJSONPayload(t *testing.T) {
 	t.Parallel()
 
 	// tests lists configs and params with the JSON payload each should produce.
 	tests := []struct {
-		params *types.Params
-		config Config
-		name   string
-		want   string
+		params  *types.Params
+		wantErr error
+		config  Config
+		name    string
+		message string
+		want    string
 	}{
 		{
-			name: "no params",
-			want: `{"text":"this is a message"}`,
+			name:    "no params",
+			message: "this is a message",
+			want:    `{"text":"this is a message"}`,
 		},
 		{
-			name:   "configured user name and channel",
-			config: Config{UserName: "testUserName", Channel: "testChannel"},
-			want:   `{"text":"this is a message","username":"testUserName","channel":"testChannel"}`,
+			name:    "configured user name and channel",
+			config:  Config{UserName: "testUserName", Channel: "testChannel"},
+			message: "this is a message",
+			want:    `{"text":"this is a message","username":"testUserName","channel":"testChannel"}`,
 		},
 		{
-			name:   "user name and channel from params",
-			config: Config{UserName: "testUserName", Channel: "testChannel"},
-			params: &types.Params{"username": "overwriteUserName", "channel": "overwriteChannel"},
-			want:   `{"text":"this is a message","username":"overwriteUserName","channel":"overwriteChannel"}`,
+			name:    "user name and channel from params",
+			config:  Config{UserName: "testUserName", Channel: "testChannel"},
+			params:  &types.Params{"username": "overwriteUserName", "channel": "overwriteChannel"},
+			message: "this is a message",
+			want:    `{"text":"this is a message","username":"overwriteUserName","channel":"overwriteChannel"}`,
 		},
 		{
-			name:   "configured title",
+			name:    "title",
+			config:  Config{Title: "watchtower TEST"},
+			message: "this is a message",
+			want:    `{"text":"watchtower TEST\nthis is a message"}`,
+		},
+		{
+			name:   "title without a message",
 			config: Config{Title: "watchtower TEST"},
-			want:   `{"text":"watchtower TEST\nthis is a message"}`,
+			want:   `{"text":"watchtower TEST"}`,
 		},
 		{
-			name:   "title from params",
-			params: &types.Params{"title": "watchtower PROD"},
-			want:   `{"text":"watchtower PROD\nthis is a message"}`,
+			name:    "no title or message",
+			wantErr: ErrMessageMissing,
 		},
 		{
-			name:   "title from params over configured title",
-			config: Config{Title: "Config Title"},
-			params: &types.Params{"title": "Params Title"},
-			want:   `{"text":"Params Title\nthis is a message"}`,
+			name:    "icon emoji",
+			config:  Config{Icon: "tanabata_tree"},
+			message: "this is a message",
+			want:    `{"text":"this is a message","icon_emoji":"tanabata_tree"}`,
 		},
 		{
-			name:   "configured icon emoji",
-			config: Config{Icon: "tanabata_tree"},
-			want:   `{"text":"this is a message","icon_emoji":"tanabata_tree"}`,
-		},
-		{
-			name:   "icon URL from params over configured icon",
-			config: Config{Icon: "tanabata_tree"},
-			params: &types.Params{"icon": "https://example.com/logo.png"},
-			want:   `{"text":"this is a message","icon_url":"https://example.com/logo.png"}`,
+			name:    "icon URL in another case",
+			config:  Config{Icon: "HTTPS://example.com/Logo.png"},
+			message: "this is a message",
+			want:    `{"text":"this is a message","icon_url":"HTTPS://example.com/Logo.png"}`,
 		},
 	}
 
@@ -100,9 +107,14 @@ func TestCreateJSONPayload(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload, err := CreateJSONPayload(&tt.config, "this is a message", tt.params)
-			require.NoError(t, err)
+			payload, err := CreateJSONPayload(&tt.config, tt.message, tt.params)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 
+				return
+			}
+
+			require.NoError(t, err)
 			assert.JSONEq(t, tt.want, string(payload))
 		})
 	}

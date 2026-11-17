@@ -17,7 +17,7 @@
 //   - Channel: Override the default webhook channel (optional)
 //   - UserName: Override the webhook username (optional)
 //   - Icon: Use an emoji or URL as the message icon (optional)
-//   - Title: Notification title (optional, not used in webhook mode)
+//   - Title: Notification title (optional), on its own line before the message
 //   - DisableTLS: Use plain HTTP instead of HTTPS (optional, default: false)
 //   - SkipTLSVerify: Skip verification of the server's TLS certificate (optional, default: false)
 //
@@ -41,5 +41,5 @@
 //
 //	mattermost://[username@]host/token[/channel]?icon=value&disabletls=No
 //
-// For more information about Mattermost webhooks, visit: https://docs.mattermost.com/developer/webhooks-incoming.html
+// For more information about Mattermost webhooks, visit: https://docs.mattermost.com/developers/integrate/webhooks/incoming
 package mattermost

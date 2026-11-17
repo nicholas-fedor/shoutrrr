@@ -337,9 +337,10 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	assert.JSONEq(t, `{"text":"Configured\nMessage","username":"bot","channel":"news","icon_emoji":"tanabata_tree"}`, captured.body)
 }
 
-// TestSendContextErrors verifies that a send fails with ErrSendFailed for an
-// error status, wraps a transport error, rejects an unknown param before any
-// request, and stops when the caller's context is canceled.
+// TestSendContextErrors verifies the errors of a send. An error status fails
+// with ErrSendFailed, and a transport error is wrapped. A send without a title
+// or message and one with an unknown param fail before any request. A canceled
+// context stops the send.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -365,6 +366,16 @@ func TestSendContextErrors(t *testing.T) {
 		service.SetHTTPClient(client)
 
 		require.ErrorIs(t, service.SendContext(context.Background(), "Message", nil), errTransport)
+	})
+
+	t.Run("no title or message", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "mattermost://mockhost/mocktoken")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.SendContext(context.Background(), "", nil), ErrMessageMissing)
 	})
 
 	t.Run("unknown param", func(t *testing.T) {

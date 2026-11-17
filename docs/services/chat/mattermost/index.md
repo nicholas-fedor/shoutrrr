@@ -65,6 +65,11 @@ The channel can also be `@username` to send a direct message to that user.
 !!! note
     Mattermost ignores the user override unless a system admin enables [Enable integrations to override usernames](https://docs.mattermost.com/configure/configuration-settings.html#enable-integrations-to-override-usernames), and ignores the icon unless [Enable integrations to override profile picture icons](https://docs.mattermost.com/configure/configuration-settings.html#enable-integrations-to-override-profile-picture-icons) is enabled. See the [Mattermost incoming webhook documentation](https://docs.mattermost.com/developers/integrate/webhooks/incoming).
 
+## Title and Message
+
+A `title` goes on its own line before the message, and either one can be sent alone.
+Mattermost requires text in every post, so a send without a title or message fails before any request.
+
 ## Using an Icon
 
 You can customize the notification icon using the `icon` query parameter. The icon can be either a Mattermost emoji name or an image URL.
