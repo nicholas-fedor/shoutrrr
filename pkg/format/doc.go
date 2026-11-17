@@ -13,7 +13,7 @@
 //   - BuildQuery: Converts a config object to a query string
 //   - BuildQueryWithCustomFields: Builds a query with custom fields, escaping conflicting keys
 //   - SetConfigPropsFromQuery: Sets config properties from query string values
-//   - EscapeKey/UnescapeKey: Escapes/unescapes keys that conflict with config props
+//   - EscapeKey: Escapes a custom key that a config prop also uses
 //
 // # Configuration Formatting
 //

@@ -1,7 +1,6 @@
 package format
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -399,21 +398,26 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 //
 // Returns:
 //   - error: an error wrapping [ErrConflictingKeys] for one key in two
-//     spellings, or the first value error.
+//     spellings, or the first value error. The error names its key.
 func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConfig, params *types.Params) error {
 	if params == nil {
 		return nil
 	}
 
-	known := types.Params{}
+	// Keys that are not config keys cannot hold one key in two spellings, so
+	// leaving them out first changes nothing but the work done. Up to eight
+	// keys fit on the stack.
+	var buf [8]string
 
-	for key, value := range *params {
+	keys := buf[:0]
+
+	for key := range *params {
 		if _, found := pkr.keyFields[strings.ToLower(key)]; found {
-			known[key] = value
+			keys = append(keys, key)
 		}
 	}
 
-	return pkr.UpdateConfigFromParams(config, &known)
+	return pkr.applyParams(config, *params, keys, nil)
 }
 
 // UpdateConfigFromParams updates a config from send params.
@@ -427,8 +431,7 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 // Params that give one key in two spellings, such as disabletls and DisableTLS,
 // are rejected with [ErrConflictingKeys] before any is applied. Params are
 // applied in key order, with deprecated keys first, so a replacement key wins
-// when params hold both. The error returned is the first error that occurred.
-// Later errors are discarded.
+// when params hold both. The first error stops the update.
 //
 // Parameters:
 //   - config: the config to update, or nil for the resolver's own config.
@@ -437,40 +440,62 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 //
 // Returns:
 //   - error: an error wrapping [ErrConflictingKeys] for one key in two
-//     spellings, or the first unknown key or value error, or nil.
+//     spellings, or the first unknown key or value error. The error names
+//     its key.
 func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	config types.ServiceConfig,
 	params *types.Params,
 	payloadKeys ...string,
 ) error {
-	var firstError error
-
-	confValue := pkr.configValueOrInternal(config)
-
 	if params == nil {
 		return nil
 	}
 
-	// Deprecated keys go first, so a replacement key in the same params wins.
-	keys := slices.SortedFunc(maps.Keys(*params), func(a, b string) int {
-		return cmp.Or(cmp.Compare(pkr.deprecatedOrder(a), pkr.deprecatedOrder(b)), strings.Compare(a, b))
+	// Up to eight keys fit on the stack.
+	var buf [8]string
+
+	keys := buf[:0]
+	for key := range *params {
+		keys = append(keys, key)
+	}
+
+	return pkr.applyParams(config, *params, keys, payloadKeys)
+}
+
+// applyParams updates a config from the send params under keys, as
+// [PropKeyResolver.UpdateConfigFromParams] describes.
+//
+// Parameters:
+//   - config: the config to update, or nil for the resolver's own config.
+//   - params: the send params.
+//   - keys: the keys of params to apply. The function reorders them.
+//   - payloadKeys: the param keys that fill the payload instead of the config.
+//
+// Returns:
+//   - error: an error wrapping [ErrConflictingKeys] for one key in two
+//     spellings, or the first unknown key or value error. The error names
+//     its key.
+func (pkr *PropKeyResolver) applyParams(
+	config types.ServiceConfig,
+	params types.Params,
+	keys, payloadKeys []string,
+) error {
+	confValue := pkr.configValueOrInternal(config)
+
+	slices.Sort(keys)
+
+	var first func(string) bool
+	if len(pkr.deprecatedKeys) > 0 {
+		first = pkr.isDeprecated
+	}
+
+	return applyKeys(keys, pkr.keys, paramKeySource, first, func(key, lower string) error {
+		if pkr.isUndeclaredReserved(lower) || slices.Contains(payloadKeys, key) {
+			return nil
+		}
+
+		return pkr.set(confValue, lower, params[key])
 	})
-
-	if err := checkSpellings(keys, pkr.keys); err != nil {
-		return err
-	}
-
-	for _, key := range keys {
-		if pkr.isUndeclaredReserved(key) || slices.Contains(payloadKeys, key) {
-			continue
-		}
-
-		if err := pkr.set(confValue, key, (*params)[key]); err != nil && firstError == nil {
-			firstError = err
-		}
-	}
-
-	return firstError
 }
 
 // configValueOrInternal returns the reflect.Value of the config, or the internal config if config is nil.
@@ -508,21 +533,6 @@ func (pkr *PropKeyResolver) defaultConfig() *configDefaults {
 	return pkr.defaults
 }
 
-// deprecatedOrder sorts deprecated keys before the other keys.
-//
-// Parameters:
-//   - key: the param key, matched case-insensitively.
-//
-// Returns:
-//   - int: 0 for a deprecated key and 1 for any other key.
-func (pkr *PropKeyResolver) deprecatedOrder(key string) int {
-	if _, deprecated := pkr.deprecatedKeys[strings.ToLower(key)]; deprecated {
-		return 0
-	}
-
-	return 1
-}
-
 // fieldIsDefault reports whether a formatted value is the default of a field.
 //
 // The value matches the default as written in its tag, or as the formatter
@@ -554,16 +564,28 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 	return err == nil && formatted == value
 }
 
+// isDeprecated reports whether a key is a deprecated key.
+//
+// Parameters:
+//   - lower: the key in lower case.
+//
+// Returns:
+//   - bool: true for a deprecated key.
+func (pkr *PropKeyResolver) isDeprecated(lower string) bool {
+	_, found := pkr.deprecatedKeys[lower]
+
+	return found
+}
+
 // isUndeclaredReserved reports whether key is a reserved param that the config does
 // not declare.
 //
 // Parameters:
-//   - key: the param key, matched case-insensitively.
+//   - key: the param key in lower case.
 //
 // Returns:
 //   - bool: true when the param should be skipped.
 func (pkr *PropKeyResolver) isUndeclaredReserved(key string) bool {
-	key = strings.ToLower(key)
 	if _, declared := pkr.keyFields[key]; declared {
 		return false
 	}
@@ -611,14 +633,14 @@ func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
 //
 // Parameters:
 //   - target: the config struct value to set.
-//   - key: the property key, matched case-insensitively.
+//   - key: the property key in lower case.
 //   - value: the formatted property value.
 //
 // Returns:
 //   - error: an error wrapping [ErrInvalidConfigKey] that lists the valid
 //     keys, [ErrInvalidValueForType], or the value's parse error, or nil.
 func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
-	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
+	if field, found := pkr.keyFields[key]; found {
 		valid, err := SetConfigField(target, field, value)
 		if !valid && err == nil {
 			return ErrInvalidValueForType

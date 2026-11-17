@@ -346,8 +346,8 @@ func TestPropKeyResolverSetDefaultPropsZeroValues(t *testing.T) {
 
 // TestPropKeyResolverUpdateConfigFromParams verifies that params set the
 // matching keys on the given config or the resolver's own, that the first
-// invalid param is reported while the others still apply, and that nil params
-// change nothing.
+// invalid param in key order stops the update with an error naming it, and
+// that nil params change nothing.
 func TestPropKeyResolverUpdateConfigFromParams(t *testing.T) {
 	t.Parallel()
 
@@ -359,13 +359,14 @@ func TestPropKeyResolverUpdateConfigFromParams(t *testing.T) {
 
 	err := resolver.UpdateConfigFromParams(nil, &types.Params{"signed": "1", "b": "c", "str": "val"})
 	require.ErrorIs(t, err, ErrInvalidConfigKey)
-	assert.Equal(t, 1, config.Signed)
-	assert.Equal(t, "val", config.Str)
+	require.ErrorContains(t, err, `setting param "b"`)
+	assert.Zero(t, config.Signed, "no param after the failing one applies")
+	assert.Equal(t, "newValue", config.Str)
 
 	other := &testStruct{}
 	require.NoError(t, resolver.UpdateConfigFromParams(other, &types.Params{"str": "other"}))
 	assert.Equal(t, "other", other.Str)
-	assert.Equal(t, "val", config.Str)
+	assert.Equal(t, "newValue", config.Str)
 
 	require.NoError(t, resolver.UpdateConfigFromParams(nil, nil))
 }
@@ -432,6 +433,10 @@ func TestPropKeyResolverUpdateConfigFromKnownParams(t *testing.T) {
 
 	err := resolver.UpdateConfigFromKnownParams(nil, &types.Params{"str": "a", "STR": "b"})
 	require.ErrorIs(t, err, ErrConflictingKeys)
+
+	err = resolver.UpdateConfigFromKnownParams(nil, &types.Params{"Signed": "many", "other": "x"})
+	require.ErrorIs(t, err, ErrParseIntFailed)
+	require.ErrorContains(t, err, `setting param "Signed"`)
 
 	require.NoError(t, resolver.UpdateConfigFromKnownParams(nil, nil))
 }
@@ -527,6 +532,8 @@ func TestPropKeyResolverDeprecatedKeyOrder(t *testing.T) {
 //   - They are reported in lower case without changing the resolver.
 //   - They set their field.
 //   - A replacement key in the same params wins.
+//   - Moving them first keeps the other keys in sorted order, so the first
+//     failing key is still the first in sorted order.
 func TestPropKeyResolverDeprecatedParams(t *testing.T) {
 	t.Parallel()
 
@@ -547,6 +554,10 @@ func TestPropKeyResolverDeprecatedParams(t *testing.T) {
 	both := &deprecatedConfig{}
 	require.NoError(t, resolver.UpdateConfigFromParams(both, &types.Params{"insecure": "yes", "SkipVerify": "no"}))
 	assert.False(t, both.SkipVerify)
+
+	err := resolver.UpdateConfigFromParams(&deprecatedConfig{}, &types.Params{"aa": "1", "bb": "1", "insecure": "yes"})
+	require.ErrorIs(t, err, ErrInvalidConfigKey)
+	require.ErrorContains(t, err, `setting param "aa"`)
 }
 
 // TestPropKeyResolverKeepsDefaultConcurrent verifies that concurrent sends can

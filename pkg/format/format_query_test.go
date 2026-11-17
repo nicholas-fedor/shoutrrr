@@ -76,6 +76,19 @@ func TestApplyQuery(t *testing.T) {
 		}
 	})
 
+	// A key without values, which only a query built in code can hold, reads
+	// as an empty value, so an unknown one is still rejected.
+	t.Run("key without values", func(t *testing.T) {
+		t.Parallel()
+
+		config, resolver := newTestStructResolver(t)
+
+		require.NoError(t, ApplyQuery(resolver, url.Values{"str": {}}))
+		assert.Empty(t, config.Str)
+
+		require.ErrorIs(t, ApplyQuery(resolver, url.Values{"foo": nil}), ErrInvalidConfigKey)
+	})
+
 	t.Run("unknown key in two spellings", func(t *testing.T) {
 		t.Parallel()
 
@@ -216,20 +229,23 @@ func TestSetConfigPropsFromQueryConflictingKeys(t *testing.T) {
 	assert.Equal(t, defaults, *config)
 }
 
-// TestSetConfigPropsFromQueryErrors verifies that the error of the first
-// invalid value in key order is reported while the other values are still
-// set, and that a nil query sets nothing.
+// TestSetConfigPropsFromQueryErrors verifies that the first invalid value in
+// key order stops the update with an error naming its key and no query, and
+// that a nil query sets nothing.
 func TestSetConfigPropsFromQueryErrors(t *testing.T) {
 	t.Parallel()
 
 	config, resolver := newTestStructResolver(t)
 
+	defaults := *config
+
 	query, err := SetConfigPropsFromQuery(resolver, url.Values{"duration": {"long"}, "signed": {"many"}, "str": {"set"}})
 
 	require.ErrorIs(t, err, ErrParseDurationFailed)
+	require.ErrorContains(t, err, `setting query parameter "duration"`)
 	require.NotErrorIs(t, err, ErrParseIntFailed)
-	assert.Equal(t, "set", config.Str)
-	assert.Empty(t, query)
+	assert.Equal(t, defaults, *config, "no value after the failing one applies")
+	assert.Nil(t, query)
 
 	query, err = SetConfigPropsFromQuery(resolver, nil)
 	require.NoError(t, err)
@@ -239,16 +255,13 @@ func TestSetConfigPropsFromQueryErrors(t *testing.T) {
 	// sets nothing and is still removed.
 	query, err = SetConfigPropsFromQuery(resolver, url.Values{"Str": {}, "extra": {"kept"}})
 	require.NoError(t, err)
-	assert.Equal(t, "set", config.Str)
+	assert.Equal(t, defaults.Str, config.Str)
 	assert.Equal(t, url.Values{"extra": {"kept"}}, query)
 }
 
-// TestEscapeKey verifies that escaping adds the key prefix and unescaping
-// removes it.
+// TestEscapeKey verifies that escaping adds the key prefix.
 func TestEscapeKey(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "__str", EscapeKey("str"))
-	assert.Equal(t, "str", UnescapeKey("__str"))
-	assert.Equal(t, "str", UnescapeKey("str"))
 }
