@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Read each response body to its end before closing it by @nicholas-fedor in [#2240](https://github.com/nicholas-fedor/shoutrrr/pull/2240)
 
+### Changed
+
+- Check URL schemes and mention kinds with strings.Cut by @nicholas-fedor in [#2247](https://github.com/nicholas-fedor/shoutrrr/pull/2247)
+
 ### Tests
 
 - Stop tests from dialing a port another test can reuse by @nicholas-fedor in [#2210](https://github.com/nicholas-fedor/shoutrrr/pull/2210)
