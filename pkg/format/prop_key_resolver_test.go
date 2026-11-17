@@ -529,7 +529,8 @@ func TestPropKeyResolverDeprecatedKeyOrder(t *testing.T) {
 // TestPropKeyResolverDeprecatedParams verifies how params with deprecated
 // keys are handled.
 //
-//   - They are reported in lower case without changing the resolver.
+//   - They are reported once each, in lower case and sorted, without
+//     changing the resolver.
 //   - They set their field.
 //   - A replacement key in the same params wins.
 //   - Moving them first keeps the other keys in sorted order, so the first
@@ -544,6 +545,8 @@ func TestPropKeyResolverDeprecatedParams(t *testing.T) {
 		{Name: "insecure", Replacement: "skipverify"},
 		{Name: "noverify", Replacement: "skipverify"},
 	}, resolver.DeprecatedParams(&types.Params{"Insecure": "yes", "noverify": "yes", "skipverify": "no", "token": "x"}))
+	assert.Equal(t, []Deprecation{{Name: "insecure", Replacement: "skipverify"}},
+		resolver.DeprecatedParams(&types.Params{"Insecure": "yes", "insecure": "no"}), "one key in two spellings is reported once")
 	assert.Empty(t, resolver.DeprecatedKeys(), "params should not be recorded as set")
 
 	deprecatedOnly := &deprecatedConfig{}
