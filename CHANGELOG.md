@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apply url queries and send params through one loop by @nicholas-fedor in [#2251](https://github.com/nicholas-fedor/shoutrrr/pull/2251)
 - Check URL schemes and mention kinds with strings.Cut by @nicholas-fedor in [#2247](https://github.com/nicholas-fedor/shoutrrr/pull/2247)
 
+### Documentation
+
+- Name v0.25.0 for the bark category deprecations by @nicholas-fedor in [#2255](https://github.com/nicholas-fedor/shoutrrr/pull/2255)
+
 ### Tests
 
 - Stop tests from dialing a port another test can reuse by @nicholas-fedor in [#2210](https://github.com/nicholas-fedor/shoutrrr/pull/2210)
