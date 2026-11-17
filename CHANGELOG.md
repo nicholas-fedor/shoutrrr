@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- List the projects that use shoutrrr in a used by section by @nicholas-fedor in [#2262](https://github.com/nicholas-fedor/shoutrrr/pull/2262)
 - Add a used by page for projects that use shoutrrr by @nicholas-fedor in [#2260](https://github.com/nicholas-fedor/shoutrrr/pull/2260)
 
 ### Chores
