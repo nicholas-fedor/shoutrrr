@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update axllent/mailpit docker tag to v1.34.0 by @renovate[bot] in [#2253](https://github.com/nicholas-fedor/shoutrrr/pull/2253)
 - Update actions/setup-go action to v7.1.0 by @renovate[bot] in [#2245](https://github.com/nicholas-fedor/shoutrrr/pull/2245)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 493a07e by @renovate[bot] in [#2241](https://github.com/nicholas-fedor/shoutrrr/pull/2241)
 - Update binwiederhier/ntfy:latest docker digest to 038da2b by @renovate[bot] in [#2232](https://github.com/nicholas-fedor/shoutrrr/pull/2232)
