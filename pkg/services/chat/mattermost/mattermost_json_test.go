@@ -23,6 +23,9 @@ func TestJSONSetIcon(t *testing.T) {
 	}{
 		{name: "https URL", icon: "https://example.com/logo.png", wantURL: "https://example.com/logo.png"},
 		{name: "uppercase http URL", icon: "HTTP://example.com/logo.png", wantURL: "HTTP://example.com/logo.png"},
+		{name: "ftp URL", icon: "ftp://example.com/logo.png", wantEmoji: "ftp://example.com/logo.png"},
+		{name: "http without slashes", icon: "http:logo", wantEmoji: "http:logo"},
+		{name: "long s in the scheme", icon: "httpſ://example.com/logo.png", wantEmoji: "httpſ://example.com/logo.png"},
 		{name: "emoji", icon: "tanabata_tree", wantEmoji: "tanabata_tree"},
 		{name: "empty", icon: ""},
 	}

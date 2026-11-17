@@ -343,6 +343,7 @@ func TestConfigMentions(t *testing.T) {
 		{name: "user without an ID", mentions: []string{"user:"}, wantErr: true},
 		{name: "role with a name", mentions: []string{"role:admins"}, wantErr: true},
 		{name: "signed ID", mentions: []string{"user:+123"}, wantErr: true},
+		{name: "long s in the kind", mentions: []string{"uſer:123"}, wantErr: true},
 		{name: "more than 100 users", mentions: tooManyUsers, wantErr: true},
 	}
 

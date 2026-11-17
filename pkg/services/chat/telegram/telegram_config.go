@@ -134,9 +134,11 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - bool: true for an API URL with the http scheme in any case, and false
 //     for an https or empty API URL.
 func (c *Config) plaintextAPI() bool {
-	// A checked API URL starts with its scheme, so the prefix names it without
-	// parsing the URL again.
-	return len(c.APIURL) >= len("http:") && strings.EqualFold(c.APIURL[:len("http:")], "http:")
+	// A checked API URL starts with its scheme, so the text before the first
+	// colon names it without parsing the URL again.
+	scheme, _, found := strings.Cut(c.APIURL, ":")
+
+	return found && strings.EqualFold(scheme, "http")
 }
 
 // prepare drops the empty chats, as reading a list setting does, then checks
