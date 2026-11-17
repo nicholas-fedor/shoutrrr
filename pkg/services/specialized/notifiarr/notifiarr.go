@@ -57,8 +57,15 @@ const (
 	MentionTypeRole = 2
 )
 
-// requestTimeout is the send budget of Notifiarr.
-const requestTimeout = 30 * time.Second
+// Send limits.
+const (
+	// requestTimeout is the send budget of Notifiarr.
+	requestTimeout = 30 * time.Second
+	// maxFields is the most embed fields a passthrough notification may
+	// carry, as Notifiarr's passthrough documentation states. More are
+	// rejected rather than cut, since the fields are the caller's own list.
+	maxFields = 25
+)
 
 // Send params that fill the payload. The config resolver skips them, and the
 // payload code reads them from the params.
@@ -97,6 +104,9 @@ var (
 	ErrInvalidChannelID = errors.New("invalid channel ID")
 	// ErrNoDiscordFields indicates no Discord fields present.
 	ErrNoDiscordFields = errors.New("no Discord fields present")
+	// ErrTooManyFields indicates a send with more than 25 embed fields, the
+	// most a passthrough notification may carry.
+	ErrTooManyFields = errors.New("too many embed fields")
 )
 
 // mentionRegex is a compiled regular expression for parsing Discord user/role mentions.
@@ -256,11 +266,15 @@ func (s *Service) ParseChannelID(channelStr string) (int, error) {
 //
 // Returns:
 //   - []Field: the fields.
-//   - error: the decoding error.
+//   - error: the decoding error, or [ErrTooManyFields].
 func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
 	var fields []Field
 	if err := json.Unmarshal([]byte(fieldsStr), &fields, jsonopts.UserInput); err != nil {
 		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
+	}
+
+	if len(fields) > maxFields {
+		return nil, fmt.Errorf("%w: %d, at most %d", ErrTooManyFields, len(fields), maxFields)
 	}
 
 	return fields, nil

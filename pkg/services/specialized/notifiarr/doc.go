@@ -57,6 +57,9 @@
 //   - icon: Icon URL for the notification embed
 //   - content: Additional content text above the main message
 //   - footer: Footer text for the notification embed
+//   - fields: a JSON array of at most 25 embed fields, each with a title,
+//     text, and inline flag. More fail with [ErrTooManyFields] before the
+//     request.
 //
 // Example usage:
 //

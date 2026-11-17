@@ -648,11 +648,6 @@ var allowlist = map[string]map[string]knownFailure{
 		// a slow lookup leaves the message request the rest of the budget.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
 	},
-	checkConflictingKeys: {
-		// A custom query key reaches the webhook as written, and only the exact
-		// config key sets a prop, so another spelling is a webhook parameter.
-		"generic": {"Generic passes a key in another case through to the webhook as a custom query parameter", failConflictAccepted},
-	},
 	checkSendKeepsDeadline: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.

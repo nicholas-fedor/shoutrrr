@@ -153,17 +153,19 @@ func TestBuildQueryAliases(t *testing.T) {
 }
 
 // TestBuildQueryWithCustomFields verifies that a custom query value whose key
-// is a config key is kept under the escaped key, and that other custom values
-// are kept as they are.
+// is a config key in any case is kept under the escaped key, and that other
+// custom values are kept as they are.
 func TestBuildQueryWithCustomFields(t *testing.T) {
 	t.Parallel()
 
 	config, resolver := newTestStructResolver(t)
 	config.Str = "service"
 
-	query := BuildQueryWithCustomFields(resolver, url.Values{"str": {"custom"}, "extra": {"kept"}})
+	query := BuildQueryWithCustomFields(resolver, url.Values{"str": {"custom"}, "Signed": {"other"}, "extra": {"kept"}})
 
-	assert.Equal(t, url.Values{"__str": {"custom"}, "str": {"service"}, "extra": {"kept"}}, query)
+	assert.Equal(t, url.Values{
+		"__str": {"custom"}, "__Signed": {"other"}, "str": {"service"}, "extra": {"kept"},
+	}, query)
 }
 
 // TestBuildQueryOtherResolver verifies that a resolver other than
@@ -181,22 +183,37 @@ func TestBuildQueryOtherResolver(t *testing.T) {
 	assert.Equal(t, "a=1&c=", BuildQuery(resolver))
 }
 
-// TestSetConfigPropsFromQuery verifies that query values for config keys are
-// set and removed from the query, that escaped custom values come back under
-// their key, and that other values are kept.
+// TestSetConfigPropsFromQuery verifies that query values for config keys in
+// any case are set and removed from the query, that escaped custom values come
+// back under the spelling after the prefix, and that other values, including
+// an escaped key that is not a config key, are kept as written.
 func TestSetConfigPropsFromQuery(t *testing.T) {
 	t.Parallel()
 
 	config, resolver := newTestStructResolver(t)
 
 	query, err := SetConfigPropsFromQuery(resolver, url.Values{
-		"str": {"service"}, "signed": {"5"}, "__str": {"custom"}, "extra": {"kept"},
+		"STR": {"service"}, "signed": {"5"}, "__Str": {"custom"}, "__other": {"escaped"}, "Extra": {"kept"},
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "service", config.Str)
 	assert.Equal(t, 5, config.Signed)
-	assert.Equal(t, url.Values{"str": {"custom"}, "extra": {"kept"}}, query)
+	assert.Equal(t, url.Values{"Str": {"custom"}, "__other": {"escaped"}, "Extra": {"kept"}}, query)
+}
+
+// TestSetConfigPropsFromQueryConflictingKeys verifies that one config key in
+// two spellings is rejected before any value is applied.
+func TestSetConfigPropsFromQueryConflictingKeys(t *testing.T) {
+	t.Parallel()
+
+	config, resolver := newTestStructResolver(t)
+	defaults := *config
+
+	_, err := SetConfigPropsFromQuery(resolver, url.Values{"signed": {"1"}, "str": {"a"}, "Str": {"b"}})
+
+	require.ErrorIs(t, err, ErrConflictingKeys)
+	assert.Equal(t, defaults, *config)
 }
 
 // TestSetConfigPropsFromQueryErrors verifies that the error of the first
@@ -217,6 +234,13 @@ func TestSetConfigPropsFromQueryErrors(t *testing.T) {
 	query, err = SetConfigPropsFromQuery(resolver, nil)
 	require.NoError(t, err)
 	assert.Equal(t, url.Values{}, query)
+
+	// A config key without values, which only a query built in code can hold,
+	// sets nothing and is still removed.
+	query, err = SetConfigPropsFromQuery(resolver, url.Values{"Str": {}, "extra": {"kept"}})
+	require.NoError(t, err)
+	assert.Equal(t, "set", config.Str)
+	assert.Equal(t, url.Values{"extra": {"kept"}}, query)
 }
 
 // TestEscapeKey verifies that escaping adds the key prefix and unescaping

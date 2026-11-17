@@ -65,10 +65,10 @@ func BuildQuery(cqr types.ConfigQueryResolver) string {
 // BuildQueryWithCustomFields adds the config props of a config to a query that
 // holds custom fields.
 //
-// A custom field whose key is also a config key is moved to the key with the
-// [KeyPrefix] prefix first, so the prop does not replace it. A
-// [PropKeyResolver] writes only primary keys, and leaves out props that hold
-// their default value.
+// A custom field whose key matches a config key in any case is moved to the
+// key with the [KeyPrefix] prefix first, so reading the query back keeps it a
+// custom field. A [PropKeyResolver] writes only primary keys, and leaves out
+// props that hold their default value.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -79,20 +79,18 @@ func BuildQuery(cqr types.ConfigQueryResolver) string {
 //     props.
 func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values) url.Values {
 	fields := cqr.QueryFields()
-	skipEscape := len(query) < 1
+
+	// The keys are collected first, because the loop adds escaped keys.
+	for _, key := range slices.Collect(maps.Keys(query)) {
+		if isConfigKey(key, fields) {
+			query[EscapeKey(key)] = query[key]
+			delete(query, key)
+		}
+	}
 
 	pkr, isPkr := cqr.(*PropKeyResolver)
 
 	for _, key := range fields {
-		if !skipEscape {
-			// Escape any webhook query keys using the same name as service props
-			escValues := query[key]
-			if len(escValues) > 0 {
-				query.Del(key)
-				query[EscapeKey(key)] = escValues
-			}
-		}
-
 		if isPkr && !pkr.KeyIsPrimary(key) {
 			continue
 		}
@@ -111,10 +109,11 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 // SetConfigPropsFromQuery sets the config props from a query and returns the
 // keys that are not config props.
 //
-// Each config key is matched exactly, and its first value is applied. Every
-// config key is removed from the query, even one whose value fails. A key with
-// the [KeyPrefix] prefix then takes the place of the config key it escapes.
-// Unlike [ApplyQuery], a key that is not a config key is kept, not rejected.
+// Config keys match and apply as in [ApplyQuery], with two differences. Each
+// config key is tried and removed from the query even after a value fails.
+// A key that is not a config key is kept, not rejected. A key with the
+// [KeyPrefix] prefix whose rest matches a config key in any case then takes
+// the place of that rest, as a custom key.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -122,34 +121,46 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 //
 // Returns:
 //   - url.Values: the remaining custom fields, unescaped, or an empty query
-//     when query is nil.
-//   - error: the first error from setting a config prop, or nil. Later errors
-//     are discarded.
+//     when query is nil. A query with conflicting keys comes back unchanged.
+//   - error: an error wrapping [ErrConflictingKeys] for one key in two
+//     spellings, or the first error from setting a config prop in key order.
+//     Later errors are discarded.
 func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (url.Values, error) {
-	var firstError error
-
 	if query == nil {
 		return url.Values{}, nil
 	}
 
-	for _, key := range cqr.QueryFields() {
-		// Retrieve the service-related prop value
-		values := query[key]
-		if len(values) > 0 {
+	keys := slices.Sorted(maps.Keys(query))
+	fields := cqr.QueryFields()
+
+	if err := checkSpellings(keys, fields); err != nil {
+		return query, err
+	}
+
+	var firstError error
+
+	for _, key := range keys {
+		if !isConfigKey(key, fields) {
+			continue
+		}
+
+		// A key built in code may hold no values, so there is nothing to set.
+		if values := query[key]; len(values) > 0 {
 			if err := cqr.Set(key, values[0]); err != nil && firstError == nil {
 				firstError = err
 			}
 		}
-		// Remove it from the query Values
-		query.Del(key)
 
-		// If an escaped version of the key exist, unescape it
-		escKey := EscapeKey(key)
-		escValues := query[escKey]
+		delete(query, key)
+	}
 
-		if len(escValues) > 0 {
-			query.Del(escKey)
-			query[key] = escValues
+	// Escaped keys are restored once every config key is gone, so a restored
+	// key never meets the config key it was escaped from.
+	for _, key := range keys {
+		custom, escaped := strings.CutPrefix(key, KeyPrefix)
+		if escaped && isConfigKey(custom, fields) {
+			query[custom] = query[key]
+			delete(query, key)
 		}
 	}
 
@@ -196,6 +207,7 @@ func checkSpellings(keys, configKeys []string) error {
 	spellings := make(map[string]string, len(keys))
 
 	for _, key := range keys {
+		// The key is lowercased once, since params run this check on every send.
 		lower := strings.ToLower(key)
 		if !slices.Contains(configKeys, lower) {
 			continue
@@ -209,4 +221,17 @@ func checkSpellings(keys, configKeys []string) error {
 	}
 
 	return nil
+}
+
+// isConfigKey reports whether a query or param key names a config key, in
+// any case.
+//
+// Parameters:
+//   - key: the key as written.
+//   - configKeys: the config keys in lower case, as QueryFields returns them.
+//
+// Returns:
+//   - bool: true when the key's lower-case form is one of configKeys.
+func isConfigKey(key string, configKeys []string) bool {
+	return slices.Contains(configKeys, strings.ToLower(key))
 }

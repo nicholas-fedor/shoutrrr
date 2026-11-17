@@ -419,6 +419,41 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
+// TestSendFieldLimit verifies that a send carries up to 25 embed fields, the
+// limit Notifiarr's passthrough documentation gives, and that more fail with
+// [ErrTooManyFields] before any request.
+func TestSendFieldLimit(t *testing.T) {
+	t.Parallel()
+
+	// fields returns a fields param of count fields.
+	fields := func(count int) string {
+		return "[" + strings.TrimSuffix(strings.Repeat(`{"title":"T","text":"V"},`, count), ",") + "]"
+	}
+
+	t.Run("at the limit", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.SendContext(t.Context(), "Hello", &types.Params{"fields": fields(25)}))
+		assert.Equal(t, 25, strings.Count(captured.body, `"title":"T"`))
+	})
+
+	t.Run("over the limit", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Hello", &types.Params{"fields": fields(26)})
+
+		require.ErrorIs(t, err, ErrTooManyFields)
+	})
+}
+
 // TestSendEscapesAPIKey verifies that the API key is sent as one escaped path
 // segment, so a semicolon, comma, or percent sign in it reaches the API as
 // written.
