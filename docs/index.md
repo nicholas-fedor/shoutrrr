@@ -18,12 +18,14 @@ hide:
 <p style="text-align: left; font-size: 1.2em">
 Used by the following noteworthy projects:
 <ul style="margin-left: 0">
-  <li><a href="https://github.com/nicholas-fedor/watchtower" target="_blank">Watchtower</a> - Solution for automating Docker container image updates.</li>
-  <li><a href="https://github.com/empowerists/beszel" target="_blank">Beszel</a> - Server monitoring platform with historical data, Docker stats, and alerts.</li>
-  <li><a href="https://github.com/aceberg/WatchYourLAN" target="_blank">WatchYourLAN</a> - Network IP scanner for notifying about new hosts and monitoring host connectivity.</li>
-  <li><a href="https://github.com/StackExchange/dnscontrol" target="_blank">dnscontrol</a> - Infrastructure as code for DNS.</li>
-  <li><a href="https://github.com/offen/docker-volume-backup" target="_blank">docker-volume-backup</a> - Backup Docker volumes locally or to any S3, WebDAV, Azure Blob Storage, Dropbox, Google Drive or SSH compatible storage.</li>
-  <li><a href="https://github.com/tphakala/birdnet-go" target="_blank">BirdNET-Go</a> - An AI solution for continuous avian monitoring and identification.</li>
+  <li><a href="https://github.com/nicholas-fedor/watchtower" target="_blank">Watchtower</a> - Automates Docker container image updates.</li>
+  <li><a href="https://github.com/henrygd/beszel" target="_blank">Beszel</a> - Lightweight server monitoring with historical data, Docker stats, and alerts.</li>
+  <li><a href="https://github.com/getarcaneapp/arcane" target="_blank">Arcane</a> - A modern web interface for managing Docker.</li>
+  <li><a href="https://github.com/AnalogJ/scrutiny" target="_blank">Scrutiny</a> - Hard drive S.M.A.R.T. monitoring with historical trends and real-world failure thresholds.</li>
+  <li><a href="https://github.com/garethgeorge/backrest" target="_blank">Backrest</a> - A web interface and orchestrator for restic backups.</li>
+  <li><a href="https://github.com/sysadminsmedia/homebox" target="_blank">HomeBox</a> - An inventory and organization system for the home.</li>
+  <li><a href="https://github.com/evcc-io/evcc" target="_blank">evcc</a> - An electric vehicle charge controller that charges from solar power.</li>
 </ul>
+<a href="used-by/">See every project that uses Shoutrrr</a>.
 </p>
 <!-- markdownlint-restore -->

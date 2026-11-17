@@ -163,6 +163,7 @@ nav:
   - Examples:
       - Home Assistant: examples/home-assistant/index.md
   - Playground: playground/index.md
+  - Used By: used-by/index.md
 
 # Plugins: https://www.mkdocs.org/user-guide/configuration/#plugins
 # Additional functionality for the site build.
