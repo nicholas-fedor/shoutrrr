@@ -468,8 +468,9 @@ func retryRequest(ctx context.Context, req *http.Request) (*http.Request, error)
 
 // handleServerError handles 5xx server errors with retry logic.
 //
-// A response below 500 is left as it is. A 5xx response has its body read
-// and closed first, so the next attempt can reuse the connection. Then it
+// A response below 500 is left as it is. A 5xx response has its body closed
+// first, which reads a body that [httpbody.Limit] wraps to its end, so the
+// next attempt can reuse the connection. Then it
 // waits an exponential backoff before the next attempt. After the last
 // attempt it returns [ErrMaxRetries] without waiting.
 //
@@ -494,7 +495,7 @@ func handleServerError(
 		return nil
 	}
 
-	drainAndClose(res)
+	_ = res.Body.Close()
 
 	if attempt >= maxRetries {
 		return ErrMaxRetries
@@ -581,6 +582,8 @@ func sendWithRetry(
 			return true, ErrUnknownAPIError
 		}
 
+		res.Body = httpbody.Limit(res.Body, res.ContentLength)
+
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
@@ -609,11 +612,11 @@ func sendWithRetry(
 
 		// The body holds the message Discord created. A reply that cannot be
 		// decoded names no thread, but the message was still created.
-		if reply != nil && json.UnmarshalRead(io.LimitReader(res.Body, httpbody.MaxSize), reply, jsonopts.Default) != nil {
+		if reply != nil && json.UnmarshalRead(res.Body, reply, jsonopts.Default) != nil {
 			*reply = createdMessage{ChannelID: ""}
 		}
 
-		drainAndClose(res)
+		_ = res.Body.Close()
 
 		return true, nil
 	}
@@ -704,8 +707,8 @@ func sleepContext(ctx context.Context, sleeper Sleeper, duration time.Duration) 
 
 // handleRateLimitResponse handles rate limiting logic for 429 responses.
 //
-// It reads and closes the response body first, so the next attempt can reuse
-// the connection. Then it waits for the response's wait before the next
+// It closes the response body first, which reads a body that [httpbody.Limit]
+// wraps to its end, so the next attempt can reuse the connection. Then it waits for the response's wait before the next
 // attempt. After the last attempt it returns [ErrMaxRetries] without waiting.
 //
 // Parameters:
@@ -726,7 +729,7 @@ func handleRateLimitResponse(
 	sleeper Sleeper,
 ) error {
 	wait := rateLimitWait(res, attempt)
-	drainAndClose(res)
+	_ = res.Body.Close()
 
 	if attempt >= maxRetries {
 		return ErrMaxRetries
@@ -880,17 +883,6 @@ func quotable(text string) string {
 	}, text)
 
 	return util.Ellipsis(strings.Join(strings.Fields(printable), " "), maxReasonLength)
-}
-
-// drainAndClose reads what is left of a response's body, up to
-// [httpbody.MaxSize], then closes it. A body read to its end lets the
-// connection carry the next request.
-//
-// Parameters:
-//   - res: the response whose body is read and closed.
-func drainAndClose(res *http.Response) {
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, httpbody.MaxSize)) //nolint:errcheck // A failed read only keeps the connection from being reused.
-	_ = res.Body.Close()
 }
 
 // bodyRetryAfter reads the retry_after of a 429 response body, in seconds

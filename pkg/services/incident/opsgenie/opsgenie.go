@@ -283,6 +283,7 @@ func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payl
 		return fmt.Errorf("failed to send notification to OpsGenie: %w", redact.URLError(err))
 	}
 
+	resp.Body = httpbody.Limit(resp.Body, resp.ContentLength)
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {

@@ -3,19 +3,32 @@ package twilio
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // failingReader is a response body whose reads fail.
 type failingReader struct{}
+
+// trackedBody is a response body that records whether it was read to its end
+// before it was closed.
+type trackedBody struct {
+	// Reader supplies the body.
+	*strings.Reader
+
+	// drainedAtClose is true when Close found nothing left to read.
+	drainedAtClose bool
+}
 
 // errRead is the read failure returned by failingReader.
 var errRead = errors.New("read failure")
@@ -30,6 +43,34 @@ var errRead = errors.New("read failure")
 //   - error: errRead.
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errRead
+}
+
+// Close records whether the body was read to its end first.
+//
+// Returns:
+//   - error: always nil.
+func (b *trackedBody) Close() error {
+	b.drainedAtClose = b.Len() == 0
+
+	return nil
+}
+
+// TestSendToRecipientReadsReply verifies that a reply that no Debug record
+// reads is still read to its end before it is closed, so the next
+// recipient's request can reuse the connection.
+func TestSendToRecipientReadsReply(t *testing.T) {
+	t.Parallel()
+
+	body := &trackedBody{Reader: strings.NewReader(messageBody), drainedAtClose: false}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).Return(&http.Response{StatusCode: http.StatusCreated, Body: body}, nil).Once()
+
+	service := &Service{HTTPClient: client}
+	service.SetLogger(types.NewSlogLogger(slog.New(slog.DiscardHandler)))
+
+	config := &Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom}
+	require.NoError(t, service.sendToRecipient(t.Context(), config, testTo, encodeMessageForm(config, "Test")))
+	assert.True(t, body.drainedAtClose)
 }
 
 // TestDefaultHTTPClient verifies that the default client has the request

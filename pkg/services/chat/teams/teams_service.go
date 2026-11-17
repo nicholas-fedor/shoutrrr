@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -254,6 +255,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
+	res.Body = httpbody.Limit(res.Body, res.ContentLength)
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {

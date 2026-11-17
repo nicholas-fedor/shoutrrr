@@ -210,6 +210,11 @@ Every service follows the same rules, so services behave alike for users and for
   It follows the same redirect policy.
 - Count a request as answered only on a 2xx status, or on the success statuses the provider documents.
   A redirect reaches the service only when the client did not follow it, so the request never reached the provider and the send fails.
+- Read at most `httpbody.MaxSize` plus one byte of a response body, so an oversized body fails with `httpbody.ErrTooLarge` instead of being read on.
+- Within that limit, read each response body to its end before closing it, so the next request or send can reuse the connection.
+  `httpbody.Read` and decoding a reply read it to its end.
+  Wrapping the body with `httpbody.Limit` right after the request caps every read, and its close reads the rest of a body whose declared length is within the limit.
+  A body of unknown length is left to the transport, which reads what it can in the background, so reuse is best effort.
 - Restore the default client when `SetHTTPClient` receives nil.
   The holder uses a nil value of another client type as given, and turns a runtime panic from it into `types.ErrNilHTTPClient`.
 - Export no client fields, client interfaces, or client constructors.
@@ -331,6 +336,7 @@ Every service follows the same rules, so services behave alike for users and for
   The linter flags any call to the deprecated `Log` and `Logf` methods.
   It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
 - `TestIntegrationPlaceholderURL` fails a service that treats `<scheme>://dummy@dummy.com` differently from a URL of the same shape.
+- `TestIntegrationResponsesReadToEnd` fails an HTTP service that closes a reply before reading it to its end, for its success status and for a 500.
 - `TestIntegrationURLPortRange` fails a service whose URL host is its server when it reads a URL with port 0 or 65536.
 - The `unknown_params` contract check sends a param that no service uses, and fails a service that accepts it.
   Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.

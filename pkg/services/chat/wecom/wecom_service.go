@@ -322,6 +322,7 @@ func (s *Service) sendRequest(ctx context.Context, postURL string, payload []byt
 		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, redact.URLError(err))
 	}
 
+	resp.Body = httpbody.Limit(resp.Body, resp.ContentLength)
 	defer func() { _ = resp.Body.Close() }()
 
 	return s.handleResponse(ctx, resp)
