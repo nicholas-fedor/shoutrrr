@@ -589,6 +589,39 @@ func TestSendChecksConfig(t *testing.T) {
 	}
 }
 
+// TestSendDefaultHost verifies that a config built in code with no hostname
+// publishes to the default server, keeping any port.
+func TestSendDefaultHost(t *testing.T) {
+	t.Parallel()
+
+	// tests lists hosts without a hostname with the URL the send must use.
+	tests := []struct {
+		name    string
+		host    string
+		wantURL string
+	}{
+		{name: "empty host", host: "", wantURL: testEndpoint},
+		{name: "port alone", host: ":8080", wantURL: "https://ntfy.sh:8080/" + testTopic},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			client, captured := newRecordingClient(t, published)
+			service.SetHTTPClient(client)
+			service.Config.Host = tt.host
+
+			require.NoError(t, service.Send("Hello", nil))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, tt.wantURL, requests[0].url)
+		})
+	}
+}
+
 // TestSendLeavesConfigUnchanged verifies that params and their headers apply
 // to one send only and leave the caller's params unchanged.
 func TestSendLeavesConfigUnchanged(t *testing.T) {

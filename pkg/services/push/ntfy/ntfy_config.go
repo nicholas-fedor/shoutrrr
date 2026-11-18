@@ -120,7 +120,12 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 // Returns:
 //   - string: the URL of the topic, after its base path when the config has one.
 func (c *Config) GetAPIURL() string {
-	return c.apiURL(c.Topic)
+	// A config built in code may not have its default host yet, so the URL is
+	// built from a copy that has it.
+	config := *c
+	_ = config.applyDefaultHost() //nolint:errcheck // An invalid host is used as written, and a request to it fails.
+
+	return config.apiURL(config.Topic)
 }
 
 // GetURL returns a URL representation of the Config's current field values.
@@ -177,11 +182,31 @@ func (c *Config) apiURL(urlPath string) string {
 
 	apiURL := url.URL{
 		Scheme: scheme,
-		Host:   c.serverHost(),
+		Host:   c.Host,
 		Path:   urlPath, // String adds the slash after the host when urlPath has none.
 	}
 
 	return apiURL.String()
+}
+
+// applyDefaultHost sets a host without a hostname to [DefaultHost] and keeps
+// its port. An empty host and a port alone have no hostname. A URL without a
+// host gets the same server.
+//
+// Returns:
+//   - error: an error wrapping a host error such as [util.ErrInvalidHost]
+//     for a host that is not a hostname or a bracketed IPv6 address, or nil.
+func (c *Config) applyDefaultHost() error {
+	host, port, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	if host == "" {
+		c.Host = util.JoinURLHost(DefaultHost, port)
+	}
+
+	return nil
 }
 
 // applyScheme checks the deprecated Scheme and turns TLS off when it is http,
@@ -246,8 +271,9 @@ func (c *Config) normalizeScheme() {
 	}
 }
 
-// prepare drops the empty tags and actions, as reading a list setting does,
-// then checks the host syntax, the topic, and the priority.
+// prepare drops the empty tags and actions, as reading a list setting does.
+// It gives a host without a hostname the default server. Then it checks the
+// topic and the priority.
 //
 // Reading a service URL and each send run it, so a config built in code sends
 // the tags and actions its URL would, and fails before a request as its URL
@@ -265,8 +291,8 @@ func (c *Config) prepare() error {
 	c.Tags = util.NonEmpty(c.Tags)
 	c.Actions = util.NonEmpty(c.Actions)
 
-	if _, _, err := util.SplitURLHost(&url.URL{Host: c.Host}); err != nil {
-		return fmt.Errorf("parsing host: %w", err)
+	if err := c.applyDefaultHost(); err != nil {
+		return err
 	}
 
 	if c.Topic == "" {
@@ -278,21 +304,6 @@ func (c *Config) prepare() error {
 	}
 
 	return validateTopicPath(c.Topic)
-}
-
-// serverHost returns the host requests go to. A host without a hostname, such
-// as an empty host or a port alone, uses [DefaultHost] with that port, as a
-// URL without a host does.
-//
-// Returns:
-//   - string: the config's host, or [DefaultHost] with the host's port.
-func (c *Config) serverHost() string {
-	host, port, err := util.SplitURLHost(&url.URL{Host: c.Host})
-	if err != nil || host != "" {
-		return c.Host
-	}
-
-	return util.JoinURLHost(DefaultHost, port)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -328,7 +339,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	c.Host = util.JoinURLHost(host, port)
-	c.Host = c.serverHost()
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 	c.Token = ""
 

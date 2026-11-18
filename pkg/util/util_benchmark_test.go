@@ -1,6 +1,7 @@
 package util
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 
@@ -127,6 +128,33 @@ func BenchmarkValidateHostName(b *testing.B) {
 
 			for b.Loop() {
 				if err := ValidateHostName(tc.host); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkSplitURLHost measures splitting a URL authority into its hostname
+// and port, as each send of a service that keeps them together does.
+func BenchmarkSplitURLHost(b *testing.B) {
+	// authorities lists a hostname with a port and a hostname alone.
+	authorities := []struct {
+		name      string
+		authority string
+	}{
+		{name: "hostname port", authority: "ntfy.example.com:8443"},
+		{name: "hostname", authority: "ntfy.example.com"},
+	}
+
+	for _, tc := range authorities {
+		serviceURL := &url.URL{Host: tc.authority}
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				if _, _, err := SplitURLHost(serviceURL); err != nil {
 					b.Fatal(err)
 				}
 			}
