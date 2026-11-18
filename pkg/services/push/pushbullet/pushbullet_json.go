@@ -92,14 +92,14 @@ func (p *PushRequest) SetTarget(target string) {
 //   - bool: true when the target names an e-mail address.
 func isEmailTarget(target string) bool {
 	for {
-		at := strings.IndexByte(target, '@')
-		if at < 0 {
+		atIndex := strings.IndexByte(target, '@')
+		if atIndex < 0 {
 			return false
 		}
 
 		// Only the rest of the line after the "@" can hold its ".". Each line is
 		// scanned once, so a long target with many lines stays linear.
-		line, rest, more := strings.Cut(target[at+1:], "\n")
+		line, rest, more := strings.Cut(target[atIndex+1:], "\n")
 		if strings.IndexByte(line, '.') >= 0 {
 			return true
 		}
