@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Check group recipients without a regular expression by @nicholas-fedor in [#2282](https://github.com/nicholas-fedor/shoutrrr/pull/2282)
 - Check topic names without a regular expression by @nicholas-fedor in [#2280](https://github.com/nicholas-fedor/shoutrrr/pull/2280)
 - Check URL hosts in fewer passes by @nicholas-fedor in [#2278](https://github.com/nicholas-fedor/shoutrrr/pull/2278)
 - Check hostnames without parsing them as IP addresses by @nicholas-fedor in [#2276](https://github.com/nicholas-fedor/shoutrrr/pull/2276)
