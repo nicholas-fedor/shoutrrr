@@ -139,6 +139,52 @@ func BenchmarkDeprecatedParams(b *testing.B) {
 	}
 }
 
+// BenchmarkSyncDeprecatedFields measures copying the deprecated fields of a
+// config into their replacements, as Gotify, MQTT, and ntfy do on each send
+// and each GetURL. Each sync runs on a fresh copy of the config, as a send
+// does, so a set deprecated field is copied into its replacement every time.
+// The usual config sets no deprecated field.
+func BenchmarkSyncDeprecatedFields(b *testing.B) {
+	// cases lists ntfy configs without and with a deprecated field set.
+	cases := []struct {
+		name   string
+		config ntfy.Config
+		used   int
+	}{
+		{name: "unset", config: ntfy.Config{Topic: "alerts"}, used: 0},
+		{
+			name: "set",
+			//nolint:staticcheck // The benchmark sets the deprecated field on purpose.
+			config: ntfy.Config{Topic: "alerts", DisableTLSVerification: true},
+			used:   1,
+		},
+	}
+
+	for i := range cases {
+		tc := &cases[i]
+
+		b.Run(tc.name, func(b *testing.B) {
+			config := new(tc.config)
+
+			used, err := format.SyncDeprecatedFields(config)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if len(used) != tc.used {
+				b.Fatalf("%d deprecated fields reported, want %d", len(used), tc.used)
+			}
+
+			b.ReportAllocs()
+
+			for b.Loop() {
+				*config = tc.config
+				_, _ = format.SyncDeprecatedFields(config)
+			}
+		})
+	}
+}
+
 // BenchmarkKeepsDefault measures checking whether a send keeps a property's
 // default, as services do on each send to map the message level.
 //
