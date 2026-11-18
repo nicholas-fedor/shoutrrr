@@ -104,3 +104,32 @@ func BenchmarkNonEmpty(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkValidateHostName measures checking a hostname that a config keeps
+// apart from its port, as each send of such a service does.
+//
+// A hostname and an IPv4 address are the usual hosts, so they must not
+// allocate.
+func BenchmarkValidateHostName(b *testing.B) {
+	// hosts lists a hostname, an IPv4 address, and an IPv6 address.
+	hosts := []struct {
+		name string
+		host string
+	}{
+		{name: "hostname", host: "rocketchat.example.com"},
+		{name: "ipv4", host: "192.0.2.1"},
+		{name: "ipv6", host: "2001:db8::1"},
+	}
+
+	for _, tc := range hosts {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				if err := ValidateHostName(tc.host); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}

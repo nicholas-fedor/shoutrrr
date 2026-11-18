@@ -351,11 +351,14 @@ func JoinURLHost(host, port string) string {
 //     an IPv6 address, or another character a URL host cannot hold.
 //     Otherwise nil.
 func ValidateHostName(host string) error {
-	if isIPv6(host) {
+	// A host that passes as a token holds no colon, so only a host that fails
+	// can be an IPv6 address.
+	err := ValidateHostToken(host)
+	if err == nil || isIPv6(host) {
 		return nil
 	}
 
-	return ValidateHostToken(host)
+	return err
 }
 
 // JoinURLHostPort writes host and a port number as a URL authority, as
@@ -478,6 +481,12 @@ func splitAuthority(authority string) (host, port string, err error) { //nolint:
 // Returns:
 //   - bool: whether host is such an IPv6 address.
 func isIPv6(host string) bool {
+	// Every IPv6 address holds a colon. Skipping the parse for a host without
+	// one avoids the error that a failed parse allocates.
+	if !strings.Contains(host, ":") {
+		return false
+	}
+
 	addr, err := netip.ParseAddr(host)
 	if err != nil || !addr.Is6() {
 		return false

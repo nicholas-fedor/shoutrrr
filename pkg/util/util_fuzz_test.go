@@ -254,6 +254,25 @@ func FuzzValidateHostToken(f *testing.F) {
 	})
 }
 
+// FuzzIsIPv6 checks that isIPv6 accepts a host exactly when it reads back
+// unchanged as the host name from the bracketed URL host that url.URL.String
+// writes for it. url.Parse accepts only an IPv6 address between brackets, so
+// such a host holds a colon. A bracket in the host is rejected, since it ends
+// the brackets early in a raw URL host. Seeds hold hostnames, IPv4 and
+// IPv6 addresses, zones with spaces and colons, and text a zone cannot hold.
+func FuzzIsIPv6(f *testing.F) {
+	for _, seed := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "::ffff:192.0.2.1", "fe80::1%eth0:1", "fe80::1%Ethernet 2", "fe80::1%a/b", "fe80::1%a]b", "fe80%eth0", "x%y:z", "::", ":"} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, host string) {
+		parsed, err := url.Parse((&url.URL{Scheme: "x", Host: "[" + host + "]"}).String())
+		want := err == nil && parsed.Hostname() == host && !strings.ContainsAny(host, "[]")
+
+		assert.Equal(t, want, isIPv6(host), "%q", host)
+	})
+}
+
 // FuzzValidatePathSegments checks that ValidatePathSegments rejects a path
 // exactly when splitting it at every slash gives a "." or ".." segment. Seeds
 // hold paths with and without dots, empty segments, and dot segments at the
