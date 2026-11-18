@@ -2,6 +2,7 @@ package format
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,29 +36,61 @@ type taggedConfig struct {
 
 // TestGetStructFieldInfo verifies the field info read from each tag, that
 // numbers default to base 10, that enums come from the enum map, and that
-// embedded and unexported fields are skipped.
+// embedded and unexported fields are skipped. Each field records its struct
+// type and index.
 func TestGetStructFieldInfo(t *testing.T) {
 	t.Parallel()
 
 	modes := CreateEnumFormatter([]string{"Off", "On"})
 	config := taggedConfig{hidden: "unused"}
 
-	fields := getStructFieldInfo(reflect.TypeOf(config), map[string]types.EnumFormatter{"Mode": modes})
+	configType := reflect.TypeOf(config)
+	fields := getStructFieldInfo(configType, map[string]types.EnumFormatter{"Mode": modes})
 
+	// The indexes count the embedded config, which is field 0.
 	want := []FieldInfo{
 		{
 			Name: "Name", Type: reflect.TypeFor[string](), Description: "The name", Template: "{{.name}}",
-			DefaultValue: "shoutrrr", Keys: []string{"name", "n"}, ItemSeparator: ',',
+			DefaultValue: "shoutrrr", Keys: []string{"name", "n"}, ItemSeparator: ',', owner: configType, index: 1,
 		},
-		{Name: "Host", Type: reflect.TypeFor[string](), Required: true, URLParts: []URLPart{URLHost, URLPort}, ItemSeparator: ','},
-		{Name: "Mode", Type: reflect.TypeFor[int](), EnumFormatter: modes, Base: DefaultBase, ItemSeparator: ','},
-		{Name: "Title", Type: reflect.TypeFor[string](), Title: true, ItemSeparator: ','},
-		{Name: "Items", Type: reflect.TypeFor[[]string](), Required: true, ItemSeparator: ';'},
-		{Name: "Color", Type: reflect.TypeFor[uint](), Required: true, Base: 16, ItemSeparator: ','},
-		{Name: "Count", Type: reflect.TypeFor[int](), Required: true, Base: DefaultBase, ItemSeparator: ','},
+		{
+			Name: "Host", Type: reflect.TypeFor[string](), Required: true, URLParts: []URLPart{URLHost, URLPort},
+			ItemSeparator: ',', owner: configType, index: 2,
+		},
+		{Name: "Mode", Type: reflect.TypeFor[int](), EnumFormatter: modes, Base: DefaultBase, ItemSeparator: ',', owner: configType, index: 3},
+		{Name: "Title", Type: reflect.TypeFor[string](), Title: true, ItemSeparator: ',', owner: configType, index: 4},
+		{Name: "Items", Type: reflect.TypeFor[[]string](), Required: true, ItemSeparator: ';', owner: configType, index: 5},
+		{Name: "Color", Type: reflect.TypeFor[uint](), Required: true, Base: 16, ItemSeparator: ',', owner: configType, index: 6},
+		{Name: "Count", Type: reflect.TypeFor[int](), Required: true, Base: DefaultBase, ItemSeparator: ',', owner: configType, index: 7},
 	}
 
 	assert.Equal(t, want, fields)
+}
+
+// TestFieldInfoValue verifies that a field is found by its index in the struct
+// it was read from, and by its name in another struct type or when the field
+// info was built by hand.
+func TestFieldInfoValue(t *testing.T) {
+	t.Parallel()
+
+	fields := getStructFieldInfo(reflect.TypeFor[testStruct](), nil)
+	strIndex := slices.IndexFunc(fields, func(field FieldInfo) bool { return field.Name == "Str" })
+	require.GreaterOrEqual(t, strIndex, 0)
+
+	str := &fields[strIndex]
+
+	config := testStruct{Str: "own"}
+	assert.Equal(t, "own", str.value(reflect.ValueOf(config)).String())
+
+	// other has a Str field at another index than testStruct's.
+	other := struct {
+		Count int
+		Str   string
+	}{Str: "other"}
+	assert.Equal(t, "other", str.value(reflect.ValueOf(other)).String())
+
+	byHand := &FieldInfo{Name: "Str"}
+	assert.Equal(t, "own", byHand.value(reflect.ValueOf(config)).String())
 }
 
 // TestGetStructFieldInfoDeprecated verifies that deprecated keys are read in

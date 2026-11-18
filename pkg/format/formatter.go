@@ -161,7 +161,7 @@ func GetConfigFormat(config types.ServiceConfig) *ContainerNode {
 //   - error: an error wrapping [ErrInvalidFieldKind] for a field of a kind
 //     that cannot be set, or the value's parse error, or nil.
 func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
-	configField := config.FieldByName(field.Name)
+	configField := field.value(config)
 	if field.EnumFormatter != nil {
 		return setEnumField(configField, field, inputValue)
 	}
@@ -762,7 +762,7 @@ func getMapIntValue(valueRaw string, valueType reflect.Type) (reflect.Value, err
 //   - error: [ErrInvalidFieldValueData] for a value that cannot be written as
 //     text, or nil.
 func GetConfigFieldString(config reflect.Value, field *FieldInfo) (string, error) {
-	configField := config.FieldByName(field.Name)
+	configField := field.value(config)
 	if field.IsEnum() {
 		return field.EnumFormatter.Print(int(configField.Int())), nil
 	}

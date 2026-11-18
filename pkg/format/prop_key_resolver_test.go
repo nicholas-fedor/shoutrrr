@@ -312,6 +312,91 @@ func TestPropKeyResolverSetDefaultProps(t *testing.T) {
 	require.ErrorIs(t, badResolver.SetDefaultProps(bad), ErrParseIntFailed)
 }
 
+// TestPropKeyResolverSetDefaultPropsZeroResolver verifies that a resolver
+// that was never bound to a config has no fields to set, so it changes
+// nothing and reports no error.
+func TestPropKeyResolverSetDefaultPropsZeroResolver(t *testing.T) {
+	t.Parallel()
+
+	var resolver PropKeyResolver
+
+	config := &testStruct{Str: "kept"}
+
+	require.NoError(t, resolver.SetDefaultProps(config))
+	assert.Equal(t, "kept", config.Str)
+}
+
+// TestPropKeyResolverSetDefaultPropsFirstError verifies that the error of the
+// first field, by field name, whose default does not parse is reported, and
+// that the valid defaults are still set.
+func TestPropKeyResolverSetDefaultPropsFirstError(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructTwoBadDefaults{}
+	resolver := NewPropKeyResolver(config)
+
+	err := resolver.SetDefaultProps(nil)
+
+	require.ErrorIs(t, err, ErrParseDurationFailed)
+	require.NotErrorIs(t, err, ErrParseIntFailed)
+	assert.Equal(t, "kept", config.Name)
+}
+
+// TestPropKeyResolverSetDefaultPropsReparseError verifies that a config prop
+// default that parsed when the defaults were built, but is rejected when it is
+// parsed again for a config, fails with its error and leaves the field as it
+// was, while the other defaults are still set.
+func TestPropKeyResolverSetDefaultPropsReparseError(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructOncePropDefault{Prop: onceProp{Value: "own"}}
+	resolver := NewPropKeyResolver(config)
+
+	err := resolver.SetDefaultProps(nil)
+
+	require.ErrorIs(t, err, errOncePropParsed)
+	assert.Equal(t, "own", config.Prop.Value)
+	assert.Equal(t, "kept", config.Name)
+}
+
+// TestPropKeyResolverSetDefaultPropsEmptyKey verifies that a field whose key
+// tag is empty has no key, so its default is not set.
+func TestPropKeyResolverSetDefaultPropsEmptyKey(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructEmptyKey{Unkeyed: "own"}
+	resolver := NewPropKeyResolver(config)
+
+	require.NoError(t, resolver.SetDefaultProps(nil))
+	assert.Equal(t, "own", config.Unkeyed)
+	assert.Equal(t, "kept", config.Name)
+	assert.Equal(t, []string{"name"}, resolver.QueryFields())
+}
+
+// TestPropKeyResolverSetDefaultPropsFreshLists verifies that each config gets
+// its own slice and map defaults, so changing one config's lists changes
+// neither another config's nor the defaults set later.
+func TestPropKeyResolverSetDefaultPropsFreshLists(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&testStructFilledListDefaults{})
+
+	first, second := &testStructFilledListDefaults{}, &testStructFilledListDefaults{}
+	require.NoError(t, resolver.SetDefaultProps(first))
+	require.NoError(t, resolver.SetDefaultProps(second))
+
+	first.Strs[0] = "changed"
+	first.Pairs["x"] = "changed"
+
+	third := &testStructFilledListDefaults{}
+	require.NoError(t, resolver.SetDefaultProps(third))
+
+	for _, config := range []*testStructFilledListDefaults{second, third} {
+		assert.Equal(t, []string{"a", "b"}, config.Strs)
+		assert.Equal(t, map[string]string{"x": "1"}, config.Pairs)
+	}
+}
+
 // TestPropKeyResolverSetDefaultPropsEmptyLists verifies that the empty default
 // of a keyed slice or map clears it, rather than leaving one empty item in a
 // slice or failing for a map.

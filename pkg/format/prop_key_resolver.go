@@ -1,6 +1,7 @@
 package format
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
@@ -35,18 +37,29 @@ type PropKeyResolver struct {
 	confValue reflect.Value
 	// keys lists every key and deprecated key in lower case, sorted.
 	keys []string
+	// fields lists each keyed field once, sorted by field name.
+	fields []*FieldInfo
 }
 
 // configDefaults is a config holding the default value of each keyed field.
 //
 // It is built once and only read afterwards, so concurrent sends can share it.
 type configDefaults struct {
+	// err is the parse error of the first field, by field name, whose default
+	// tag does not parse.
+	err error
 	// invalid holds the names of the fields whose default tag does not parse.
 	// Such a field never holds its default, as its default cannot be compared.
 	invalid map[string]bool
 	// value is the config struct, with each keyed field set to its default and
 	// a field without a default tag left at its zero value.
 	value reflect.Value
+	// copied lists the fields whose default is copied from value.
+	copied []*FieldInfo
+	// parsed lists the fields whose default holds a list, map, or other
+	// reference. Their default is parsed again for each config, so no config
+	// shares memory with value.
+	parsed []*FieldInfo
 	// once builds the defaults on first use.
 	once sync.Once
 }
@@ -80,12 +93,15 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	keyFields := make(map[string]*FieldInfo, len(items))
 	deprecatedKeys := map[string]string{}
 	keys := make([]string, 0, len(items))
+	fields := make([]*FieldInfo, 0, len(items))
 
 	for _, item := range items {
 		field := *item.Field()
 		if len(field.Keys) == 0 {
 			continue // Skip fields without explicit 'key' tags
 		}
+
+		keyCount := len(keys)
 
 		for _, key := range field.Keys {
 			key = strings.ToLower(key)
@@ -101,6 +117,11 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 				keyFields[key] = &field
 				deprecatedKeys[key] = field.Keys[0]
 			}
+		}
+
+		// A field whose keys are all empty, as from key:"", has no key to set.
+		if len(keys) > keyCount {
+			fields = append(fields, &field)
 		}
 	}
 
@@ -119,7 +140,8 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 		usedDeprecatedKeys: map[string]bool{},
 		primarySetFields:   map[string]bool{},
 		keys:               keys,
-		defaults:           &configDefaults{invalid: nil, value: reflect.Value{}, once: sync.Once{}},
+		fields:             fields,
+		defaults:           &configDefaults{err: nil, invalid: nil, value: reflect.Value{}, copied: nil, parsed: nil, once: sync.Once{}},
 	}
 }
 
@@ -359,32 +381,43 @@ func (pkr *PropKeyResolver) Set(key, value string) error {
 // SetDefaultProps sets each tagged field of a config to its default value.
 //
 // A field without a default tag, or with an empty one, is set to its zero
-// value. The error returned is the first error that occurred. Later errors
-// are discarded.
+// value. A field whose default does not parse keeps its value, and the other
+// fields are still set.
 //
 // Parameters:
 //   - config: the config to update, or nil for the resolver's own config.
 //
 // Returns:
-//   - error: the first error from parsing a default value.
+//   - error: the parse error of the first field, by field name, whose
+//     default did not parse when the defaults were built, else the first
+//     error from parsing a list, map, or other reference default again, or
+//     nil.
 func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
-	var firstError error
+	// A resolver without a bound config has no keyed fields.
+	if !pkr.confValue.IsValid() {
+		return nil
+	}
 
+	defaults := pkr.defaultConfig()
 	confValue := pkr.configValueOrInternal(config)
-	for key, info := range pkr.keyFields {
-		// An empty value does not parse as a number, bool, duration, or enum.
-		if info.DefaultValue == "" {
-			confValue.FieldByName(info.Name).SetZero()
 
-			continue
-		}
+	for _, field := range defaults.copied {
+		field.value(confValue).Set(field.value(defaults.value))
+	}
 
-		if err := pkr.set(confValue, key, info.DefaultValue); err != nil && firstError == nil {
-			firstError = err
+	// A list, map, or other reference default is parsed again into each
+	// config. A [types.ConfigProp] from outside this package may reject a
+	// value it accepted when the defaults were built, so its error is kept.
+	err := defaults.err
+
+	for _, field := range defaults.parsed {
+		_, parseErr := SetConfigField(confValue, field, field.DefaultValue)
+		if err == nil {
+			err = parseErr
 		}
 	}
 
-	return firstError
+	return err
 }
 
 // UpdateConfigFromKnownParams updates a config from the params whose keys are
@@ -524,13 +557,13 @@ func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) re
 //   - *configDefaults: the defaults of the resolver's config type.
 func (pkr *PropKeyResolver) defaultConfig() *configDefaults {
 	if pkr.defaults == nil {
-		defaults := &configDefaults{invalid: nil, value: reflect.Value{}, once: sync.Once{}}
-		defaults.build(pkr.confValue.Type(), pkr.keyFields)
+		defaults := &configDefaults{err: nil, invalid: nil, value: reflect.Value{}, copied: nil, parsed: nil, once: sync.Once{}}
+		defaults.build(pkr.confValue.Type(), pkr.fields)
 
 		return defaults
 	}
 
-	pkr.defaults.once.Do(func() { pkr.defaults.build(pkr.confValue.Type(), pkr.keyFields) })
+	pkr.defaults.once.Do(func() { pkr.defaults.build(pkr.confValue.Type(), pkr.fields) })
 
 	return pkr.defaults
 }
@@ -657,23 +690,37 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 // build sets each keyed field of a new config of configType to its default.
 //
 // A field without a default tag, or with an empty one, keeps its zero value. A
-// field whose default tag does not parse is recorded as invalid.
+// field whose default tag does not parse is recorded as invalid, and the first
+// one's parse error is kept. Each valid field is listed as copied or parsed by
+// whether its default can be copied without sharing memory.
 //
 // Parameters:
 //   - configType: the config struct type.
-//   - fields: the keyed fields of the config, by key. A field with several
-//     keys appears under each of them.
-func (d *configDefaults) build(configType reflect.Type, fields map[string]*FieldInfo) {
+//   - fields: the keyed fields of the config, each once, sorted by field name.
+func (d *configDefaults) build(configType reflect.Type, fields []*FieldInfo) {
 	d.value = reflect.New(configType).Elem()
 	d.invalid = map[string]bool{}
 
 	for _, field := range fields {
 		if field.DefaultValue == "" {
+			d.copied = append(d.copied, field)
+
 			continue
 		}
 
-		if valid, err := SetConfigField(d.value, field, field.DefaultValue); !valid || err != nil {
+		valid, err := SetConfigField(d.value, field, field.DefaultValue)
+		if err == nil && !valid {
+			err = ErrInvalidValueForType
+		}
+
+		switch {
+		case err != nil:
 			d.invalid[field.Name] = true
+			d.err = cmp.Or(d.err, err)
+		case isScalarKind(field.Type.Kind()):
+			d.copied = append(d.copied, field)
+		default:
+			d.parsed = append(d.parsed, field)
 		}
 	}
 }
@@ -687,4 +734,16 @@ func (d *configDefaults) build(configType reflect.Type, fields map[string]*Field
 //   - reflect.Value: the config's struct value.
 func configValue(config types.ServiceConfig) reflect.Value {
 	return reflect.Indirect(reflect.ValueOf(config))
+}
+
+// isScalarKind reports whether a value of kind holds no reference to shared
+// memory, so a copy of it is independent of the original.
+//
+// Parameters:
+//   - kind: the kind of the value.
+//
+// Returns:
+//   - bool: true for booleans, numbers, and strings.
+func isScalarKind(kind reflect.Kind) bool {
+	return kind == reflect.Bool || kind == reflect.String || util.IsNumeric(kind)
 }
