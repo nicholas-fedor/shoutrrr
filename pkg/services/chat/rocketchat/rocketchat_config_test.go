@@ -249,16 +249,16 @@ func TestConfigURLRoundTrip(t *testing.T) {
 // parseURL parses rawURL and fails the test if it is invalid.
 //
 // Parameters:
-//   - t: the test.
+//   - tb: the test or benchmark.
 //   - rawURL: the URL to parse.
 //
 // Returns:
 //   - *url.URL: the parsed URL.
-func parseURL(t *testing.T, rawURL string) *url.URL {
-	t.Helper()
+func parseURL(tb testing.TB, rawURL string) *url.URL {
+	tb.Helper()
 
 	parsed, err := url.Parse(rawURL)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return parsed
 }

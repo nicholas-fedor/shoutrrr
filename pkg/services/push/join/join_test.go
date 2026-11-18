@@ -113,16 +113,16 @@ func newCutOffClient(t *testing.T, status string, statusCode int) *mocks.MockHTT
 // test output.
 //
 // Parameters:
-//   - t: the test.
+//   - tb: the test or benchmark.
 //   - rawURL: the service URL.
 //
 // Returns:
 //   - *Service: the service.
-func newTestService(t *testing.T, rawURL string) *Service {
-	t.Helper()
+func newTestService(tb testing.TB, rawURL string) *Service {
+	tb.Helper()
 
 	service := &Service{}
-	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+	require.NoError(tb, service.Initialize(parseTestURL(tb, rawURL), log.New(tb.Output(), "", 0)))
 
 	return service
 }
@@ -272,6 +272,41 @@ func TestSendParams(t *testing.T) {
 	service.SetHTTPClient(client)
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert", "devices": "dev2"}))
 	assert.Equal(t, want, *service.Config)
+}
+
+// TestSendParamsApplyToOneSend verifies that a title param reaches its own
+// request only. The stored config keeps no title, and a later send without
+// params sends none.
+func TestSendParamsApplyToOneSend(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, acceptedBody)
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Backup"}))
+	assert.Equal(t, "Backup", captured.query.Get("title"))
+	assert.Empty(t, service.Config.Title)
+
+	client, captured = newRespondingClient(t, "200 OK", http.StatusOK, acceptedBody)
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Send("Message", nil))
+	assert.False(t, captured.query.Has("title"), "a send without params should send no title")
+}
+
+// TestSendWithoutInitialize verifies that a service built with a config in
+// code and never initialized applies its send params, the title among them.
+func TestSendWithoutInitialize(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{Config: &Config{APIKey: "apikey", Devices: []string{"dev1"}}}
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, acceptedBody)
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert", "devices": "dev2"}))
+	assert.Equal(t, "Alert", captured.query.Get("title"))
+	assert.Equal(t, "dev2", captured.query.Get("deviceIds"))
+	assert.Equal(t, []string{"dev1"}, service.Config.Devices)
 }
 
 // TestSendChecksConfig verifies that a send with a config built in code fails

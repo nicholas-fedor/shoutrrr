@@ -107,24 +107,18 @@ func newCapturingClient(t *testing.T, status int, body string, captured *capture
 // the test tokens, sending through client and logging to the test output.
 //
 // Parameters:
-//   - t: the test.
-//   - client: the internal HTTP client.
+//   - tb: the test or benchmark.
+//   - client: the internal HTTP client, or nil for the default client.
 //
 // Returns:
 //   - *Service: the service.
-func newTestService(t *testing.T, client *http.Client) *Service {
-	t.Helper()
+func newTestService(tb testing.TB, client *http.Client) *Service {
+	tb.Helper()
 
-	service := &Service{
-		Config: &Config{
-			Host:   "rocketchat.example.com",
-			Port:   "5055",
-			TokenA: testTokenA,
-			TokenB: testTokenB,
-		},
-		Client: client,
-	}
-	service.SetLogger(log.New(t.Output(), "", 0))
+	serviceURL := parseURL(tb, "rocketchat://rocketchat.example.com:5055/"+testTokenA+"/"+testTokenB)
+
+	service := &Service{Client: client}
+	require.NoError(tb, service.Initialize(serviceURL, log.New(tb.Output(), "", 0)))
 
 	return service
 }
@@ -192,7 +186,8 @@ func TestInitialize(t *testing.T) {
 
 // TestSendRequest verifies the method, URL, headers, and payload a send posts.
 // Params can override the configured username and channel. A disabletls param
-// sends over HTTP, and the reserved title param is accepted.
+// sends over HTTP, and the reserved title param is accepted. The params leave
+// the stored config unchanged.
 func TestSendRequest(t *testing.T) {
 	t.Parallel()
 
@@ -242,8 +237,10 @@ func TestSendRequest(t *testing.T) {
 			service := newTestService(t, newCapturingClient(t, http.StatusOK, "", &captured))
 			service.Config.UserName = "defaultUser"
 			service.Config.Channel = "#defaultChannel"
+			want := *service.Config
 
 			require.NoError(t, service.Send("test message", tt.params))
+			assert.Equal(t, want, *service.Config)
 
 			assert.Equal(t, http.MethodPost, captured.method)
 			assert.Equal(t, tt.wantURL, captured.url)
@@ -254,6 +251,32 @@ func TestSendRequest(t *testing.T) {
 			assert.Equal(t, tt.wantBody, got)
 		})
 	}
+}
+
+// TestSendWithoutInitialize verifies that a service built with a config in
+// code and never initialized applies its send params, a config key and a
+// payload param among them, without changing its config.
+func TestSendWithoutInitialize(t *testing.T) {
+	t.Parallel()
+
+	var captured capturedRequest
+
+	service := &Service{
+		Config: &Config{
+			Host:   "rocketchat.example.com",
+			Port:   "5055",
+			TokenA: testTokenA,
+			TokenB: testTokenB,
+		},
+		Client: newCapturingClient(t, http.StatusOK, "", &captured),
+	}
+	service.SetLogger(log.New(t.Output(), "", 0))
+	want := *service.Config
+
+	require.NoError(t, service.Send("test message", &types.Params{"disabletls": "yes", "channel": "#alerts"}))
+	assert.Equal(t, "http://rocketchat.example.com:5055/hooks/tokenA/tokenB", captured.url)
+	assert.Contains(t, captured.body, `"channel":"#alerts"`)
+	assert.Equal(t, want, *service.Config)
 }
 
 // TestSendErrors verifies the errors a send returns for a rejected request, an
