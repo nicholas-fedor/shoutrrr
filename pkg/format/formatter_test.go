@@ -41,6 +41,22 @@ type configlessService struct {
 	types.Service
 }
 
+// wideConfig has 64-bit integer fields, named like those of [narrowConfig].
+type wideConfig struct {
+	// Signed is a 64-bit signed integer.
+	Signed int64
+	// Unsigned is a 64-bit unsigned integer.
+	Unsigned uint64
+}
+
+// narrowConfig has 8-bit integer fields, named like those of [wideConfig].
+type narrowConfig struct {
+	// Signed is an 8-bit signed integer.
+	Signed int8
+	// Unsigned is an 8-bit unsigned integer.
+	Unsigned uint8
+}
+
 // newFieldTarget returns a settable zero value of T and its field infos by
 // name.
 //
@@ -273,6 +289,53 @@ func TestSetConfigFieldErrors(t *testing.T) {
 			require.ErrorIs(t, err, tt.wantErr)
 			assert.False(t, valid)
 			assert.Equal(t, before, value.FieldByName(tt.field).Interface())
+		})
+	}
+}
+
+// TestSetConfigFieldTargetWidth verifies that a number set through the field
+// info of another struct type must fit the field it is stored in. A number
+// that fits the wider type but not the field fails instead of being cut to the
+// field's width.
+func TestSetConfigFieldTargetWidth(t *testing.T) {
+	t.Parallel()
+
+	// tests lists fields and values with the number each should store, or the
+	// error it should produce.
+	tests := []struct {
+		wantErr error
+		want    any
+		field   string
+		value   string
+	}{
+		{field: "Signed", value: "127", want: int8(127)},
+		{field: "Signed", value: "-128", want: int8(-128)},
+		{field: "Signed", value: "300", wantErr: ErrParseIntFailed},
+		{field: "Signed", value: "-129", wantErr: ErrParseIntFailed},
+		{field: "Unsigned", value: "255", want: uint8(255)},
+		{field: "Unsigned", value: "300", wantErr: ErrParseUintFailed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.field+"="+tt.value, func(t *testing.T) {
+			t.Parallel()
+
+			_, wideFields := newFieldTarget[wideConfig](t)
+			value, _ := newFieldTarget[narrowConfig](t)
+			before := value.FieldByName(tt.field).Interface()
+
+			valid, err := SetConfigField(value, wideFields[tt.field], tt.value)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.False(t, valid)
+				assert.Equal(t, before, value.FieldByName(tt.field).Interface())
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.True(t, valid)
+			assert.Equal(t, tt.want, value.FieldByName(tt.field).Interface())
 		})
 	}
 }

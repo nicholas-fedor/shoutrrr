@@ -228,23 +228,26 @@ func setDurationField(configField reflect.Value, inputValue string) (bool, error
 // setIntField sets an integer field from its string.
 //
 // A 0x or # prefix reads the digits in base 16. Without a prefix, the digits
-// are read in the field's base.
+// are read in the field's base. The number must fit the type of configField,
+// which can be narrower than the type in field when the config is another
+// struct type.
 //
 // Parameters:
 //   - configField: the field to set.
-//   - field: the field's info, with its type and base.
+//   - field: the field's info, with its base.
 //   - inputValue: the number to set.
 //
 // Returns:
 //   - bool: true when the field was set.
-//   - error: an error wrapping [ErrParseIntFailed] when the number does not parse.
+//   - error: an error wrapping [ErrParseIntFailed] when the number does not
+//     parse or does not fit the field.
 func setIntField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	number, base := util.StripNumberPrefix(inputValue)
 	if base == 0 {
 		base = field.Base
 	}
 
-	value, err := strconv.ParseInt(number, base, field.Type.Bits())
+	value, err := strconv.ParseInt(number, base, configField.Type().Bits())
 	if err != nil {
 		return false, fmt.Errorf("%w: %w", ErrParseIntFailed, err)
 	}
@@ -257,23 +260,26 @@ func setIntField(configField reflect.Value, field *FieldInfo, inputValue string)
 // setUintField sets an unsigned integer field from its string.
 //
 // A 0x or # prefix reads the digits in base 16. Without a prefix, the digits
-// are read in the field's base.
+// are read in the field's base. The number must fit the type of configField,
+// which can be narrower than the type in field when the config is another
+// struct type.
 //
 // Parameters:
 //   - configField: the field to set.
-//   - field: the field's info, with its type and base.
+//   - field: the field's info, with its base.
 //   - inputValue: the number to set.
 //
 // Returns:
 //   - bool: true when the field was set.
-//   - error: an error wrapping [ErrParseUintFailed] when the number does not parse.
+//   - error: an error wrapping [ErrParseUintFailed] when the number does not
+//     parse or does not fit the field.
 func setUintField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	number, base := util.StripNumberPrefix(inputValue)
 	if base == 0 {
 		base = field.Base
 	}
 
-	value, err := strconv.ParseUint(number, base, field.Type.Bits())
+	value, err := strconv.ParseUint(number, base, configField.Type().Bits())
 	if err != nil {
 		return false, fmt.Errorf("%w: %w", ErrParseUintFailed, err)
 	}
