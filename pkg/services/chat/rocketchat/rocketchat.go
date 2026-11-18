@@ -38,6 +38,8 @@ type Service struct {
 	client httpclient.Holder
 	// warnings logs each warning about the service's settings once.
 	warnings logging.Once
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // Send params that override URL fields. The config resolver skips them, and
@@ -79,12 +81,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.warnings.Reset()
 
 	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.Config.SetURL(serviceURL); err != nil {
-		return err
-	}
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to Rocket.Chat.
@@ -133,8 +132,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	configCopy := *s.Config
 	config := &configCopy
 
-	resolver := format.NewPropKeyResolver(config)
-	if err := resolver.UpdateConfigFromParams(config, params, userNameParam, channelParam); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params, userNameParam, channelParam); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 

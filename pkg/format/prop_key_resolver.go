@@ -454,6 +454,8 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 		return nil
 	}
 
+	resolver := pkr.forConfig(config)
+
 	// Keys that are not config keys cannot hold one key in two spellings, so
 	// leaving them out first changes nothing but the work done. Up to eight
 	// keys fit on the stack.
@@ -462,12 +464,12 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 	keys := buf[:0]
 
 	for key := range *params {
-		if _, found := pkr.keyFields[strings.ToLower(key)]; found {
+		if _, found := resolver.keyFields[strings.ToLower(key)]; found {
 			keys = append(keys, key)
 		}
 	}
 
-	return pkr.applyParams(config, *params, keys, nil)
+	return resolver.applyParams(config, *params, keys, nil)
 }
 
 // UpdateConfigFromParams updates a config from send params.
@@ -482,6 +484,9 @@ func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConf
 // are rejected with [ErrConflictingKeys] before any is applied. Params are
 // applied in key order, with deprecated keys first, so a replacement key wins
 // when params hold both. The first error stops the update.
+//
+// A resolver that [NewPropKeyResolver] did not make, such as the zero value in
+// a service built without Initialize, reads the keys from config's type.
 //
 // Parameters:
 //   - config: the config to update, or nil for the resolver's own config.
@@ -509,7 +514,7 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 		keys = append(keys, key)
 	}
 
-	return pkr.applyParams(config, *params, keys, payloadKeys)
+	return pkr.forConfig(config).applyParams(config, *params, keys, payloadKeys)
 }
 
 // applyParams updates a config from the send params under keys, as
@@ -612,6 +617,27 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 	formatted, err := GetConfigFieldString(defaults.value, field)
 
 	return err == nil && formatted == value
+}
+
+// forConfig returns the resolver that applies params to config.
+//
+// It is the resolver itself when [NewPropKeyResolver] made it. Otherwise the
+// resolver knows no keys, so a new resolver for config's type is returned.
+//
+// Parameters:
+//   - config: the config the params update, or nil for the resolver's own
+//     config.
+//
+// Returns:
+//   - *PropKeyResolver: the resolver to apply the params with.
+func (pkr *PropKeyResolver) forConfig(config types.ServiceConfig) *PropKeyResolver {
+	if pkr.keyFields != nil || config == nil {
+		return pkr
+	}
+
+	resolver := NewPropKeyResolver(config)
+
+	return &resolver
 }
 
 // isDeprecated reports whether a key is a deprecated key.

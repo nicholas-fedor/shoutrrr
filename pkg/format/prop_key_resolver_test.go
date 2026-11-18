@@ -540,6 +540,28 @@ func TestPropKeyResolverUpdateConfigFromKnownParams(t *testing.T) {
 	require.NoError(t, resolver.UpdateConfigFromKnownParams(nil, nil))
 }
 
+// TestPropKeyResolverZeroValueParams verifies that a resolver that
+// NewPropKeyResolver did not make, as in a service built without Initialize,
+// applies params with the keys of the config it is given. An unknown key is
+// still rejected, and so is every key when no config is given.
+func TestPropKeyResolverZeroValueParams(t *testing.T) {
+	t.Parallel()
+
+	var resolver PropKeyResolver
+
+	config := &testStruct{}
+	require.NoError(t, resolver.UpdateConfigFromParams(config, &types.Params{"str": "val", "content": "payload"}, "content"))
+	assert.Equal(t, "val", config.Str)
+	require.ErrorIs(t, resolver.UpdateConfigFromParams(config, &types.Params{"nope": "x"}), ErrInvalidConfigKey)
+
+	known := &testStruct{}
+	require.NoError(t, resolver.UpdateConfigFromKnownParams(known, &types.Params{"SIGNED": "5", "other": "x"}))
+	assert.Equal(t, 5, known.Signed)
+
+	// Without a config there are no keys to read, so every key is unknown.
+	require.ErrorIs(t, resolver.UpdateConfigFromParams(nil, &types.Params{"str": "val"}), ErrInvalidConfigKey)
+}
+
 // TestPropKeyResolverReservedParams verifies that the reserved title,
 // message, and level params are skipped when the config does not declare
 // them, applied when it does, and that other unknown params are still

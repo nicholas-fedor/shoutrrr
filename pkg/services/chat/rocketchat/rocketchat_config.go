@@ -102,6 +102,22 @@ func (c *Config) GetURL() *url.URL {
 //     query, or [format.ErrInvalidConfigKey] for an unknown query key. A
 //     rejected URL leaves the config unchanged.
 func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, serviceURL)
+}
+
+// setURL reads a service URL into the config through resolver, as
+// [Config.SetURL] describes.
+//
+// Parameters:
+//   - resolver: the config's resolver. A copy of it bound to the config's
+//     copy applies the query keys.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the errors [Config.SetURL] lists.
+func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
 
 	host, port, err := util.SplitURLHost(serviceURL)
@@ -160,8 +176,8 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 	// The query keys start from their defaults, so a key the URL leaves out
 	// does not keep the value an earlier URL set.
-	resolver := format.NewPropKeyResolver(&next)
-	if err := resolver.SetDefaultProps(&next); err != nil {
+	bound := resolver.Bind(&next)
+	if err := bound.SetDefaultProps(&next); err != nil {
 		return fmt.Errorf("setting default props: %w", err)
 	}
 
@@ -170,7 +186,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		return err
 	}
 
-	if err := format.ApplyQuery(&resolver, query); err != nil {
+	if err := format.ApplyQuery(&bound, query); err != nil {
 		return err
 	}
 

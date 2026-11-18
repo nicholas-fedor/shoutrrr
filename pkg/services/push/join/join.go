@@ -133,8 +133,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	configCopy := *s.Config
 	config := &configCopy
 
-	resolver := format.NewPropKeyResolver(config)
-	if err := resolver.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
