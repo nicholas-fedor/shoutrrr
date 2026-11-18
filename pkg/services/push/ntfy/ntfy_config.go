@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -89,8 +88,8 @@ const (
 	schemeHTTPS = "https"
 )
 
-// topicNamePattern matches the topic names ntfy accepts.
-var topicNamePattern = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
+// maxTopicNameLength is the longest topic name ntfy accepts, in bytes.
+const maxTopicNameLength = 64
 
 // Errors for an invalid topic in the config URL.
 var (
@@ -102,6 +101,18 @@ var (
 	// ErrInvalidScheme indicates a scheme other than http or https.
 	ErrInvalidScheme = errors.New("invalid scheme: use http or https, or disabletls instead")
 )
+
+// topicNameBytes marks the bytes a topic name may hold, which are ASCII
+// letters, digits, dashes, and underscores.
+var topicNameBytes = func() [256]bool {
+	var table [256]bool
+
+	for c := range table {
+		table[c] = 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || c == '-' || c == '_'
+	}
+
+	return table
+}()
 
 // Enums returns the fields that use an EnumFormatter for their values.
 //
@@ -391,6 +402,30 @@ func hasQueryKey(query url.Values, key string) bool {
 	return false
 }
 
+// isTopicName reports whether name is a topic name ntfy accepts.
+//
+// ntfy's server takes 1 to 64 ASCII letters, digits, dashes, and
+// underscores.
+//
+// Parameters:
+//   - name: the topic name, without a base path.
+//
+// Returns:
+//   - bool: true for a topic name ntfy accepts.
+func isTopicName(name string) bool {
+	if name == "" || len(name) > maxTopicNameLength {
+		return false
+	}
+
+	for i := range len(name) {
+		if !topicNameBytes[name[i]] {
+			return false
+		}
+	}
+
+	return true
+}
+
 // validateTopicPath checks a topic name, optionally after a server's base path.
 // The topic name follows ntfy's rule of up to 64 letters, digits, underscores,
 // and dashes. The base path has no empty segment, and no "." or ".." segment.
@@ -404,7 +439,7 @@ func hasQueryKey(query url.Values, key string) bool {
 //     "." or ".." segment. Otherwise nil.
 func validateTopicPath(topicPath string) error {
 	dir, name := path.Split(topicPath)
-	if !topicNamePattern.MatchString(name) {
+	if !isTopicName(name) {
 		return ErrInvalidTopic
 	}
 
