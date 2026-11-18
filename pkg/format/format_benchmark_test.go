@@ -31,6 +31,22 @@ func BenchmarkNewPropKeyResolver(b *testing.B) {
 	}
 }
 
+// BenchmarkSetDefaultProps measures setting every keyed field of a config to
+// its default, as each Initialize does. ntfy has as many keyed fields as any
+// service, deprecated keys among them.
+func BenchmarkSetDefaultProps(b *testing.B) {
+	resolver := format.NewPropKeyResolver(&ntfy.Config{})
+	config := &ntfy.Config{}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if err := resolver.SetDefaultProps(config); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // BenchmarkPropKeyResolverSet measures setting a config key from its string,
 // for each kind of field.
 func BenchmarkPropKeyResolverSet(b *testing.B) {

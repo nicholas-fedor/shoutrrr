@@ -17,6 +17,9 @@ type FieldInfo struct {
 	// EnumFormatter reads and writes the field's values when it is an enum, or
 	// is nil.
 	EnumFormatter types.EnumFormatter
+	// owner is the config struct type the field was read from, or nil for a
+	// FieldInfo built by hand.
+	owner reflect.Type
 	// Name is the Go name of the field.
 	Name string
 	// Description is the field's `desc` tag.
@@ -36,6 +39,8 @@ type FieldInfo struct {
 	DeprecatedKeys []string
 	// Base is the number base of a numeric field, from its `base` tag, or 10.
 	Base int
+	// index is the field's index in owner.
+	index int
 	// ItemSeparator separates the items of a list field, from its `sep` tag, or
 	// a comma.
 	ItemSeparator rune
@@ -69,6 +74,55 @@ func (fi *FieldInfo) IsEnum() bool {
 //   - bool: true when the field's `url` tag names the part.
 func (fi *FieldInfo) IsURLPart(part URLPart) bool {
 	return slices.Contains(fi.URLParts, part)
+}
+
+// value returns the field in config. A field read from config's own struct
+// type is reached by its index, and any other by its name, which searches the
+// struct's fields.
+//
+// Parameters:
+//   - config: the config struct value.
+//
+// Returns:
+//   - reflect.Value: the field's value in config.
+func (fi *FieldInfo) value(config reflect.Value) reflect.Value {
+	if fi.owner != nil && config.Type() == fi.owner {
+		return config.Field(fi.index)
+	}
+
+	return config.FieldByName(fi.Name)
+}
+
+// newValueFieldInfo describes a value that is not a config field, such as an
+// item of a list or the config struct itself. It has no tags and no struct to
+// be looked up in.
+//
+// Parameters:
+//   - name: the value's name, such as the item's key, or empty.
+//   - valueType: the value's type.
+//   - base: the number base of a numeric value, or 0.
+//
+// Returns:
+//   - *FieldInfo: the description of the value.
+func newValueFieldInfo(name string, valueType reflect.Type, base int) *FieldInfo {
+	return &FieldInfo{
+		Name:           name,
+		Type:           valueType,
+		EnumFormatter:  nil,
+		owner:          nil,
+		Description:    "",
+		DefaultValue:   "",
+		Template:       "",
+		URLParts:       nil,
+		Keys:           nil,
+		DeprecatedKeys: nil,
+		Base:           base,
+		index:          0,
+		ItemSeparator:  0,
+		Required:       false,
+		Title:          false,
+		Sensitive:      false,
+	}
 }
 
 // getStructFieldInfo reads the field information of a config struct type from
@@ -107,6 +161,8 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 			Required:      true,
 			Title:         false,
 			ItemSeparator: ',',
+			owner:         structType,
+			index:         i,
 		}
 
 		if util.IsNumeric(fieldDef.Type.Kind()) {

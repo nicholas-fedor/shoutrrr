@@ -53,7 +53,7 @@ func MaskedURL(config types.ServiceConfig) *url.URL {
 
 	fields := getStructFieldInfo(masked.Elem().Type(), nil)
 	for i := range fields {
-		fieldValue := masked.Elem().FieldByName(fields[i].Name)
+		fieldValue := fields[i].value(masked.Elem())
 		if !fields[i].Sensitive || fieldValue.IsZero() {
 			continue
 		}

@@ -180,22 +180,7 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 	for i := range itemCount {
 		key := strconv.Itoa(i)
 		val := arrayValue.Index(i)
-		n.Items = append(n.Items, getValueNode(val, &FieldInfo{
-			Name:           key,
-			Type:           elemType,
-			EnumFormatter:  nil,
-			Description:    "",
-			DefaultValue:   "",
-			Template:       "",
-			Required:       false,
-			URLParts:       nil,
-			Title:          false,
-			Base:           0,
-			Keys:           nil,
-			DeprecatedKeys: nil,
-			ItemSeparator:  0,
-			Sensitive:      false,
-		}))
+		n.Items = append(n.Items, getValueNode(val, newValueFieldInfo(key, elemType, 0)))
 	}
 }
 
@@ -250,22 +235,7 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 		// The keys will always be strings
 		key := keyVal.String()
 		val := mapValue.MapIndex(keyVal)
-		nodeItems[i] = getValueNode(val, &FieldInfo{
-			Name:           key,
-			Type:           elemType,
-			EnumFormatter:  nil,
-			Description:    "",
-			DefaultValue:   "",
-			Template:       "",
-			Required:       false,
-			URLParts:       nil,
-			Title:          false,
-			Base:           base,
-			Keys:           nil,
-			DeprecatedKeys: nil,
-			ItemSeparator:  0,
-			Sensitive:      false,
-		})
+		nodeItems[i] = getValueNode(val, newValueFieldInfo(key, elemType, base))
 		maxKeyLength = util.Max(len(key), maxKeyLength)
 	}
 
@@ -375,34 +345,14 @@ func getRootNode(value any) *ContainerNode {
 	maxKeyLength := 0
 
 	for i := range infoFields {
-		fieldValue := structValue.FieldByName(infoFields[i].Name)
-		if !fieldValue.IsValid() {
-			fieldValue = reflect.Zero(infoFields[i].Type)
-		}
-
-		nodeItems = append(nodeItems, getNode(fieldValue, &infoFields[i]))
+		nodeItems = append(nodeItems, getNode(infoFields[i].value(structValue), &infoFields[i]))
 		maxKeyLength = util.Max(len(infoFields[i].Name), maxKeyLength)
 	}
 
 	sortNodeItems(nodeItems)
 
 	return &ContainerNode{
-		FieldInfo: &FieldInfo{
-			Name:           "",
-			Type:           structType,
-			EnumFormatter:  nil,
-			Description:    "",
-			DefaultValue:   "",
-			Template:       "",
-			Required:       false,
-			URLParts:       nil,
-			Title:          false,
-			Base:           0,
-			Keys:           nil,
-			DeprecatedKeys: nil,
-			ItemSeparator:  0,
-			Sensitive:      false,
-		},
+		FieldInfo:    newValueFieldInfo("", structType, 0),
 		Items:        nodeItems,
 		MaxKeyLength: maxKeyLength,
 	}
@@ -544,23 +494,8 @@ func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) str
 		}
 
 		if i == 0 {
-			itemFieldInfo = &FieldInfo{
-				Name:          "",
-				Type:          itemValue.Type(),
-				EnumFormatter: nil,
-				Description:   "",
-				DefaultValue:  "",
-				Template:      "",
-				Required:      false,
-				URLParts:      nil,
-				Title:         false,
-				// Inherit the base from the container
-				Base:           fieldInfo.Base,
-				Keys:           nil,
-				DeprecatedKeys: nil,
-				ItemSeparator:  0,
-				Sensitive:      false,
-			}
+			// Each item inherits the base of its container.
+			itemFieldInfo = newValueFieldInfo("", itemValue.Type(), fieldInfo.Base)
 
 			if itemFieldInfo.Base == 0 {
 				itemFieldInfo.Base = BaseDecimalLen

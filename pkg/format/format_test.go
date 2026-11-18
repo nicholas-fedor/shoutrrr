@@ -3,6 +3,7 @@ package format
 import (
 	"errors"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +24,13 @@ type subStruct struct {
 // with values written as "@value".
 type subPropStruct struct {
 	// Value is the value without its "@" prefix.
+	Value string
+}
+
+// onceProp is a [types.ConfigProp] that accepts its first parse and rejects
+// every later one, as a config prop from outside the package may.
+type onceProp struct {
+	// Value is the parsed value.
 	Value string
 }
 
@@ -85,6 +93,79 @@ type testStructBadDefault struct {
 	Value int `default:"NaN" key:"value"`
 }
 
+// testStructTwoBadDefaults is a service config with two defaults that do not
+// parse, ahead of a valid one. Their struct order is the reverse of their
+// name order.
+type testStructTwoBadDefaults struct {
+	standard.EnumlessConfig
+
+	// Later is an int whose default is not a number. It comes first in the
+	// struct and second by name.
+	Later int `default:"NaN" key:"a"`
+	// Early is a duration whose default is not a duration. It comes first by
+	// name.
+	Early time.Duration `default:"soon" key:"b"`
+	// Name is a string with a valid default.
+	Name string `default:"kept" key:"name"`
+}
+
+// testStructEmptyKey is a service config with a field whose key tag is empty.
+type testStructEmptyKey struct {
+	standard.EnumlessConfig
+
+	// Unkeyed has a default but an empty key tag, so no key sets it.
+	Unkeyed string `default:"unused" key:""`
+	// Name is a keyed string with a default.
+	Name string `default:"kept" key:"name"`
+}
+
+// testStructFilledListDefaults is a service config with a keyed slice and a
+// keyed map that have defaults.
+type testStructFilledListDefaults struct {
+	standard.EnumlessConfig
+
+	// Strs is a keyed string slice with two default items.
+	Strs []string `default:"a,b" key:"strs"`
+	// Pairs is a keyed map with one default pair.
+	Pairs map[string]string `default:"x:1" key:"pairs"`
+}
+
+// testStructOncePropDefault is a service config with a keyed config prop
+// whose default parses only once.
+type testStructOncePropDefault struct {
+	standard.EnumlessConfig
+
+	// Prop is a keyed config prop with a default.
+	Prop onceProp `default:"set" key:"prop"`
+	// Name is a keyed string with a default.
+	Name string `default:"kept" key:"name"`
+}
+
+// label is a string type of its own, which a string is not assignable to.
+type label string
+
+// testStructLabelSource is a service config with a keyed string default and a
+// keyed int without one.
+type testStructLabelSource struct {
+	standard.EnumlessConfig
+
+	// Name is a keyed string with a default.
+	Name string `default:"kept" key:"name"`
+	// Count is a keyed int without a default.
+	Count int `key:"count"`
+}
+
+// testStructLabelTarget is a service config with the fields of
+// testStructLabelSource, its Name of another type.
+type testStructLabelTarget struct {
+	standard.EnumlessConfig
+
+	// Name is a keyed label.
+	Name label `key:"name"`
+	// Count is a keyed int.
+	Count int `key:"count"`
+}
+
 // testStructListDefaults is a service config with keyed slices and a keyed map
 // that have no default, so their default is the empty value.
 type testStructListDefaults struct {
@@ -116,6 +197,13 @@ type testStructNoDefaults struct {
 // errInvalidProp is the error subPropStruct returns for a value without its
 // "@" prefix.
 var errInvalidProp = errors.New("invalid value")
+
+// errOncePropParsed is the error onceProp returns after its first parse.
+var errOncePropParsed = errors.New("already parsed")
+
+// oncePropParses counts the parses of every onceProp. Only
+// TestPropKeyResolverSetDefaultPropsReparseError uses the type.
+var oncePropParses atomic.Int32
 
 // testEnum formats the TestEnum field of testStruct.
 var testEnum = CreateEnumFormatter([]string{"None", "Foo", "Bar"})
@@ -207,6 +295,32 @@ func (s *subPropStruct) SetFromProp(propValue string) error {
 	return nil
 }
 
+// GetPropValue writes the value as it is.
+//
+// Returns:
+//   - string: the value.
+//   - error: always nil.
+func (p *onceProp) GetPropValue() (string, error) {
+	return p.Value, nil
+}
+
+// SetFromProp reads the value on the first parse of any onceProp.
+//
+// Parameters:
+//   - propValue: the value.
+//
+// Returns:
+//   - error: errOncePropParsed on every parse after the first.
+func (p *onceProp) SetFromProp(propValue string) error {
+	if oncePropParses.Add(1) > 1 {
+		return errOncePropParsed
+	}
+
+	p.Value = propValue
+
+	return nil
+}
+
 // Enums returns the enum formatter of the TestEnum field.
 //
 // Returns:
@@ -250,6 +364,120 @@ func (t *testStructBadDefault) GetURL() *url.URL {
 // Returns:
 //   - error: always nil.
 func (t *testStructBadDefault) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructTwoBadDefaults) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructTwoBadDefaults) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructEmptyKey) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructEmptyKey) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructFilledListDefaults) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructFilledListDefaults) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructOncePropDefault) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructOncePropDefault) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructLabelSource) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructLabelSource) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructLabelTarget) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructLabelTarget) SetURL(*url.URL) error {
 	return nil
 }
 
