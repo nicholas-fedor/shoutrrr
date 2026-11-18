@@ -47,6 +47,13 @@ type resolvingConfig struct {
 	standard.EnumlessConfig
 }
 
+// valueKeyedConfig is a service config whose methods take it by value, so it
+// can be passed as a value whose fields cannot be set.
+type valueKeyedConfig struct {
+	// Name is a keyed string.
+	Name string `key:"name"`
+}
+
 // spelledLevels formats the Level field of spelledDefaultsConfig.
 var spelledLevels = CreateEnumFormatter([]string{"Low", "High"})
 
@@ -543,7 +550,8 @@ func TestPropKeyResolverUpdateConfigFromKnownParams(t *testing.T) {
 // TestPropKeyResolverZeroValueParams verifies that a resolver that
 // NewPropKeyResolver did not make, as in a service built without Initialize,
 // applies params with the keys of the config it is given. An unknown key is
-// still rejected, and so is every key when the config is nil or a nil pointer.
+// still rejected, and so is every key of a config whose fields cannot be set,
+// such as nil, a nil pointer, or a struct passed by value.
 func TestPropKeyResolverZeroValueParams(t *testing.T) {
 	t.Parallel()
 
@@ -558,14 +566,14 @@ func TestPropKeyResolverZeroValueParams(t *testing.T) {
 	require.NoError(t, resolver.UpdateConfigFromKnownParams(known, &types.Params{"SIGNED": "5", "other": "x"}))
 	assert.Equal(t, 5, known.Signed)
 
-	// Without a config, or with a nil pointer to one, there are no keys to
-	// read, so every key is unknown and empty params change nothing.
+	// Without a config whose fields can be set, there are no keys to apply, so
+	// every key is unknown and empty params change nothing.
 	var nilConfig *testStruct
 
-	for _, config := range []types.ServiceConfig{nil, nilConfig} {
-		require.ErrorIs(t, resolver.UpdateConfigFromParams(config, &types.Params{"str": "val"}), ErrInvalidConfigKey)
+	for _, config := range []types.ServiceConfig{nil, nilConfig, valueKeyedConfig{}} {
+		require.ErrorIs(t, resolver.UpdateConfigFromParams(config, &types.Params{"name": "val"}), ErrInvalidConfigKey)
 		require.NoError(t, resolver.UpdateConfigFromParams(config, &types.Params{}))
-		require.NoError(t, resolver.UpdateConfigFromKnownParams(config, &types.Params{"str": "val"}))
+		require.NoError(t, resolver.UpdateConfigFromKnownParams(config, &types.Params{"name": "val"}))
 		require.NoError(t, resolver.UpdateConfigFromKnownParams(config, &types.Params{}))
 	}
 }
@@ -773,6 +781,27 @@ func (c *titledConfig) GetURL() *url.URL { return &url.URL{} }
 // Returns:
 //   - error: always nil.
 func (c *titledConfig) SetURL(*url.URL) error { return nil }
+
+// Enums returns no enum formatters.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: always nil.
+func (valueKeyedConfig) Enums() map[string]types.EnumFormatter { return nil }
+
+// GetURL returns an empty URL. The resolver tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (valueKeyedConfig) GetURL() *url.URL { return &url.URL{} }
+
+// SetURL ignores the URL. The resolver tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (valueKeyedConfig) SetURL(*url.URL) error { return nil }
 
 // Enums returns the enum formatter of the Level field.
 //

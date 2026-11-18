@@ -623,8 +623,8 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 //
 // It is the resolver itself when [NewPropKeyResolver] made it. Otherwise the
 // resolver knows no keys, so a new resolver for config's type is returned. A
-// nil config, or a nil pointer to one, has no fields to read keys from, so the
-// resolver itself is returned and every key stays unknown.
+// config whose fields cannot be set, such as nil, a nil pointer, or a struct
+// passed by value, gets the resolver itself, so every key stays unknown.
 //
 // Parameters:
 //   - config: the config the params update, or nil for the resolver's own
@@ -633,7 +633,7 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 // Returns:
 //   - *PropKeyResolver: the resolver to apply the params with.
 func (pkr *PropKeyResolver) forConfig(config types.ServiceConfig) *PropKeyResolver {
-	if pkr.keyFields != nil || !configValue(config).IsValid() {
+	if pkr.keyFields != nil || !configValue(config).CanSet() {
 		return pkr
 	}
 
