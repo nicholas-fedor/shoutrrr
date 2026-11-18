@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Add tasks that tag the next release by @nicholas-fedor in [#2270](https://github.com/nicholas-fedor/shoutrrr/pull/2270)
 - Update step-security/harden-runner action to v2.23.0 by @renovate[bot] in [#2267](https://github.com/nicholas-fedor/shoutrrr/pull/2267)
 - Update module golang.org/x/tools to v0.53.0 by @renovate[bot] in [#2258](https://github.com/nicholas-fedor/shoutrrr/pull/2258)
 - Update dependency platformdirs to v4.14.7 by @renovate[bot] in [#2257](https://github.com/nicholas-fedor/shoutrrr/pull/2257)
