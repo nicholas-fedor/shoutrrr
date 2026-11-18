@@ -2,6 +2,8 @@ package format
 
 import (
 	"net/url"
+	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,6 +114,31 @@ type partlyInvalidConfig struct {
 	Broken bool `deprecated:"Missing"`
 }
 
+// sharedReplacementConfig has two deprecated fields that name one replacement.
+// Zeta is declared first, so it wins when both are set, though Alpha sorts
+// first by name.
+type sharedReplacementConfig struct {
+	urlStub
+
+	// New replaces Zeta and Alpha.
+	New string
+	// Zeta is the first deprecated field that New replaces.
+	Zeta string `deprecated:"New"`
+	// Alpha is the second deprecated field that New replaces.
+	Alpha string `deprecated:"New"`
+}
+
+// firstUseConfig has a deprecated field. Only
+// [TestDeprecatedFieldPairsFirstUse] uses it, so its pairs are built there.
+type firstUseConfig struct {
+	urlStub
+
+	// New replaces Old.
+	New string
+	// Old is the deprecated field that New replaces.
+	Old string `deprecated:"New"`
+}
+
 // TestSyncDeprecatedFields verifies how deprecated fields reach their
 // replacements.
 //
@@ -187,6 +214,7 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 		name   string
 	}{
 		{name: "string value", config: stringConfig("x")},
+		{name: "pointer to a string", config: new(stringConfig)},
 		{name: "struct value", config: valueConfig{}},
 		{name: "nil pointer", config: (*deprecatedConfig)(nil)},
 		{name: "missing replacement", config: &missingReplacementConfig{Old: true}},
@@ -207,10 +235,93 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 		})
 	}
 
+	// The valid pair before the broken tag must not be kept either, so each
+	// sync reads the tags again and fails the same way.
 	config := &partlyInvalidConfig{Old: true}
-	_, err := SyncDeprecatedFields(config)
-	require.ErrorIs(t, err, ErrInvalidDeprecatedField)
-	assert.Equal(t, &partlyInvalidConfig{Old: true}, config, "no field should change when a tag is invalid")
+
+	for attempt := range 2 {
+		used, err := SyncDeprecatedFields(config)
+		require.ErrorIs(t, err, ErrInvalidDeprecatedField, "attempt %d", attempt)
+		assert.Nil(t, used, "attempt %d", attempt)
+		assert.Equal(t, &partlyInvalidConfig{Old: true}, config, "no field should change when a tag is invalid")
+
+		_, cached := deprecatedFieldPairsByType.Load(reflect.TypeFor[partlyInvalidConfig]())
+		assert.False(t, cached, "attempt %d: a type with an invalid tag should not be cached", attempt)
+	}
+}
+
+// TestSyncDeprecatedFieldsSharedReplacement verifies that when two deprecated
+// fields name one replacement, the first one declared that is set wins, for a
+// sync and for a move, while the report stays sorted by name.
+func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
+	t.Parallel()
+
+	config := &sharedReplacementConfig{Zeta: "z", Alpha: "a"}
+	used, err := SyncDeprecatedFields(config)
+	require.NoError(t, err)
+	assert.Equal(t, "z", config.New)
+	assert.Equal(t, []Deprecation{
+		{Name: "Alpha", Replacement: "New"},
+		{Name: "Zeta", Replacement: "New"},
+	}, used)
+
+	moved := &sharedReplacementConfig{Zeta: "z", Alpha: "a"}
+	moveDeprecatedFields(configValue(moved))
+	assert.Equal(t, &sharedReplacementConfig{New: "z"}, moved)
+}
+
+// TestDeprecatedFieldPairsFirstUse verifies that concurrent first calls for a
+// type all get its pairs and store them, and that a later call reuses the
+// stored pairs instead of reading the tags again. Run it with -race.
+func TestDeprecatedFieldPairsFirstUse(t *testing.T) {
+	t.Parallel()
+
+	const workers = 16
+
+	structType := reflect.TypeFor[firstUseConfig]()
+
+	// A repeated run, such as with -count=2, starts with the pairs stored by
+	// the run before. Only this test reads this type, so clearing it is safe.
+	deprecatedFieldPairsByType.Delete(structType)
+
+	want := []deprecatedFieldPair{{
+		Name:        "Old",
+		Replacement: "New",
+		deprecated:  2,
+		replacement: 1,
+	}}
+
+	var wg sync.WaitGroup
+
+	results := make([][]deprecatedFieldPair, workers)
+	errs := make([]error, workers)
+
+	for i := range workers {
+		wg.Go(func() {
+			results[i], errs[i] = deprecatedFieldPairs(structType)
+		})
+	}
+
+	wg.Wait()
+
+	for i := range workers {
+		require.NoError(t, errs[i], "call %d", i)
+		assert.Equal(t, want, results[i], "call %d", i)
+	}
+
+	// The entry is read before any other call, so only the workers can have
+	// stored it.
+	cached, found := deprecatedFieldPairsByType.Load(structType)
+	require.True(t, found, "the first calls should store the pairs")
+
+	stored, isPairs := cached.([]deprecatedFieldPair)
+	require.True(t, isPairs)
+	require.Equal(t, want, stored)
+
+	again, err := deprecatedFieldPairs(structType)
+	require.NoError(t, err)
+	require.Len(t, again, 1)
+	assert.Same(t, &stored[0], &again[0], "a later call should reuse the stored pairs")
 }
 
 // TestMoveDeprecatedFields verifies that moving copies each set deprecated
