@@ -1,8 +1,6 @@
 package pushbullet
 
-import (
-	"regexp"
-)
+import "strings"
 
 // PushRequest is the body of a request to create a push.
 type PushRequest struct {
@@ -37,9 +35,6 @@ type ResponseError struct {
 	} `json:"error"`
 }
 
-// emailPattern matches a target that is an e-mail address.
-var emailPattern = regexp.MustCompile(`.*@.*\..*`)
-
 // Error returns the error message from the API.
 //
 // Returns:
@@ -72,7 +67,7 @@ func NewNotePush(message, title string) *PushRequest {
 //   - target: an e-mail address for a user, a #tag for a channel, or a device
 //     identifier. Empty sends the push to all of the token user's devices.
 func (p *PushRequest) SetTarget(target string) {
-	if emailPattern.MatchString(target) {
+	if isEmailTarget(target) {
 		p.Email = target
 
 		return
@@ -85,4 +80,34 @@ func (p *PushRequest) SetTarget(target string) {
 	}
 
 	p.DeviceIden = target
+}
+
+// isEmailTarget reports whether a target names an e-mail address. A target
+// does when one of its lines holds a "." after an "@".
+//
+// Parameters:
+//   - target: a URL path target.
+//
+// Returns:
+//   - bool: true when the target names an e-mail address.
+func isEmailTarget(target string) bool {
+	for {
+		atIndex := strings.IndexByte(target, '@')
+		if atIndex < 0 {
+			return false
+		}
+
+		// Only the rest of the line after the "@" can hold its ".". Each line is
+		// scanned once, so a long target with many lines stays linear.
+		line, rest, more := strings.Cut(target[atIndex+1:], "\n")
+		if strings.IndexByte(line, '.') >= 0 {
+			return true
+		}
+
+		if !more {
+			return false
+		}
+
+		target = rest
+	}
 }
