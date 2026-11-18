@@ -33,6 +33,22 @@ var (
 	ErrInvalidPathSegment = errors.New("invalid URL path segment")
 )
 
+// hostTokenBytes marks the ASCII bytes that read back unchanged from a URL
+// host. These are letters, digits, and the punctuation that [url.URL.String]
+// writes unescaped. "%" reads back too, written as "%25". The colon and the
+// brackets are not marked, since they read back as a port or an IPv6 address.
+// A byte outside ASCII is not marked.
+var hostTokenBytes = func() [256]bool {
+	var table [256]bool
+
+	for c := range table {
+		table[c] = 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' ||
+			strings.IndexByte(`-._~!$&'()*+,;=<>"%`, byte(c)) >= 0
+	}
+
+	return table
+}()
+
 // URLUserPassword creates a url.Userinfo from user and password strings.
 //
 // Unlike url.UserPassword, this function treats empty strings as "not specified":
@@ -186,7 +202,7 @@ func ValidatePort(port int) error {
 //     or nil.
 func ValidateHostToken(token string) error {
 	for i := range len(token) {
-		if c := token[i]; c < utf8.RuneSelf && !isHostTokenByte(c) {
+		if c := token[i]; c < utf8.RuneSelf && !hostTokenBytes[c] {
 			return ErrInvalidHost
 		}
 	}
@@ -402,27 +418,6 @@ func ParseURLQuery(serviceURL *url.URL) (url.Values, error) {
 	return query, nil
 }
 
-// isHostTokenByte reports whether the ASCII byte c reads back unchanged from a
-// URL host.
-//
-// Letters, digits, and the other characters that [url.URL.String] writes
-// unescaped in a host do. So does "%", which it writes as "%25". The colon and
-// the brackets do not, since they read back as a port or an IPv6 address.
-//
-// Parameters:
-//   - c: an ASCII byte.
-//
-// Returns:
-//   - bool: true when c reads back unchanged.
-func isHostTokenByte(c byte) bool {
-	switch c {
-	case '-', '.', '_', '~', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=', '<', '>', '"', '%':
-		return true
-	default:
-		return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9'
-	}
-}
-
 // splitAuthority splits a URL authority into its hostname and port text, as
 // [SplitURLHost] describes, without reading the port as a number.
 //
@@ -457,11 +452,12 @@ func splitAuthority(authority string) (host, port string, err error) { //nolint:
 		return host, port, nil
 	}
 
-	if strings.Count(authority, ":") > 1 {
+	// An unbracketed host holds no colon, so a colon in the port means the
+	// authority has more than one.
+	host, port, _ = strings.Cut(authority, ":")
+	if strings.Contains(port, ":") {
 		return "", "", ErrInvalidHost
 	}
-
-	host, port, _ = strings.Cut(authority, ":")
 
 	// url.Parse never puts a slash, an at sign, or a space in a host, so a host
 	// built in code is held to the same rule.
@@ -499,7 +495,7 @@ func isIPv6(host string) bool {
 	// outside ASCII makes the URL fail to parse, or ends the brackets early.
 	zone := addr.Zone()
 	for i := range len(zone) {
-		if c := zone[i]; c >= utf8.RuneSelf || c != ' ' && c != ':' && !isHostTokenByte(c) {
+		if c := zone[i]; c != ' ' && c != ':' && !hostTokenBytes[c] {
 			return false
 		}
 	}
