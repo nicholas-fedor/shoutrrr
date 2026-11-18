@@ -2,7 +2,6 @@ package signal
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
@@ -10,10 +9,24 @@ import (
 const (
 	// usernamePrefix marks a Signal username recipient.
 	usernamePrefix = "u:"
+	// groupPrefix marks a Signal group recipient, as signal-cli-rest-api
+	// writes it before the base64 group ID.
+	groupPrefix = "group."
 )
 
-// groupRegex validates group ID format.
-var groupRegex = regexp.MustCompile(`^group\.[a-zA-Z0-9_+/=-]+$`)
+// groupIDBytes marks the bytes a group ID may hold after its prefix. These are
+// ASCII letters and digits, the "+", "/", "-", and "_" of the standard and the
+// URL-safe base64 alphabets, and the "=" of base64 padding.
+var groupIDBytes = func() [256]bool {
+	var table [256]bool
+
+	for c := range table {
+		table[c] = 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' ||
+			strings.IndexByte("+/=-_", byte(c)) >= 0
+	}
+
+	return table
+}()
 
 // parseRecipients parses recipient phone numbers, group IDs, and usernames from URL path segments.
 // It handles group IDs that may contain "/" characters by accumulating consecutive segments.
@@ -38,7 +51,7 @@ func parseRecipients(pathParts []string) ([]string, error) {
 
 	for _, part := range pathParts {
 		switch {
-		case strings.HasPrefix(part, "group."):
+		case strings.HasPrefix(part, groupPrefix):
 			if inGroupID {
 				recipients = append(recipients, currentGroupID.String())
 			}
@@ -155,7 +168,8 @@ func isValidPhoneNumber(phone string) bool {
 	return true
 }
 
-// isValidGroupID checks if the string is a valid group ID.
+// isValidGroupID reports whether the string is a valid group ID. A group ID is
+// "group." followed by at least one base64 character.
 //
 // Parameters:
 //   - groupID: the group ID string to validate
@@ -163,7 +177,18 @@ func isValidPhoneNumber(phone string) bool {
 // Returns:
 //   - bool: true if valid, false otherwise
 func isValidGroupID(groupID string) bool {
-	return groupRegex.MatchString(groupID)
+	encoded, found := strings.CutPrefix(groupID, groupPrefix)
+	if !found || encoded == "" {
+		return false
+	}
+
+	for i := range len(encoded) {
+		if !groupIDBytes[encoded[i]] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // isValidUsername checks if the string is a Signal username recipient.
