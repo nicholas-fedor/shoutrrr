@@ -141,6 +141,31 @@ type testStructOncePropDefault struct {
 	Name string `default:"kept" key:"name"`
 }
 
+// label is a string type of its own, which a string is not assignable to.
+type label string
+
+// testStructLabelSource is a service config with a keyed string default and a
+// keyed int without one.
+type testStructLabelSource struct {
+	standard.EnumlessConfig
+
+	// Name is a keyed string with a default.
+	Name string `default:"kept" key:"name"`
+	// Count is a keyed int without a default.
+	Count int `key:"count"`
+}
+
+// testStructLabelTarget is a service config with the fields of
+// testStructLabelSource, its Name of another type.
+type testStructLabelTarget struct {
+	standard.EnumlessConfig
+
+	// Name is a keyed label.
+	Name label `key:"name"`
+	// Count is a keyed int.
+	Count int `key:"count"`
+}
+
 // testStructListDefaults is a service config with keyed slices and a keyed map
 // that have no default, so their default is the empty value.
 type testStructListDefaults struct {
@@ -415,6 +440,44 @@ func (t *testStructOncePropDefault) GetURL() *url.URL {
 // Returns:
 //   - error: always nil.
 func (t *testStructOncePropDefault) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructLabelSource) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructLabelSource) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructLabelTarget) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructLabelTarget) SetURL(*url.URL) error {
 	return nil
 }
 

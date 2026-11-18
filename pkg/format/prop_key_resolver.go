@@ -400,8 +400,16 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 
 	defaults := pkr.defaultConfig()
 	confValue := pkr.configValueOrInternal(config)
+	copied, parsed := defaults.copied, defaults.parsed
 
-	for _, field := range defaults.copied {
+	// The cached defaults copy only into a config of their own type. A config
+	// of another type can give a field of the same name another type, so each
+	// of its defaults is set by name from the tag instead.
+	if confValue.Type() != defaults.value.Type() {
+		copied, parsed = nil, pkr.fields
+	}
+
+	for _, field := range copied {
 		field.value(confValue).Set(field.value(defaults.value))
 	}
 
@@ -410,7 +418,14 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 	// value it accepted when the defaults were built, so its error is kept.
 	err := defaults.err
 
-	for _, field := range defaults.parsed {
+	for _, field := range parsed {
+		// An empty value does not parse as a number, bool, duration, or enum.
+		if field.DefaultValue == "" {
+			field.value(confValue).SetZero()
+
+			continue
+		}
+
 		_, parseErr := SetConfigField(confValue, field, field.DefaultValue)
 		if err == nil {
 			err = parseErr

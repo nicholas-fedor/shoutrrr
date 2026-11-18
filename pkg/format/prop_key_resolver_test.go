@@ -359,6 +359,20 @@ func TestPropKeyResolverSetDefaultPropsReparseError(t *testing.T) {
 	assert.Equal(t, "kept", config.Name)
 }
 
+// TestPropKeyResolverSetDefaultPropsOtherType verifies that a config of
+// another type gets its defaults by field name, even where a field of the same
+// name has another type, and that a field without a default is zeroed.
+func TestPropKeyResolverSetDefaultPropsOtherType(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&testStructLabelSource{})
+	config := &testStructLabelTarget{Name: "own", Count: 7}
+
+	require.NoError(t, resolver.SetDefaultProps(config))
+	assert.Equal(t, label("kept"), config.Name)
+	assert.Zero(t, config.Count)
+}
+
 // TestPropKeyResolverSetDefaultPropsEmptyKey verifies that a field whose key
 // tag is empty has no key, so its default is not set.
 func TestPropKeyResolverSetDefaultPropsEmptyKey(t *testing.T) {
