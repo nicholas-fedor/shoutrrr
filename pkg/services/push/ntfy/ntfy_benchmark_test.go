@@ -30,3 +30,17 @@ func BenchmarkAPIURL(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkPrepare measures checking a config before a send, as each send
+// does.
+func BenchmarkPrepare(b *testing.B) {
+	config := &Config{Host: "ntfy.example.com", Topic: "alerts"}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if err := config.prepare(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
