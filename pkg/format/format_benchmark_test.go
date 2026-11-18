@@ -145,18 +145,21 @@ func BenchmarkDeprecatedParams(b *testing.B) {
 // does, so a set deprecated field is copied into its replacement every time.
 // The usual config sets no deprecated field.
 func BenchmarkSyncDeprecatedFields(b *testing.B) {
-	// cases lists ntfy configs without and with a deprecated field set.
+	// cases lists ntfy configs without and with a deprecated field set, with
+	// the replacement each sync should leave.
 	cases := []struct {
-		name   string
-		config ntfy.Config
-		used   int
+		name       string
+		config     ntfy.Config
+		used       int
+		skipVerify bool
 	}{
-		{name: "unset", config: ntfy.Config{Topic: "alerts"}, used: 0},
+		{name: "unset", config: ntfy.Config{Topic: "alerts"}, used: 0, skipVerify: false},
 		{
 			name: "set",
 			//nolint:staticcheck // The benchmark sets the deprecated field on purpose.
-			config: ntfy.Config{Topic: "alerts", DisableTLSVerification: true},
-			used:   1,
+			config:     ntfy.Config{Topic: "alerts", DisableTLSVerification: true},
+			used:       1,
+			skipVerify: true,
 		},
 	}
 
@@ -173,6 +176,10 @@ func BenchmarkSyncDeprecatedFields(b *testing.B) {
 
 			if len(used) != tc.used {
 				b.Fatalf("%d deprecated fields reported, want %d", len(used), tc.used)
+			}
+
+			if config.SkipTLSVerify != tc.skipVerify {
+				b.Fatalf("SkipTLSVerify is %t after the sync, want %t", config.SkipTLSVerify, tc.skipVerify)
 			}
 
 			b.ReportAllocs()

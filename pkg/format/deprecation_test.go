@@ -271,8 +271,8 @@ func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
 }
 
 // TestDeprecatedFieldPairsFirstUse verifies that concurrent first calls for a
-// type all get its pairs, and that a later call reuses the stored pairs instead
-// of reading the tags again. Run it with -race.
+// type all get its pairs and store them, and that a later call reuses the
+// stored pairs instead of reading the tags again. Run it with -race.
 func TestDeprecatedFieldPairsFirstUse(t *testing.T) {
 	t.Parallel()
 
@@ -309,13 +309,19 @@ func TestDeprecatedFieldPairsFirstUse(t *testing.T) {
 		assert.Equal(t, want, results[i], "call %d", i)
 	}
 
-	first, err := deprecatedFieldPairs(structType)
-	require.NoError(t, err)
+	// The entry is read before any other call, so only the workers can have
+	// stored it.
+	cached, found := deprecatedFieldPairsByType.Load(structType)
+	require.True(t, found, "the first calls should store the pairs")
+
+	stored, isPairs := cached.([]deprecatedFieldPair)
+	require.True(t, isPairs)
+	require.Equal(t, want, stored)
 
 	again, err := deprecatedFieldPairs(structType)
 	require.NoError(t, err)
 	require.Len(t, again, 1)
-	assert.Same(t, &first[0], &again[0], "a later call should reuse the stored pairs")
+	assert.Same(t, &stored[0], &again[0], "a later call should reuse the stored pairs")
 }
 
 // TestMoveDeprecatedFields verifies that moving copies each set deprecated
