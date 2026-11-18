@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Reach config fields by index and set defaults from the cache by @nicholas-fedor in [#2266](https://github.com/nicholas-fedor/shoutrrr/pull/2266)
 - Report deprecated params without allocating on a typical send by @nicholas-fedor in [#2264](https://github.com/nicholas-fedor/shoutrrr/pull/2264)
 
 ### Documentation
