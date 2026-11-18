@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Check hostnames without parsing them as IP addresses by @nicholas-fedor in [#2276](https://github.com/nicholas-fedor/shoutrrr/pull/2276)
 - Apply Join and Rocket.Chat send params through a stored resolver by @nicholas-fedor in [#2274](https://github.com/nicholas-fedor/shoutrrr/pull/2274)
 - Cache the deprecated field pairs per config type by @nicholas-fedor in [#2272](https://github.com/nicholas-fedor/shoutrrr/pull/2272)
 - Reach config fields by index and set defaults from the cache by @nicholas-fedor in [#2266](https://github.com/nicholas-fedor/shoutrrr/pull/2266)
