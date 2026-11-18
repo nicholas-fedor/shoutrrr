@@ -450,7 +450,7 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 //   - error: an error wrapping [ErrConflictingKeys] for one key in two
 //     spellings, or the first value error. The error names its key.
 func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConfig, params *types.Params) error {
-	if params == nil {
+	if params == nil || len(*params) == 0 {
 		return nil
 	}
 
@@ -502,7 +502,7 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	params *types.Params,
 	payloadKeys ...string,
 ) error {
-	if params == nil {
+	if params == nil || len(*params) == 0 {
 		return nil
 	}
 
@@ -622,7 +622,9 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 // forConfig returns the resolver that applies params to config.
 //
 // It is the resolver itself when [NewPropKeyResolver] made it. Otherwise the
-// resolver knows no keys, so a new resolver for config's type is returned.
+// resolver knows no keys, so a new resolver for config's type is returned. A
+// nil config, or a nil pointer to one, has no fields to read keys from, so the
+// resolver itself is returned and every key stays unknown.
 //
 // Parameters:
 //   - config: the config the params update, or nil for the resolver's own
@@ -631,7 +633,7 @@ func (pkr *PropKeyResolver) fieldIsDefault(field *FieldInfo, value string) bool 
 // Returns:
 //   - *PropKeyResolver: the resolver to apply the params with.
 func (pkr *PropKeyResolver) forConfig(config types.ServiceConfig) *PropKeyResolver {
-	if pkr.keyFields != nil || config == nil {
+	if pkr.keyFields != nil || !configValue(config).IsValid() {
 		return pkr
 	}
 

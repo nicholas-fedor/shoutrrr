@@ -543,7 +543,7 @@ func TestPropKeyResolverUpdateConfigFromKnownParams(t *testing.T) {
 // TestPropKeyResolverZeroValueParams verifies that a resolver that
 // NewPropKeyResolver did not make, as in a service built without Initialize,
 // applies params with the keys of the config it is given. An unknown key is
-// still rejected, and so is every key when no config is given.
+// still rejected, and so is every key when the config is nil or a nil pointer.
 func TestPropKeyResolverZeroValueParams(t *testing.T) {
 	t.Parallel()
 
@@ -558,8 +558,16 @@ func TestPropKeyResolverZeroValueParams(t *testing.T) {
 	require.NoError(t, resolver.UpdateConfigFromKnownParams(known, &types.Params{"SIGNED": "5", "other": "x"}))
 	assert.Equal(t, 5, known.Signed)
 
-	// Without a config there are no keys to read, so every key is unknown.
-	require.ErrorIs(t, resolver.UpdateConfigFromParams(nil, &types.Params{"str": "val"}), ErrInvalidConfigKey)
+	// Without a config, or with a nil pointer to one, there are no keys to
+	// read, so every key is unknown and empty params change nothing.
+	var nilConfig *testStruct
+
+	for _, config := range []types.ServiceConfig{nil, nilConfig} {
+		require.ErrorIs(t, resolver.UpdateConfigFromParams(config, &types.Params{"str": "val"}), ErrInvalidConfigKey)
+		require.NoError(t, resolver.UpdateConfigFromParams(config, &types.Params{}))
+		require.NoError(t, resolver.UpdateConfigFromKnownParams(config, &types.Params{"str": "val"}))
+		require.NoError(t, resolver.UpdateConfigFromKnownParams(config, &types.Params{}))
+	}
 }
 
 // TestPropKeyResolverReservedParams verifies that the reserved title,
