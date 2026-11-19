@@ -88,14 +88,14 @@ func (s *Service) GetID() string {
 //   - params: the send params, with the message under the message key.
 //
 // Returns:
-//   - io.Reader: the payload.
+//   - io.Reader: the payload. A request built over it with [http.NewRequest]
+//     gets its length and can send it again for a redirect.
 //   - error: an encoding error, [ErrTemplateNotLoaded], or the template's
 //     error.
 func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, error) {
 	switch config.Template {
 	case "":
-		// No template, send message directly
-		return bytes.NewBufferString(params[config.MessageKey]), nil
+		return strings.NewReader(params[config.MessageKey]), nil
 	case "json", JSONTemplate:
 		// JSON template, marshal params to JSON
 		// Add extra data to params

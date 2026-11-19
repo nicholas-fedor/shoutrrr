@@ -6,7 +6,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -360,26 +362,21 @@ func (c *client) Post(url string, request, response any) error {
 //   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error,
 //     which matches ctx's error when ctx ends the request.
 func (c *client) PostContext(ctx context.Context, url string, request, response any) error {
-	var err error
-
-	var body []byte
+	var body io.Reader
 
 	if strReq, ok := request.(string); ok {
-		// If the request is a string, pass it through without serializing
-		body = []byte(strReq)
+		// A string is sent as it is, without a copy.
+		body = strings.NewReader(strReq)
 	} else {
-		body, err = json.Marshal(request, jsonopts.Default)
+		data, err := json.Marshal(request, jsonopts.Default)
 		if err != nil {
 			return fmt.Errorf("marshaling request to JSON: %w", err)
 		}
+
+		body = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		url,
-		bytes.NewReader(body),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return fmt.Errorf("creating POST request: %w", redact.URLError(err))
 	}

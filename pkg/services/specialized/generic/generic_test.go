@@ -35,6 +35,8 @@ type capturedRequest struct {
 	url string
 	// body is the request body.
 	body string
+	// contentLength is the length the request declares for its body.
+	contentLength int64
 }
 
 // errTransport is the transport failure returned by the failing HTTP client.
@@ -54,7 +56,13 @@ func captureRequest(t *testing.T, req *http.Request) capturedRequest {
 	body, err := io.ReadAll(req.Body)
 	require.NoError(t, err)
 
-	return capturedRequest{header: req.Header.Clone(), method: req.Method, url: req.URL.String(), body: string(body)}
+	return capturedRequest{
+		header:        req.Header.Clone(),
+		method:        req.Method,
+		url:           req.URL.String(),
+		body:          string(body),
+		contentLength: req.ContentLength,
+	}
 }
 
 // newRespondingClient returns a mock HTTP client that expects one request,
@@ -155,7 +163,8 @@ func TestGetServiceURLFromCustom(t *testing.T) {
 
 // TestGetPayload verifies the payload for each template choice: the message
 // alone without a template, the params and extra data as JSON for the JSON
-// template, and a named template rendered with the params.
+// template, and a named template rendered with the params. A request built
+// over each payload knows its length and can replay it.
 func TestGetPayload(t *testing.T) {
 	t.Parallel()
 
@@ -210,8 +219,15 @@ func TestGetPayload(t *testing.T) {
 			payload, err := service.GetPayload(service.Config, tt.params)
 			require.NoError(t, err)
 
-			contents, err := io.ReadAll(payload)
+			// A request over the payload knows its length and can send it
+			// again for a redirect.
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://host.tld/webhook", payload)
 			require.NoError(t, err)
+			require.NotNil(t, req.GetBody)
+
+			contents, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			assert.Equal(t, int64(len(contents)), req.ContentLength)
 
 			if tt.wantJSON {
 				assert.JSONEq(t, tt.want, string(contents))
@@ -404,6 +420,8 @@ func TestSend(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.wantBody, captured.body)
 			}
+
+			assert.Equal(t, int64(len(captured.body)), captured.contentLength)
 
 			for key, value := range tt.wantHeaders {
 				assert.Equal(t, value, captured.header.Get(key), key)
