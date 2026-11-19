@@ -181,7 +181,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	defer cancel()
 
 	if send.config.JSON {
-		preparer := &JSONRequestPreparer{payload: []byte(message)}
+		preparer := &rawJSONRequestPreparer{body: message}
 
 		if _, err = sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper, nil); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)

@@ -390,9 +390,12 @@ func TestClient_Post_Success(t *testing.T) {
 	assert.Equal(t, "created", response.Status, "Response status mismatch")
 }
 
-// TestClient_Post_StringBody tests POST requests with string body.
+// TestClient_Post_StringBody verifies that a string request is sent as it is,
+// with its length set on the request.
 func TestClient_Post_StringBody(t *testing.T) {
 	t.Parallel()
+
+	request := `{"custom": "json"}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -400,7 +403,8 @@ func TestClient_Post_StringBody(t *testing.T) {
 
 		defer func() { _ = r.Body.Close() }()
 
-		assert.JSONEq(t, `{"custom": "json"}`, string(body), "Request body mismatch")
+		assert.Equal(t, request, string(body), "Request body mismatch")
+		assert.Equal(t, int64(len(request)), r.ContentLength, "Request length mismatch")
 
 		w.Header().Set("Content-Type", ContentType)
 		w.WriteHeader(http.StatusOK)
@@ -411,8 +415,6 @@ func TestClient_Post_StringBody(t *testing.T) {
 
 	client := NewClient()
 
-	request := `{"custom": "json"}`
-
 	var response struct {
 		Result string `json:"result"`
 	}
@@ -421,6 +423,38 @@ func TestClient_Post_StringBody(t *testing.T) {
 
 	require.NoError(t, err, "Post() should not return error")
 	assert.Equal(t, "ok", response.Result, "Response result mismatch")
+}
+
+// TestClient_Post_StringBodyRedirect verifies that a string request is sent
+// again in full when the server answers with a 307 redirect on its own host,
+// which the default client follows.
+func TestClient_Post_StringBodyRedirect(t *testing.T) {
+	t.Parallel()
+
+	request := "plain text message"
+
+	var redirected atomic.Bool
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/next", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, request, string(body))
+
+		redirected.Store(true)
+
+		w.Header().Set("Content-Type", ContentType)
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	require.NoError(t, NewClient().Post(server.URL, request, &struct{}{}))
+	assert.True(t, redirected.Load(), "the redirect was not followed")
 }
 
 // TestClient_Post_HTTPError tests POST requests that return HTTP error status codes.

@@ -1,13 +1,17 @@
 package discord
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -40,6 +44,14 @@ type trackedBody struct {
 
 	// drainedAtClose is true when Close found nothing left to read.
 	drainedAtClose bool
+}
+
+// formPart is one part of a multipart form, with its headers and content.
+type formPart struct {
+	// header holds the part's headers.
+	header textproto.MIMEHeader
+	// body is the part's content.
+	body string
 }
 
 // RoundTrip calls f with the request.
@@ -223,45 +235,92 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 	})
 }
 
-// TestJSONRequestPreparer verifies that the JSON preparer builds a POST with the
-// payload, even with a canceled context.
+// TestJSONRequestPreparer verifies that the JSON preparers build a JSON POST
+// with their body sent as it is. The request carries the body's length and can
+// replay it for a retry. Building a request does not check the context.
 func TestJSONRequestPreparer(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{"content":"test message"}`)
-	preparer := &JSONRequestPreparer{payload: payload}
+	body := `{"content":"test message"}`
 
-	req, err := preparer.PrepareRequest(t.Context(), testWebhookURL)
-	require.NoError(t, err)
+	// tests lists each JSON preparer holding body.
+	tests := []struct {
+		preparer RequestPreparer
+		name     string
+	}{
+		{name: "encoded payload", preparer: &JSONRequestPreparer{payload: []byte(body)}},
+		{name: "raw JSON", preparer: &rawJSONRequestPreparer{body: body}},
+	}
 
-	assert.Equal(t, http.MethodPost, req.Method)
-	assert.Equal(t, testWebhookURL, req.URL.String())
-	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	body, err := io.ReadAll(req.Body)
-	require.NoError(t, err)
-	assert.Equal(t, payload, body)
+			req, err := tt.preparer.PrepareRequest(t.Context(), testWebhookURL)
+			require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+			assert.Equal(t, http.MethodPost, req.Method)
+			assert.Equal(t, testWebhookURL, req.URL.String())
+			assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+			assert.Equal(t, int64(len(body)), req.ContentLength)
 
-	_, err = preparer.PrepareRequest(ctx, testWebhookURL)
-	require.NoError(t, err, "building a request does not check the context")
+			sent, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			assert.Equal(t, body, string(sent))
+
+			require.NotNil(t, req.GetBody)
+
+			replay, err := req.GetBody()
+			require.NoError(t, err)
+
+			replayed, err := io.ReadAll(replay)
+			require.NoError(t, err)
+			assert.Equal(t, body, string(replayed))
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			_, err = tt.preparer.PrepareRequest(ctx, testWebhookURL)
+			require.NoError(t, err, "building a request does not check the context")
+		})
+	}
 }
 
 // TestMultipartRequestPreparer verifies that the multipart preparer builds a
-// POST with the payload and a part for each file.
+// POST whose form holds the payload as its first part and then a part for each
+// file, in order, with the exact headers and content of each part. The body's
+// length is set on the request.
 func TestMultipartRequestPreparer(t *testing.T) {
 	t.Parallel()
 
-	// tests lists files with whether the body should contain a file part.
+	payloadPart := formPart{
+		header: textproto.MIMEHeader{"Content-Disposition": {`form-data; name="payload_json"`}},
+		body:   `{"content":"test message"}`,
+	}
+
+	// filePart returns the form part of a file at an index.
+	filePart := func(index int, name, body string) formPart {
+		return formPart{
+			header: textproto.MIMEHeader{
+				"Content-Disposition": {fmt.Sprintf(`form-data; name="files[%d]"; filename=%q`, index, name)},
+				"Content-Type":        {"application/octet-stream"},
+			},
+			body: body,
+		}
+	}
+
+	// tests lists files with the form parts the body should hold.
 	tests := []struct {
-		name      string
-		files     []types.File
-		wantFiles bool
+		name  string
+		files []types.File
+		want  []formPart
 	}{
-		{name: "with a file", files: []types.File{{Name: "test.txt", Data: []byte("file content")}}, wantFiles: true},
-		{name: "without files", files: []types.File{}},
+		{
+			name:  "with two files",
+			files: []types.File{{Name: "a.txt", Data: []byte("first")}, {Name: "b.log", Data: []byte("second")}},
+			want:  []formPart{payloadPart, filePart(0, "a.txt", "first"), filePart(1, "b.log", "second")},
+		},
+		{name: "without files", files: []types.File{}, want: []formPart{payloadPart}},
 	}
 
 	for _, tt := range tests {
@@ -275,16 +334,48 @@ func TestMultipartRequestPreparer(t *testing.T) {
 
 			assert.Equal(t, http.MethodPost, req.Method)
 			assert.Equal(t, testWebhookURL, req.URL.String())
-			assert.True(t, strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data"))
+
+			mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+			require.NoError(t, err)
+			assert.Equal(t, "multipart/form-data", mediaType)
 
 			body, err := io.ReadAll(req.Body)
 			require.NoError(t, err)
+			assert.Equal(t, int64(len(body)), req.ContentLength)
 
-			assert.Contains(t, string(body), "payload_json")
-			assert.Contains(t, string(body), "test message")
-			assert.Equal(t, tt.wantFiles, strings.Contains(string(body), "files[0]"))
-			assert.Equal(t, tt.wantFiles, strings.Contains(string(body), "test.txt"))
+			assert.Equal(t, tt.want, readFormParts(t, body, params["boundary"]))
 		})
+	}
+}
+
+// readFormParts reads every part of a multipart form in order.
+//
+// Parameters:
+//   - t: the test.
+//   - body: the form.
+//   - boundary: the form's boundary.
+//
+// Returns:
+//   - []formPart: the parts.
+func readFormParts(t *testing.T, body []byte, boundary string) []formPart {
+	t.Helper()
+
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+
+	var parts []formPart
+
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			return parts
+		}
+
+		require.NoError(t, err)
+
+		content, err := io.ReadAll(part)
+		require.NoError(t, err)
+
+		parts = append(parts, formPart{header: part.Header, body: string(content)})
 	}
 }
 

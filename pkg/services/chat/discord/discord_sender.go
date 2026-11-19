@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -63,7 +64,8 @@ type RequestPreparer interface {
 	//
 	// A send prepares one request and sends a copy of it for each retry.
 	// The request's body must therefore be replayable through its GetBody,
-	// which [http.NewRequestWithContext] sets for a byte buffer or reader.
+	// which [http.NewRequestWithContext] sets for a byte buffer, a byte reader,
+	// or a string reader.
 	//
 	// Parameters:
 	//   - ctx: the context of the request.
@@ -79,6 +81,13 @@ type RequestPreparer interface {
 type JSONRequestPreparer struct {
 	// payload is the JSON request body.
 	payload []byte
+}
+
+// rawJSONRequestPreparer prepares a JSON request whose body is JSON the caller
+// wrote, sent as it is.
+type rawJSONRequestPreparer struct {
+	// body is the JSON request body.
+	body string
 }
 
 // MultipartRequestPreparer prepares multipart/form-data requests.
@@ -138,6 +147,11 @@ const (
 	// fieldErrorsKey is the key of the list of errors at each level of a
 	// Discord errors object.
 	fieldErrorsKey = "_errors"
+
+	// filePartOverhead is the room a multipart form sets aside for the
+	// boundary and headers of each file part, beside its name and data. What
+	// the headers leave unused holds the form's closing boundary.
+	filePartOverhead = 256
 )
 
 // Retry limits and backoff for sends.
@@ -237,15 +251,24 @@ func (p *JSONRequestPreparer) PrepareRequest(
 	ctx context.Context,
 	requestURL string,
 ) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(p.payload))
-	if err != nil {
-		return nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
-	}
+	return newJSONRequest(ctx, requestURL, bytes.NewReader(p.payload))
+}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", meta.UserAgent())
-
-	return req, nil
+// PrepareRequest creates a JSON POST request with the caller's JSON as its
+// body.
+//
+// Parameters:
+//   - ctx: the context of the request.
+//   - requestURL: the webhook URL.
+//
+// Returns:
+//   - *http.Request: the request, with the JSON as its body.
+//   - error: the failure creating the request, with the URL redacted.
+func (p *rawJSONRequestPreparer) PrepareRequest(
+	ctx context.Context,
+	requestURL string,
+) (*http.Request, error) {
+	return newJSONRequest(ctx, requestURL, strings.NewReader(p.body))
 }
 
 // PrepareRequest creates a multipart POST request.
@@ -268,25 +291,34 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 
 	writer := multipart.NewWriter(&body)
 
-	// Add payload as JSON
-	payloadBytes, err := json.Marshal(p.payload, jsonopts.Default)
+	// The payload is encoded straight into its form field.
+	part, err := writer.CreateFormField("payload_json")
+	if err != nil {
+		return nil, fmt.Errorf("creating payload_json field: %w", err)
+	}
+
+	err = json.MarshalWrite(part, p.payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	err = writer.WriteField("payload_json", string(payloadBytes))
-	if err != nil {
-		return nil, fmt.Errorf("writing payload_json field: %w", err)
+	// The form makes room for the file parts once the payload is in it. Each
+	// file's data is then copied into the form once, with no reallocation at
+	// the size of the files.
+	size := 0
+	for _, file := range p.files {
+		size += len(file.Name) + len(file.Data) + filePartOverhead
 	}
 
-	// Add files
+	body.Grow(size)
+
 	for i, file := range p.files {
-		fw, err := writer.CreateFormFile(fmt.Sprintf("files[%d]", i), file.Name)
+		part, err = writer.CreateFormFile("files["+strconv.Itoa(i)+"]", file.Name)
 		if err != nil {
 			return nil, fmt.Errorf("creating form file for %s: %w", file.Name, err)
 		}
 
-		_, err = io.Copy(fw, bytes.NewReader(file.Data))
+		_, err = part.Write(file.Data)
 		if err != nil {
 			return nil, fmt.Errorf("writing file data for %s: %w", file.Name, err)
 		}
@@ -362,6 +394,29 @@ func (b errorBody) reason() string {
 	}
 
 	return message
+}
+
+// newJSONRequest creates a JSON POST request to a Discord webhook.
+//
+// Parameters:
+//   - ctx: the context of the request.
+//   - requestURL: the webhook URL.
+//   - body: the JSON body, a reader [http.NewRequestWithContext] gives a
+//     length and a replayable GetBody.
+//
+// Returns:
+//   - *http.Request: the request.
+//   - error: the failure creating the request, with the URL redacted.
+func newJSONRequest(ctx context.Context, requestURL string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", meta.UserAgent())
+
+	return req, nil
 }
 
 // isTransientError reports whether a transport error may pass on a retry.

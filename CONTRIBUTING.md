@@ -208,6 +208,8 @@ Every service follows the same rules, so services behave alike for users and for
   Its default clients refuse the redirects that the proxy guide's [Redirects](docs/guides/proxy/index.md#redirects) section lists.
 - Build any other client with `httpclient.NewClient`, such as a generator's.
   It follows the same redirect policy.
+- Build a request body as a `bytes.Reader`, `bytes.Buffer`, or `strings.Reader` over the bytes or string the service already holds, without converting one to the other.
+  The request then knows the body's length and can send it again for a redirect or a retry.
 - Count a request as answered only on a 2xx status, or on the success statuses the provider documents.
   A redirect reaches the service only when the client did not follow it, so the request never reached the provider and the send fails.
 - Read at most `httpbody.MaxSize` plus one byte of a response body, so an oversized body fails with `httpbody.ErrTooLarge` instead of being read on.
