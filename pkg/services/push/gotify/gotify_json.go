@@ -1,35 +1,35 @@
 package gotify
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
-// MessageRequest is the actual payload being sent to the Gotify API.
-// This struct represents the JSON request body sent to the Gotify message endpoint,
-// containing all notification data including message content, metadata, and custom extras.
+// MessageRequest is a message for the Gotify message endpoint, sent as the
+// JSON body of the request.
 type MessageRequest struct {
-	// Extras holds the custom key-value pairs sent with the message.
-	Extras map[string]any `json:"extras"`
+	// Extras holds the custom key-value pairs sent with the message, left out
+	// when nil.
+	Extras Extras `json:"extras,omitzero"`
 
 	// Date is not sent.
 	//
 	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
-	Date *string `json:"date,omitzero"`
+	Date *string `json:"-"`
 
+	// Priority is the message priority, from -2 to 10. It is left out when nil,
+	// so Gotify applies the application's default priority.
+	Priority *int `json:"priority,omitzero"`
 	// Message is the message text.
 	Message string `json:"message"`
 	// Title is the message title.
 	Title string `json:"title"`
-	// Priority is the message priority, from -2 to 10.
-	Priority int `json:"priority"`
-
-	// omitPriority leaves the priority out of the JSON body, so Gotify applies
-	// the application's default priority.
-	omitPriority bool
 }
+
+// Extras holds the custom key-value pairs of a message, such as
+// client::display.
+type Extras map[string]any
 
 // responseError represents an error response from the Gotify API.
 // This struct captures structured error information returned by the server
@@ -53,31 +53,19 @@ func (er *responseError) Error() string {
 	return fmt.Sprintf("server responded with %v (%v): %v", er.Name, er.Code, er.Description)
 }
 
-// MarshalJSON writes the message body Gotify accepts. The body always holds
-// the message and title. It leaves out nil extras, and the priority when the
-// request leaves it out.
+// MarshalJSONTo writes the extras as a JSON object with the encoder's options.
+// Nil extras are written as null.
+//
+// Parameters:
+//   - enc: the encoder to write the extras to.
 //
 // Returns:
-//   - []byte: the JSON body.
-//   - error: an error encoding the extras.
-func (r MessageRequest) MarshalJSON() ([]byte, error) {
-	// body is the JSON body of a message.
-	type body struct {
-		Extras   map[string]any `json:"extras,omitzero"`
-		Priority *int           `json:"priority,omitzero"`
-		Message  string         `json:"message"`
-		Title    string         `json:"title"`
-	}
+//   - error: an error encoding a value of the extras.
+func (e *Extras) MarshalJSONTo(enc *jsontext.Encoder) error {
+	// As an any, the map takes json's path for a map[string]any. That path
+	// skips the allocation for each entry that json's general map encoding
+	// makes.
+	var extras any = map[string]any(*e)
 
-	payload := body{Message: r.Message, Title: r.Title, Priority: &r.Priority, Extras: r.Extras}
-	if r.omitPriority {
-		payload.Priority = nil
-	}
-
-	data, err := json.Marshal(&payload, jsonopts.Default)
-	if err != nil {
-		return nil, fmt.Errorf("encoding message: %w", err)
-	}
-
-	return data, nil
+	return json.MarshalEncode(enc, &extras) //nolint:wrapcheck // json adds the value's path to its own error, and a wrapped one would hide it.
 }

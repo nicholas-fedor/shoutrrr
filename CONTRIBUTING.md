@@ -288,6 +288,7 @@ Every service follows the same rules, so services behave alike for users and for
   Member names match exactly.
 - Add `omitzero` to a slice or map field when the provider reads a missing member differently from an empty one.
   Without it, a nil slice or map encodes as `[]` or `{}`.
+- Make a scalar field a pointer with `omitzero` when the provider reads a missing member differently from a zero one, such as a priority the provider defaults.
 - Decode JSON that users write with `jsonopts.UserInput`, such as a param or a provider file.
   It reads input by the encoding/json rules, so names in another case and repeated names keep working.
 

@@ -19,7 +19,7 @@ import (
 )
 
 // testRequest is the message request the send tests post.
-var testRequest = &MessageRequest{Message: "Hello", Title: "Backup", Priority: 5}
+var testRequest = &MessageRequest{Message: "Hello", Title: "Backup", Priority: new(5)}
 
 // TestSendRequest verifies the request a send makes: a JSON POST to the URL,
 // with the token in the X-Gotify-Key header only under header

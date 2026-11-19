@@ -26,71 +26,66 @@ type PayloadBuilder interface {
 	ParseExtras(params *types.Params, config *Config) (map[string]any, error)
 }
 
-// ParseExtras handles extras parsing from params.
-// This function processes the 'extras' parameter which contains additional JSON data
-// to be sent with the notification. It attempts to parse JSON from parameters first,
-// falling back to configuration extras if parsing fails or no parameter extras exist.
-// Parameters:
-//   - params: Request parameters that may contain 'extras' JSON string
-//   - config: Configuration that may contain default extras
+// ParseExtras returns the extras param parsed as a JSON object, or the
+// configured extras when the params set none.
 //
-// Returns: map of extra data to include in the notification payload, or error if parsing fails.
+// Parameters:
+//   - params: the send params, which may hold the extras param as JSON.
+//   - config: the config with the configured extras.
+//
+// Returns:
+//   - map[string]any: the extras for this send.
+//   - error: [ErrExtrasUnmarshalFailed] when the extras param is not a JSON
+//     object.
 func (b *DefaultPayloadBuilder) ParseExtras(
 	params *types.Params,
 	config *Config,
 ) (map[string]any, error) {
-	// Initialize variable to hold parsed extras
-	var requestExtras map[string]any
-
-	// Check if parameters exist and contain extras
 	if params != nil {
-		// Look for 'extras' key in parameters
 		if extrasStr, exists := (*params)[extrasKey]; exists && extrasStr != "" {
-			// Attempt to parse the JSON string into a map
+			var requestExtras map[string]any
 			if err := json.Unmarshal([]byte(extrasStr), &requestExtras, jsonopts.UserInput); err != nil {
-				// Return error for parsing failure
 				return nil, fmt.Errorf("%w", ErrExtrasUnmarshalFailed)
+			}
+
+			// A param of null sets no extras, so the configured ones apply.
+			if requestExtras != nil {
+				return requestExtras, nil
 			}
 		}
 	}
 
-	// Fall back to configuration extras if no valid parameter extras were found
-	if requestExtras == nil {
-		requestExtras = config.Extras
-	}
-
-	// Return the resolved extras (either from params or config)
-	return requestExtras, nil
+	return config.Extras, nil
 }
 
-// PrepareRequest builds the request payload.
-// This function constructs the JSON payload that will be sent to the Gotify API,
-// combining the message content with configuration settings and any additional extras.
-// Parameters:
-//   - message: The main notification message text
-//   - config: Configuration containing title, priority, and other settings
-//   - extras: Additional key-value pairs to include in the notification
-//   - date: Optional custom timestamp in ISO 8601 format
+// PrepareRequest builds the request for a message.
 //
-// Returns: *MessageRequest containing all data to be sent to the API, which
-// leaves the priority out when the config has none of its own.
+// Parameters:
+//   - message: the message text.
+//   - config: the config for this send, with the title and priority.
+//   - extras: the custom key-value pairs to send with the message.
+//   - date: a timestamp kept on the request, which is never sent.
+//
+// Returns:
+//   - *MessageRequest: the request, without a priority when the config has
+//     none of its own.
 func (b *DefaultPayloadBuilder) PrepareRequest(
 	message string,
 	config *Config,
 	extras map[string]any,
 	date string,
 ) *MessageRequest {
-	var datePtr *string
+	request := &MessageRequest{Extras: extras, Date: nil, Priority: nil, Message: message, Title: config.Title}
+
+	// The date and priority are copied in their branches, so a request
+	// without them allocates nothing for them.
 	if date != "" {
-		datePtr = &date
+		request.Date = new(date)
 	}
 
-	return &MessageRequest{
-		Message:      message,         // The notification message content
-		Title:        config.Title,    // Notification title from configuration
-		Priority:     config.Priority, // Priority level for the notification
-		Date:         datePtr,         // Optional custom timestamp
-		Extras:       extras,          // Additional metadata or custom fields
-		omitPriority: config.Priority == 0 && !config.prioritySet,
+	if config.Priority != 0 || config.prioritySet {
+		request.Priority = new(config.Priority)
 	}
+
+	return request
 }
