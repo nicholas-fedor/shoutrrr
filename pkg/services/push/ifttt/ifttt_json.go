@@ -53,7 +53,7 @@ func createJSONToSend(config *Config, message string) ([]byte, error) {
 
 	payload.setValue(config.UseMessageAsValue, message)
 
-	jsonBytes, err := json.Marshal(payload, jsonopts.Default)
+	jsonBytes, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling IFTTT payload to JSON: %w", err)
 	}

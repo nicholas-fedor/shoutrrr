@@ -301,7 +301,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		request.Badge = &badge
 	}
 
-	requestBody, err := json.Marshal(request, jsonopts.Default)
+	requestBody, err := json.Marshal(&request, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling request to JSON: %w", err)
 	}

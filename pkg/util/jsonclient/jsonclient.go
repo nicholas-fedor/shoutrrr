@@ -33,7 +33,8 @@ type Client interface {
 	// Parameters:
 	//   - url: the URL to post to.
 	//   - request: the request body. A string is sent as is, and any other
-	//     value is encoded as JSON.
+	//     value is encoded as JSON. Pass a struct through a pointer, since a
+	//     struct value is copied before it is encoded.
 	//   - response: the value the JSON response is decoded into.
 	//
 	// Returns:
@@ -87,7 +88,8 @@ type ContextClient interface {
 	//   - ctx: cancellation and deadline for the request.
 	//   - url: the URL to post to.
 	//   - request: the request body. A string is sent as is, and any other
-	//     value is encoded as JSON.
+	//     value is encoded as JSON. Pass a struct through a pointer, since a
+	//     struct value is copied before it is encoded.
 	//   - response: the value the JSON response is decoded into.
 	//
 	// Returns:

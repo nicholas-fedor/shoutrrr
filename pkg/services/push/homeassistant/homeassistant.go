@@ -178,7 +178,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 		return err
 	}
 
-	body, err := json.Marshal(payload, jsonopts.Default)
+	body, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling payload: %w", err)
 	}

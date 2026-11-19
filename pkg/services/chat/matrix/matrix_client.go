@@ -386,7 +386,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 		ctx,
 		http.MethodPost,
 		apiLogin,
-		apiReqLogin{
+		&apiReqLogin{
 			Type:       flowLoginPassword,
 			Password:   password,
 			Identifier: identifier{Type: idTypeUser, User: user},
@@ -587,12 +587,7 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 	// escaped.
 	path := apiRooms + roomIDSigil + url.PathEscape(rest) + apiSendMessage + txnID
 
-	request := apiReqSend{
-		MsgType: msgTypeText,
-		Body:    message,
-	}
-
-	return c.apiDo(ctx, http.MethodPut, path, request, &resEvent)
+	return c.apiDo(ctx, http.MethodPut, path, &apiReqSend{MsgType: msgTypeText, Body: message}, &resEvent)
 }
 
 // sendToExplicitRooms sends a message to explicitly specified rooms, and keeps

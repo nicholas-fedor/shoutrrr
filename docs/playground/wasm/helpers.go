@@ -137,7 +137,7 @@ func marshalError(err error) string {
 		return marshalErrorStr("unknown error")
 	}
 
-	data, _ := json.Marshal(errorResult{Error: err.Error()}, jsonopts.Default)
+	data, _ := json.Marshal(&errorResult{Error: err.Error()}, jsonopts.Default)
 
 	return string(data)
 }
@@ -152,7 +152,7 @@ func marshalError(err error) string {
 //
 //nolint:errcheck // errorResult struct always marshals.
 func marshalErrorStr(msg string) string {
-	data, _ := json.Marshal(errorResult{Error: msg}, jsonopts.Default)
+	data, _ := json.Marshal(&errorResult{Error: msg}, jsonopts.Default)
 
 	return string(data)
 }

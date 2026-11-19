@@ -63,7 +63,7 @@ func listServicesJSON() string {
 	r := router.ServiceRouter{}
 	schemes := r.ListServices()
 
-	data, err := json.Marshal(schemes, jsonopts.Default)
+	data, err := json.Marshal(&schemes, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}
@@ -129,7 +129,7 @@ func configSchemaJSON(serviceName string) string {
 		Fields:  fields,
 	}
 
-	data, err := json.Marshal(schema, jsonopts.Default)
+	data, err := json.Marshal(&schema, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}

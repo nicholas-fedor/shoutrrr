@@ -79,7 +79,7 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 
 	payload.SetIcon(config.Icon)
 
-	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
+	payloadBytes, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling Mattermost payload to JSON: %w", err)
 	}
