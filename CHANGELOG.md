@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Marshal request payloads through a pointer by @nicholas-fedor in [#2296](https://github.com/nicholas-fedor/shoutrrr/pull/2296)
 - Build payloads and token strings without repeated allocations by @nicholas-fedor in [#2288](https://github.com/nicholas-fedor/shoutrrr/pull/2288)
 - Check icon URLs without a regular expression by @nicholas-fedor in [#2286](https://github.com/nicholas-fedor/shoutrrr/pull/2286)
 - Check email targets without a regular expression by @nicholas-fedor in [#2284](https://github.com/nicholas-fedor/shoutrrr/pull/2284)
