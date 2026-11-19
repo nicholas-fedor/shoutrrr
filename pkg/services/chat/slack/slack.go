@@ -232,9 +232,8 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 
 	// Slack answers a posted message with 200 and "ok", and a failure with an
 	// error code such as invalid_payload as the body.
-	response := string(resBytes)
-	if !redirected && response != "" && response != "ok" {
-		return fmt.Errorf("%w: %v", ErrWebhookResponseFailure, response)
+	if !redirected && len(resBytes) != 0 && string(resBytes) != "ok" {
+		return fmt.Errorf("%w: %s", ErrWebhookResponseFailure, resBytes)
 	}
 
 	if res.StatusCode != http.StatusOK {

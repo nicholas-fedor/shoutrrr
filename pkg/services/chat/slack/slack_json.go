@@ -20,7 +20,7 @@ type MessagePayload struct {
 	IconURL string `json:"icon_url,omitempty"`
 	// Blocks holds layout blocks, left out when empty.
 	Blocks []block `json:"blocks,omitempty"`
-	// Attachments holds one attachment for each line of the message, left out
+	// Attachments holds the attachments built from the message lines, left out
 	// when empty.
 	Attachments []attachment `json:"attachments,omitempty"`
 }
@@ -49,7 +49,8 @@ type attachment struct {
 	// Fallback is the plain-text summary for clients that cannot show
 	// attachments, left out when empty.
 	Fallback string `json:"fallback,omitempty"`
-	// Text is the attachment text, one line of the message.
+	// Text is the attachment text, one line of the message. The last of
+	// [MaxAttachments] attachments holds the rest of the message.
 	Text string `json:"text"`
 	// Color is the border color, left out when empty.
 	Color string `json:"color,omitempty"`
@@ -94,7 +95,9 @@ const (
 )
 
 // CreateJSONPayload builds a payload for the Slack chat.postMessage API or a
-// webhook, with one attachment for each line of the message.
+// webhook, with one attachment for each line of the message. A message with
+// more lines than [MaxAttachments] puts the rest in the last attachment, and
+// a trailing line break adds no attachment.
 //
 // Parameters:
 //   - config: the configuration for this send.
@@ -103,32 +106,26 @@ const (
 // Returns:
 //   - MessagePayload: the payload to send.
 func CreateJSONPayload(config *Config, message string) MessagePayload {
-	lines := strings.Split(message, "\n")
-	// Pre-allocate atts with a capacity of min(len(lines), MaxAttachments)
-	atts := make([]attachment, 0, minInt(len(lines), MaxAttachments))
+	// The texts are collected first so the attachments are allocated once, at
+	// their exact count. The last attachment keeps the rest of the message
+	// with its line breaks.
+	var texts [MaxAttachments]string
 
-	for i, line := range lines {
-		// When MaxAttachments have been reached, append the remaining lines to the last attachment
-		if i >= MaxAttachments {
-			atts[MaxAttachments-1].Text += "\n" + line
-
-			continue
+	count := 0
+	for rest := message; rest != ""; count++ {
+		line, after, _ := strings.Cut(rest, "\n")
+		if count == MaxAttachments-1 {
+			line, after = rest, ""
 		}
 
-		atts = append(atts, attachment{
-			Text:     line,
-			Color:    config.Color,
-			Title:    "",
-			Fallback: "",
-			Fields:   nil,
-			Footer:   "",
-			Time:     0,
-		})
+		texts[count] = line
+		rest = after
 	}
 
-	// Remove last attachment if empty
-	if len(atts) > 0 && atts[len(atts)-1].Text == "" {
-		atts = atts[:len(atts)-1]
+	atts := make([]attachment, count)
+	for i, text := range texts[:count] {
+		atts[i].Text = text
+		atts[i].Color = config.Color
 	}
 
 	payload := MessagePayload{
@@ -167,22 +164,6 @@ func (p *MessagePayload) SetIcon(icon string) {
 			p.IconEmoji = icon
 		}
 	}
-}
-
-// minInt returns the smaller of two integers.
-//
-// Parameters:
-//   - a: the first integer.
-//   - b: the second integer.
-//
-// Returns:
-//   - int: the smaller of a and b.
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-
-	return b
 }
 
 // isIconURL reports whether an icon is a URL rather than an emoji name. An

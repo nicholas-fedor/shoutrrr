@@ -104,12 +104,3 @@ func TestAPIResponse(t *testing.T) {
 	assert.Equal(t, "superfluous_charset", response.Warning)
 	assert.Equal(t, []string{"superfluous_charset"}, response.MetaData.Warnings)
 }
-
-// TestMinInt verifies that minInt returns the smaller value.
-func TestMinInt(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, 1, minInt(1, 2))
-	assert.Equal(t, 1, minInt(2, 1))
-	assert.Equal(t, 3, minInt(3, 3))
-}
