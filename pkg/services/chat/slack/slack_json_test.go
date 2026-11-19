@@ -59,8 +59,9 @@ func TestCreateJSONPayloadLines(t *testing.T) {
 	assert.Empty(t, payload.Attachments)
 }
 
-// TestSetIcon verifies that an icon with an http or https URL sets the icon
-// URL, any other icon sets the emoji, and an empty icon clears both.
+// TestSetIcon verifies that an icon starting with an http or https scheme in
+// either ASCII case sets the icon URL. Any other icon sets the emoji, and an
+// empty icon clears both.
 func TestSetIcon(t *testing.T) {
 	t.Parallel()
 
@@ -72,6 +73,10 @@ func TestSetIcon(t *testing.T) {
 	}{
 		{icon: "https://example.com/logo.png", wantURL: "https://example.com/logo.png"},
 		{icon: "http://example.com/logo.png", wantURL: "http://example.com/logo.png"},
+		{icon: "HTTPS://example.com/logo.png", wantURL: "HTTPS://example.com/logo.png"},
+		{icon: "logo at https://example.com/logo.png", wantEmoji: "logo at https://example.com/logo.png"},
+		{icon: "http:logo", wantEmoji: "http:logo"},
+		{icon: "httpſ://example.com/logo.png", wantEmoji: "httpſ://example.com/logo.png"},
 		{icon: ":tanabata_tree:", wantEmoji: ":tanabata_tree:"},
 		{icon: ""},
 	}
