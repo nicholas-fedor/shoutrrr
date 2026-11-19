@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Describe the message body with struct tags by @nicholas-fedor in [#2302](https://github.com/nicholas-fedor/shoutrrr/pull/2302)
 - Send request bodies without copying them first by @nicholas-fedor in [#2298](https://github.com/nicholas-fedor/shoutrrr/pull/2298)
 - Marshal request payloads through a pointer by @nicholas-fedor in [#2296](https://github.com/nicholas-fedor/shoutrrr/pull/2296)
 - Build payloads and token strings without repeated allocations by @nicholas-fedor in [#2288](https://github.com/nicholas-fedor/shoutrrr/pull/2288)
