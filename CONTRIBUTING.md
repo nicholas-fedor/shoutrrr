@@ -278,6 +278,10 @@ Every service follows the same rules, so services behave alike for users and for
 ### JSON
 
 - Encode and decode JSON with `encoding/json/v2` and the `jsonopts.Default` options from `internal/jsonopts`.
+- Pass `json.Marshal` a pointer to a struct, or to a value held in one, such as a config field.
+  Marshal copies any other value to make it addressable, which costs an allocation on every call.
+  A local map is the exception, because taking its address moves it to the heap and costs the same allocation.
+  A local slice still saves one, because Marshal's interface argument holds a slice value only through a heap copy.
 - Tag each field with the member name the provider documents, in the same case.
   Member names match exactly.
 - Add `omitzero` to a slice or map field when the provider reads a missing member differently from an empty one.

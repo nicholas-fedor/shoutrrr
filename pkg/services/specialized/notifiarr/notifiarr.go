@@ -521,13 +521,10 @@ func (s *Service) createPayload(
 		return nil, err
 	}
 
-	notification := NotificationPayload{
-		Notification: notificationData,
-		Discord:      discord,
-	}
-
-	// Marshal the notification to JSON
-	payloadBytes, err := json.Marshal(notification, jsonopts.Default)
+	payloadBytes, err := json.Marshal(
+		&NotificationPayload{Notification: notificationData, Discord: discord},
+		jsonopts.Default,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

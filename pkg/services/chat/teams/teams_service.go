@@ -245,7 +245,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 		},
 	}
 
-	jsonBytes, err := json.Marshal(payload, jsonopts.Default)
+	jsonBytes, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

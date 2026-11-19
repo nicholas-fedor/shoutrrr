@@ -74,7 +74,7 @@ func (r MessageRequest) MarshalJSON() ([]byte, error) {
 		payload.Priority = nil
 	}
 
-	data, err := json.Marshal(payload, jsonopts.Default)
+	data, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("encoding message: %w", err)
 	}

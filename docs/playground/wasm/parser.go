@@ -47,12 +47,7 @@ func parseURLString(rawURL string) string {
 		values["WebhookURL"] = webhookDisplay
 	}
 
-	result := parseResult{
-		Service: scheme,
-		Config:  values,
-	}
-
-	data, err := json.Marshal(result, jsonopts.Default)
+	data, err := json.Marshal(&parseResult{Service: scheme, Config: values}, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}

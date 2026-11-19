@@ -233,7 +233,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	switch basePath, topic := path.Split(config.Topic); {
 	case basePath != "":
 		apiPath = basePath
-		request = publishRequest{Topic: topic, Message: message, Markdown: config.Markdown}
+		request = &publishRequest{Topic: topic, Message: message, Markdown: config.Markdown}
 	case config.Markdown:
 		headers.Set("Content-Type", "text/markdown")
 	default:

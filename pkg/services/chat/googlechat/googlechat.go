@@ -117,7 +117,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	jsonBody, err := json.Marshal(JSON{Text: message}, jsonopts.Default)
+	jsonBody, err := json.Marshal(&JSON{Text: message}, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling message to JSON: %w", err)
 	}

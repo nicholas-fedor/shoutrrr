@@ -46,7 +46,7 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		}
 	}
 
-	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
+	payloadBytes, err := json.Marshal(&payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling Rocket.Chat payload to JSON: %w", err)
 	}

@@ -122,13 +122,11 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Build base query string from configuration fields using the resolver
 	query := format.BuildQuery(resolver)
 
-	// Handle extras serialization if present
 	if c.Extras != nil {
 		// Extras that cannot be written as JSON, such as a channel, are left
 		// out of the URL.
-		extrasJSON, err := json.Marshal(c.Extras, jsonopts.Default)
+		extrasJSON, err := json.Marshal(&c.Extras, jsonopts.Default)
 		if err == nil {
-			// Append extras to query string with proper URL encoding
 			if query != "" {
 				query += "&"
 			}
