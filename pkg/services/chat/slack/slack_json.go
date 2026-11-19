@@ -1,6 +1,9 @@
 package slack
 
-import "strings"
+import (
+	"encoding/binary"
+	"strings"
+)
 
 // MessagePayload used within the Slack service.
 type MessagePayload struct {
@@ -154,41 +157,43 @@ func CreateJSONPayload(config *Config, message string) MessagePayload {
 //   - icon: a URL for [MessagePayload.IconURL], an emoji name for
 //     [MessagePayload.IconEmoji], or empty to clear both.
 func (p *MessagePayload) SetIcon(icon string) {
-	p.IconURL = ""
-	p.IconEmoji = ""
+	if isIconURL(icon) {
+		p.IconURL, p.IconEmoji = icon, ""
 
-	if icon != "" {
-		if isIconURL(icon) {
-			p.IconURL = icon
-		} else {
-			p.IconEmoji = icon
-		}
+		return
 	}
+
+	p.IconURL, p.IconEmoji = "", icon
 }
 
 // isIconURL reports whether an icon is a URL rather than an emoji name. An
-// icon is a URL when it holds "http://" or "https://" anywhere, with the
-// scheme in lowercase.
+// icon is a URL when it starts with "http://" or "https://", with each scheme
+// letter in either ASCII case.
 //
 // Parameters:
 //   - icon: the icon from the config.
 //
 // Returns:
-//   - bool: true when the icon holds an http or https URL.
+//   - bool: true when the icon is an http or https URL.
 func isIconURL(icon string) bool {
-	for {
-		index := strings.Index(icon, "://")
-		if index < 0 {
-			return false
-		}
+	// caseBit is set in a lower-case ASCII letter and clear in its upper case.
+	// Setting it in any other byte never gives h, t, p, or s, so the scheme
+	// compares in ASCII case only. Four spaces set it in each byte of a word.
+	const caseBit = ' '
 
-		scheme := icon[:index]
-		if strings.HasSuffix(scheme, "http") || strings.HasSuffix(scheme, "https") {
-			return true
-		}
-
-		// A scheme holds no ":" or "/", so the next one starts after this
-		// separator.
-		icon = icon[index+len("://"):]
+	if len(icon) < len("http://") {
+		return false
 	}
+
+	scheme := binary.LittleEndian.Uint32([]byte(icon[:4]))
+	if scheme|binary.LittleEndian.Uint32([]byte("    ")) != binary.LittleEndian.Uint32([]byte("http")) {
+		return false
+	}
+
+	rest := icon[len("http"):]
+	if rest[0]|caseBit == 's' {
+		rest = rest[1:]
+	}
+
+	return strings.HasPrefix(rest, "://")
 }
