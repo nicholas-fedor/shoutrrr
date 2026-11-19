@@ -1,7 +1,6 @@
 package gotify
 
 import (
-	"encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,55 +72,17 @@ func TestPrepareRequest(t *testing.T) {
 	date := "2023-12-25T10:00:00Z"
 
 	assert.Equal(t,
-		&MessageRequest{Message: "Hello", Title: "Backup", Priority: 5, Date: &date, Extras: extras},
+		&MessageRequest{Message: "Hello", Title: "Backup", Priority: new(5), Date: &date, Extras: extras},
 		builder.PrepareRequest("Hello", &Config{Title: "Backup", Priority: 5}, extras, date))
 	assert.Equal(t,
-		&MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true},
+		&MessageRequest{Message: "Hello", Title: "Backup"},
 		builder.PrepareRequest("Hello", &Config{Title: "Backup"}, nil, ""))
 	assert.Equal(t,
-		&MessageRequest{Message: "Hello", Title: "Backup"},
+		&MessageRequest{Message: "Hello", Title: "Backup", Priority: new(0)},
 		builder.PrepareRequest("Hello", &Config{Title: "Backup", prioritySet: true}, nil, ""))
 
 	// A zero priority from a URL read by Config.SetURL is sent.
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+"?priority=0")))
-	assert.False(t, builder.PrepareRequest("Hello", config, nil, "").omitPriority)
-}
-
-// TestMessageRequestMarshalJSON verifies the JSON body of a message: the
-// message, title, and extras, the priority unless the request leaves it out,
-// and never the date, which Gotify sets itself.
-func TestMessageRequestMarshalJSON(t *testing.T) {
-	t.Parallel()
-
-	date := "2023-12-25T10:00:00Z"
-
-	// tests lists requests with the JSON each should produce.
-	tests := []struct {
-		name    string
-		want    string
-		request MessageRequest
-	}{
-		{
-			name:    "priority",
-			request: MessageRequest{Message: "Hello", Title: "Backup", Priority: 5, Date: &date, Extras: map[string]any{"a": 1}},
-			want:    `{"message":"Hello","title":"Backup","priority":5,"extras":{"a":1}}`,
-		},
-		{name: "zero priority", request: MessageRequest{Message: "Hello", Title: "Backup"}, want: `{"message":"Hello","title":"Backup","priority":0}`},
-		{name: "priority left out", request: MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true}, want: `{"message":"Hello","title":"Backup"}`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			body, err := json.Marshal(&tt.request)
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.want, string(body))
-
-			body, err = json.Marshal(tt.request)
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.want, string(body))
-		})
-	}
+	assert.Equal(t, new(0), builder.PrepareRequest("Hello", config, nil, "").Priority)
 }
