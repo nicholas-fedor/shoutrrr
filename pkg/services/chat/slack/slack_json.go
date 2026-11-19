@@ -1,8 +1,9 @@
 package slack
 
 import (
-	"encoding/binary"
 	"strings"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/chaticon"
 )
 
 // MessagePayload used within the Slack service.
@@ -151,49 +152,17 @@ func CreateJSONPayload(config *Config, message string) MessagePayload {
 	return payload
 }
 
-// SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
+// SetIcon sets the icon URL or the icon emoji and clears the other.
 //
 // Parameters:
 //   - icon: a URL for [MessagePayload.IconURL], an emoji name for
 //     [MessagePayload.IconEmoji], or empty to clear both.
 func (p *MessagePayload) SetIcon(icon string) {
-	if isIconURL(icon) {
+	if chaticon.IsURL(icon) {
 		p.IconURL, p.IconEmoji = icon, ""
 
 		return
 	}
 
 	p.IconURL, p.IconEmoji = "", icon
-}
-
-// isIconURL reports whether an icon is a URL rather than an emoji name. An
-// icon is a URL when it starts with "http://" or "https://", with each scheme
-// letter in either ASCII case.
-//
-// Parameters:
-//   - icon: the icon from the config.
-//
-// Returns:
-//   - bool: true when the icon is an http or https URL.
-func isIconURL(icon string) bool {
-	// caseBit is set in a lower-case ASCII letter and clear in its upper case.
-	// Setting it in any other byte never gives h, t, p, or s, so the scheme
-	// compares in ASCII case only. Four spaces set it in each byte of a word.
-	const caseBit = ' '
-
-	if len(icon) < len("http://") {
-		return false
-	}
-
-	scheme := binary.LittleEndian.Uint32([]byte(icon[:4]))
-	if scheme|binary.LittleEndian.Uint32([]byte("    ")) != binary.LittleEndian.Uint32([]byte("http")) {
-		return false
-	}
-
-	rest := icon[len("http"):]
-	if rest[0]|caseBit == 's' {
-		rest = rest[1:]
-	}
-
-	return strings.HasPrefix(rest, "://")
 }

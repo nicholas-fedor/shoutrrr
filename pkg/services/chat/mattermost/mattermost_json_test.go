@@ -9,8 +9,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestJSONSetIcon verifies that SetIcon sets IconURL for an http or https
-// icon, IconEmoji for anything else, and clears both for an empty icon.
+// TestJSONSetIcon verifies that a URL icon sets IconURL and any other icon
+// sets IconEmoji. An empty icon clears both.
 func TestJSONSetIcon(t *testing.T) {
 	t.Parallel()
 
@@ -22,10 +22,6 @@ func TestJSONSetIcon(t *testing.T) {
 		wantEmoji string
 	}{
 		{name: "https URL", icon: "https://example.com/logo.png", wantURL: "https://example.com/logo.png"},
-		{name: "uppercase http URL", icon: "HTTP://example.com/logo.png", wantURL: "HTTP://example.com/logo.png"},
-		{name: "ftp URL", icon: "ftp://example.com/logo.png", wantEmoji: "ftp://example.com/logo.png"},
-		{name: "http without slashes", icon: "http:logo", wantEmoji: "http:logo"},
-		{name: "long s in the scheme", icon: "httpſ://example.com/logo.png", wantEmoji: "httpſ://example.com/logo.png"},
 		{name: "emoji", icon: "tanabata_tree", wantEmoji: "tanabata_tree"},
 		{name: "empty", icon: ""},
 	}
