@@ -92,14 +92,7 @@ var _ types.ConfigProp = &Token{}
 func (t *Token) Authorization() string {
 	typeIdentifier, parts := t.split()
 
-	stringBuilder := strings.Builder{}
-	stringBuilder.WriteString("Bearer ")
-	stringBuilder.Grow(len(t.raw))
-	stringBuilder.WriteString(typeIdentifier)
-	stringBuilder.WriteRune('-')
-	stringBuilder.WriteString(parts)
-
-	return stringBuilder.String()
+	return "Bearer " + typeIdentifier + "-" + parts
 }
 
 // GetPropValue returns the token as a property value, implementing the types.ConfigProp interface.
@@ -200,16 +193,21 @@ func (t *Token) WebhookURL() string {
 	_, parts := t.split()
 
 	stringBuilder := strings.Builder{}
+	stringBuilder.Grow(len(webhookBase) + len(parts))
 	stringBuilder.WriteString(webhookBase)
-	stringBuilder.Grow(len(parts))
 
-	for i := range len(parts) {
-		c := parts[i]
-		if c == '-' {
-			c = '/'
+	// The parts are separated by dashes, which the URL writes as slashes.
+	for rest := parts; ; {
+		segment, after, found := strings.Cut(rest, "-")
+		stringBuilder.WriteString(segment)
+
+		if !found {
+			break
 		}
 
-		stringBuilder.WriteByte(c)
+		stringBuilder.WriteByte('/')
+
+		rest = after
 	}
 
 	return stringBuilder.String()
