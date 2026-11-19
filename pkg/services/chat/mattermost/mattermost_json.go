@@ -3,8 +3,8 @@ package mattermost
 import (
 	"encoding/json/v2"
 	"fmt"
-	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/chaticon"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -26,17 +26,13 @@ type JSON struct {
 	IconURL string `json:"icon_url,omitempty"`
 }
 
-// SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
+// SetIcon sets the icon URL or the icon emoji and clears the other.
 //
 // Parameters:
-//   - icon: an http or https URL for [JSON.IconURL], an emoji name for
+//   - icon: a URL for [JSON.IconURL], an emoji name for
 //     [JSON.IconEmoji], or empty to clear both.
 func (j *JSON) SetIcon(icon string) {
-	scheme, _, found := strings.Cut(icon, "://")
-	// A scheme matches only at its own byte length. Unicode folding alone reads
-	// ſ as s, so httpſ would match https.
-	if found && (len(scheme) == len("http") && strings.EqualFold(scheme, "http") ||
-		len(scheme) == len("https") && strings.EqualFold(scheme, "https")) {
+	if chaticon.IsURL(icon) {
 		j.IconURL, j.IconEmoji = icon, ""
 
 		return
