@@ -1,9 +1,6 @@
 package slack
 
-import (
-	"regexp"
-	"strings"
-)
+import "strings"
 
 // MessagePayload used within the Slack service.
 type MessagePayload struct {
@@ -96,9 +93,6 @@ const (
 	MaxAttachments = 100
 )
 
-// iconURLPattern matches an icon that is a URL rather than an emoji name.
-var iconURLPattern = regexp.MustCompile(`https?://`)
-
 // CreateJSONPayload builds a payload for the Slack chat.postMessage API or a
 // webhook, with one attachment for each line of the message.
 //
@@ -167,7 +161,7 @@ func (p *MessagePayload) SetIcon(icon string) {
 	p.IconEmoji = ""
 
 	if icon != "" {
-		if iconURLPattern.MatchString(icon) {
+		if isIconURL(icon) {
 			p.IconURL = icon
 		} else {
 			p.IconEmoji = icon
@@ -189,4 +183,31 @@ func minInt(a, b int) int {
 	}
 
 	return b
+}
+
+// isIconURL reports whether an icon is a URL rather than an emoji name. An
+// icon is a URL when it holds "http://" or "https://" anywhere, with the
+// scheme in lowercase.
+//
+// Parameters:
+//   - icon: the icon from the config.
+//
+// Returns:
+//   - bool: true when the icon holds an http or https URL.
+func isIconURL(icon string) bool {
+	for {
+		index := strings.Index(icon, "://")
+		if index < 0 {
+			return false
+		}
+
+		scheme := icon[:index]
+		if strings.HasSuffix(scheme, "http") || strings.HasSuffix(scheme, "https") {
+			return true
+		}
+
+		// A scheme holds no ":" or "/", so the next one starts after this
+		// separator.
+		icon = icon[index+len("://"):]
+	}
 }
