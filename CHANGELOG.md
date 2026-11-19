@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Read an icon as a URL only when it starts with an http scheme by @nicholas-fedor in [#2292](https://github.com/nicholas-fedor/shoutrrr/pull/2292)
+
 ### Performance
 
 - Build payloads and token strings without repeated allocations by @nicholas-fedor in [#2288](https://github.com/nicholas-fedor/shoutrrr/pull/2288)
