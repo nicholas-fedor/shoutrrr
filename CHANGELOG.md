@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reach config fields by index and set defaults from the cache by @nicholas-fedor in [#2266](https://github.com/nicholas-fedor/shoutrrr/pull/2266)
 - Report deprecated params without allocating on a typical send by @nicholas-fedor in [#2264](https://github.com/nicholas-fedor/shoutrrr/pull/2264)
 
+### Changed
+
+- Share one icon URL check between slack and mattermost by @nicholas-fedor in [#2294](https://github.com/nicholas-fedor/shoutrrr/pull/2294)
+
 ### Documentation
 
 - List the projects that use shoutrrr in a used by section by @nicholas-fedor in [#2262](https://github.com/nicholas-fedor/shoutrrr/pull/2262)
