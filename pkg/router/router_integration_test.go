@@ -285,6 +285,10 @@ const (
 	// checkRedirectFails verifies that a send answered with a redirect status
 	// that the client did not follow fails with an error naming the status.
 	checkRedirectFails = "redirect_fails"
+	// checkRequestBodyReplayable verifies that each request body declares its
+	// length and can be read again through GetBody, so a redirect or retry can
+	// send it again.
+	checkRequestBodyReplayable = "request_body_replayable"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -340,6 +344,8 @@ const (
 	failEmptyElementKept                        // a list with an empty element read back or sent unlike the list without it
 	failRedirectAccepted                        // a send answered with a redirect status succeeded
 	failRedirectUnreported                      // a send answered with a redirect status failed without naming the status
+	failBodyUnsized                             // a request body did not declare its length
+	failBodyNotReplayable                       // a request body could not be read again through GetBody
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -762,6 +768,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkPathSegments, runPathSegments},
 		{checkEmptyListElements, runEmptyListElements},
 		{checkRedirectFails, runRedirectFails},
+		{checkRequestBodyReplayable, runRequestBodyReplayable},
 	}
 
 	for _, check := range checks {
@@ -1950,6 +1957,106 @@ func runRedirectFails(t *testing.T, fx *fixture) failure {
 	})
 
 	return result
+}
+
+// runRequestBodyReplayable verifies that every request an HTTP service sends
+// with a body declares the body's length and can give the same body again
+// through GetBody. The holder's default clients follow a same-host 307 or 308
+// by sending the body again, and a service that retries a prepared request
+// does the same, so a body without a length or a GetBody goes out chunked and
+// cannot be sent twice.
+func runRequestBodyReplayable(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind != netHTTP {
+		return failure{}
+	}
+
+	var (
+		result failure
+		mu     sync.Mutex
+	)
+
+	answer := respond(fx, false)
+
+	// inspect checks one request's body before the fixture's answer drains it.
+	inspect := func(req *http.Request) (*http.Response, error) {
+		if req.Body == nil || req.Body == http.NoBody {
+			return answer(req)
+		}
+
+		body, err := io.ReadAll(req.Body)
+		_ = req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewReader(body))
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		switch {
+		case result.kind != failNone:
+		case err != nil:
+			result = fail(failBodyNotReplayable, "reading the request body failed: %v", err)
+		case req.ContentLength != int64(len(body)):
+			result = fail(failBodyUnsized, "a %d-byte request body declared length %d", len(body), req.ContentLength)
+		default:
+			result = checkGetBody(req, body)
+		}
+
+		return answer(req)
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locateWith(t, types.SenderOptions{HTTPClient: httpClientFunc(inspect), DialContext: env.dial})
+		if err != nil {
+			mu.Lock()
+			result = fail(failInit, "initialization failed: %v", err)
+			mu.Unlock()
+
+			return
+		}
+
+		if sent := env.send(service, nil); sent.kind != failNone {
+			mu.Lock()
+			result = sent
+			mu.Unlock()
+		}
+	})
+
+	return result
+}
+
+// checkGetBody reports whether a request's GetBody gives the body the request
+// sent.
+//
+// Parameters:
+//   - req: the request.
+//   - body: the body the request sent.
+//
+// Returns:
+//   - failure: a failBodyNotReplayable failure, or the zero value.
+func checkGetBody(req *http.Request, body []byte) failure {
+	if req.GetBody == nil {
+		return fail(failBodyNotReplayable, "the request has no GetBody to send its body again")
+	}
+
+	replay, err := req.GetBody()
+	if err != nil {
+		return fail(failBodyNotReplayable, "GetBody failed: %v", err)
+	}
+
+	again, err := io.ReadAll(replay)
+	_ = replay.Close()
+
+	switch {
+	case err != nil:
+		return fail(failBodyNotReplayable, "reading the body from GetBody failed: %v", err)
+	case !bytes.Equal(again, body):
+		return fail(failBodyNotReplayable, "GetBody gave %d bytes where the request sent %d", len(again), len(body))
+	default:
+		return failure{}
+	}
 }
 
 // runCheckedConfig verifies that a service checks the config of each send as

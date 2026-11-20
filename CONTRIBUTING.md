@@ -368,6 +368,8 @@ Every service follows the same rules, so services behave alike for users and for
   A send must make the same requests, with the same headers and bodies, and return the same error.
 - The `redirect_fails` contract check answers every request of an HTTP service with a 307 and the body of a successful reply.
   A service passes only when the send fails with an error that names the status.
+- The `request_body_replayable` contract check reads the body of every request an HTTP service sends.
+  Each body must declare its length, and its `GetBody` must give the same bytes again.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 
