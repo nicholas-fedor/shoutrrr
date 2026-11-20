@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
@@ -79,6 +80,9 @@ const (
 // not a config key, so the query and the params are read for it directly.
 const extrasKey = "extras"
 
+// priorityKey is the config key of [Config.Priority].
+const priorityKey = "priority"
+
 // GetURL returns a URL representation of the current configuration. A value
 // set through a deprecated field is written under its replacement's key.
 //
@@ -110,17 +114,25 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// getURL generates a URL from the current configuration values.
-// This internal method constructs a URL representation of the configuration,
-// including all settings as query parameters and extras as JSON in the query string.
-// Used for serialization and URL reconstruction.
-// Parameters:
-//   - resolver: Configuration resolver for building query parameters from config fields
+// getURL writes the config as a service URL, with the extras as JSON in the
+// query.
 //
-// Returns: *url.URL containing the complete configuration as a URL.
+// Parameters:
+//   - resolver: the resolver that writes the config's keys into the query.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	// Build base query string from configuration fields using the resolver
-	query := format.BuildQuery(resolver)
+	values := format.BuildQueryWithCustomFields(resolver, url.Values{})
+
+	// A priority the URL set stays in the URL even at its default of 0, which
+	// the query leaves out otherwise. The config read back from the URL then
+	// still sends the priority, and the level param leaves it alone.
+	if c.prioritySet {
+		values.Set(priorityKey, strconv.Itoa(c.Priority))
+	}
+
+	query := values.Encode()
 
 	if c.Extras != nil {
 		// Extras that cannot be written as JSON, such as a channel, are left
@@ -135,13 +147,11 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		}
 	}
 
-	// Construct and return the complete URL
 	return &url.URL{
-		Host:       c.Host,        // Server hostname and port
-		Scheme:     Scheme,        // URL scheme (gotify)
-		ForceQuery: false,         // Don't force query string presence
-		Path:       c.tokenPath(), // Path with token appended
-		RawQuery:   query,         // Query parameters including extras
+		Host:     c.Host,
+		Scheme:   Scheme,
+		Path:     c.tokenPath(),
+		RawQuery: query,
 	}
 }
 
@@ -178,7 +188,7 @@ func (c *Config) processQueryParameters(
 	}
 
 	// A priority this URL sets under any spelling, even 0, is sent.
-	c.prioritySet = !resolver.KeepsDefault(c, nil, "priority")
+	c.prioritySet = !resolver.KeepsDefault(c, nil, priorityKey)
 
 	return nil
 }
