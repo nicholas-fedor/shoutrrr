@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep explicit level-mapped defaults in config URLs by @nicholas-fedor in [#2311](https://github.com/nicholas-fedor/shoutrrr/pull/2311)
 - Keep an explicit zero priority in the config URL by @nicholas-fedor in [#2306](https://github.com/nicholas-fedor/shoutrrr/pull/2306)
 - Read an icon as a URL only when it starts with an http scheme by @nicholas-fedor in [#2292](https://github.com/nicholas-fedor/shoutrrr/pull/2292)
 
