@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.4 by @renovate[bot] in [#2309](https://github.com/nicholas-fedor/shoutrrr/pull/2309)
+- Update dependency platformdirs to v4.14.8 by @renovate[bot] in [#2308](https://github.com/nicholas-fedor/shoutrrr/pull/2308)
 - Update dependency mkdocs-material to v9.8.2 by @renovate[bot] in [#2300](https://github.com/nicholas-fedor/shoutrrr/pull/2300)
 - Update ossf/scorecard-action action to v2.6.0 by @renovate[bot] in [#2290](https://github.com/nicholas-fedor/shoutrrr/pull/2290)
 - Add tasks that tag the next release by @nicholas-fedor in [#2270](https://github.com/nicholas-fedor/shoutrrr/pull/2270)
