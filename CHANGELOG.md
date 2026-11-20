@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - List the projects that use shoutrrr in a used by section by @nicholas-fedor in [#2262](https://github.com/nicholas-fedor/shoutrrr/pull/2262)
 - Add a used by page for projects that use shoutrrr by @nicholas-fedor in [#2260](https://github.com/nicholas-fedor/shoutrrr/pull/2260)
 
+### Tests
+
+- Check that every request body can be sent again by @nicholas-fedor in [#2304](https://github.com/nicholas-fedor/shoutrrr/pull/2304)
+
 ### Chores
 
 - Update dependency mkdocs-material to v9.8.2 by @renovate[bot] in [#2300](https://github.com/nicholas-fedor/shoutrrr/pull/2300)
