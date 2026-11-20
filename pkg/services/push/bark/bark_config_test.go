@@ -27,6 +27,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // TestConfigGetAPIURL verifies that GetAPIURL joins the configured path and the
 // endpoint with exactly one slash between each part.
 func TestConfigGetAPIURL(t *testing.T) {
@@ -167,7 +183,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }

@@ -52,10 +52,20 @@ type FieldInfo struct {
 	// Sensitive reports that the field holds a secret, such as a token or a
 	// password, from its `sensitive:"true"` tag.
 	Sensitive bool
+	// levelMapped reports that a service maps the level param onto the field
+	// while the URL leaves its key out, from its `levelmapped:"true"` tag. The
+	// URL that its config writes keeps the key whenever a URL set it, as
+	// [URLKeys] describes.
+	levelMapped bool
 }
 
 // DefaultBase represents the default numeric base (decimal) for fields.
 const DefaultBase = 10
+
+// levelMappedTag marks a field that a service maps the level param onto, so
+// the URL that its config writes keeps the key whenever a URL set it to its
+// default.
+const levelMappedTag = "levelmapped"
 
 // IsEnum reports whether the field is an enum.
 //
@@ -122,6 +132,7 @@ func newValueFieldInfo(name string, valueType reflect.Type, base int) *FieldInfo
 		Required:       false,
 		Title:          false,
 		Sensitive:      false,
+		levelMapped:    false,
 	}
 }
 
@@ -193,6 +204,8 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 		if tag, ok := fieldDef.Tag.Lookup("sensitive"); ok {
 			info.Sensitive = tag == "true"
 		}
+
+		info.levelMapped = fieldDef.Tag.Get(levelMappedTag) == "true"
 
 		if tag, ok := fieldDef.Tag.Lookup("url"); ok {
 			info.URLParts = ParseURLParts(tag)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"reflect"
 	"slices"
 	"sort"
@@ -19,9 +20,6 @@ import (
 type PropKeyResolver struct {
 	// keyFields maps each key and deprecated key, in lower case, to its field.
 	keyFields map[string]*FieldInfo
-	// setFields holds the names of the fields that Set has set, such as from a
-	// service URL query, so KeepsDefault treats them as explicitly configured.
-	setFields map[string]bool
 	// deprecatedKeys maps each deprecated key to the primary key of its field.
 	deprecatedKeys map[string]string
 	// usedDeprecatedKeys holds the deprecated keys that Set has received.
@@ -135,7 +133,6 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	return PropKeyResolver{
 		keyFields:          keyFields,
 		confValue:          confValue,
-		setFields:          map[string]bool{},
 		deprecatedKeys:     deprecatedKeys,
 		usedDeprecatedKeys: map[string]bool{},
 		primarySetFields:   map[string]bool{},
@@ -170,8 +167,8 @@ func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolve
 // Bind returns a copy of the resolver bound to another config.
 //
 // The config must have the same type as the one the resolver was made for. The
-// copy shares the record of set fields and deprecated keys with the original,
-// and the config's defaults.
+// copy shares the record of deprecated keys and of the fields set through
+// other keys with the original, and the config's defaults.
 //
 // Parameters:
 //   - config: the config to bind.
@@ -254,37 +251,14 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 	return "", fmt.Errorf("%w: %v", ErrInvalidConfigKey, key)
 }
 
-// IsDefault reports whether a value is the default of the property tagged with
-// key.
-//
-// The value matches the default as written in its tag, or as the formatter
-// prints it, so a bool default of "yes" matches "Yes" and an enum default of
-// "high" matches "High". A property without a default tag, or with an empty
-// one, defaults to its zero value, as [PropKeyResolver.SetDefaultProps] sets
-// it, so "0" and "No" match it.
-//
-// Parameters:
-//   - key: the property key, matched case-insensitively.
-//   - value: the formatted property value.
-//
-// Returns:
-//   - bool: whether value is the property's default, or false for an unknown key.
-func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
-	field, found := pkr.keyFields[strings.ToLower(key)]
-	if !found {
-		return false
-	}
-
-	return pkr.fieldIsDefault(field, value)
-}
-
 // KeepsDefault reports whether a send keeps the default value of the property
 // tagged with key.
 //
-// That holds when neither [PropKeyResolver.Set], as used for
-// the service URL query, nor params set the property under any of its keys,
-// and config holds the property's default value. A property set to its default
-// value explicitly is therefore not kept as a default.
+// That holds when neither the URL query that config was read from nor params
+// set the property under any of its keys, and config holds the property's
+// default value. A config records what its URL set only when it embeds
+// [URLKeys], so a property set to its default value by such a URL is not kept
+// as a default.
 //
 // A service uses it to fill a property from another source, such as mapping
 // the message level to a priority, only when neither the service URL nor the
@@ -299,7 +273,7 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 //   - bool: whether the property keeps its default, or false for an unknown key.
 func (pkr *PropKeyResolver) KeepsDefault(config types.ServiceConfig, params *types.Params, key string) bool {
 	field, found := pkr.keyFields[strings.ToLower(key)]
-	if !found || pkr.setFields[field.Name] {
+	if !found || urlKeysOf(config).has(field.Name) {
 		return false
 	}
 
@@ -342,8 +316,6 @@ func (pkr *PropKeyResolver) QueryFields() []string {
 }
 
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
-//
-// It records the property as explicitly set, which [PropKeyResolver.KeepsDefault] reads.
 //
 // A deprecated key is recorded for [PropKeyResolver.DeprecatedKeys]. It sets
 // the property unless a key that is not deprecated already set it, so the
@@ -553,6 +525,19 @@ func (pkr *PropKeyResolver) applyParams(
 	})
 }
 
+// boundURLKeys returns the record of the bound config.
+//
+// Returns:
+//   - *URLKeys: the record, or nil when the config embeds none or the
+//     resolver is not bound to a config given by pointer.
+func (pkr *PropKeyResolver) boundURLKeys() *URLKeys {
+	if !pkr.confValue.CanAddr() {
+		return nil
+	}
+
+	return urlKeysOf(pkr.confValue.Addr().Interface())
+}
+
 // configValueOrInternal returns the reflect.Value of the config, or the internal config if config is nil.
 //
 // Parameters:
@@ -591,7 +576,10 @@ func (pkr *PropKeyResolver) defaultConfig() *configDefaults {
 // fieldIsDefault reports whether a formatted value is the default of a field.
 //
 // The value matches the default as written in its tag, or as the formatter
-// prints it, as [PropKeyResolver.IsDefault] describes.
+// prints it, so a bool default of "yes" matches "Yes" and an enum default of
+// "high" matches "High". A field without a default tag, or with an empty one,
+// defaults to its zero value, as [PropKeyResolver.SetDefaultProps] sets it, so
+// "0" and "No" match it.
 //
 // Parameters:
 //   - field: the field to check.
@@ -684,12 +672,6 @@ func (pkr *PropKeyResolver) isUndeclaredReserved(key string) bool {
 //   - fieldName: the name of the field the key sets.
 //   - deprecated: whether key is a deprecated key.
 func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
-	if pkr.setFields == nil {
-		pkr.setFields = map[string]bool{}
-	}
-
-	pkr.setFields[fieldName] = true
-
 	if !deprecated {
 		if pkr.primarySetFields == nil {
 			pkr.primarySetFields = map[string]bool{}
@@ -728,6 +710,39 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 	}
 
 	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
+}
+
+// writeQuery writes the props of the bound config into a query, each under
+// its primary key.
+//
+// A prop at its default value is left out, unless its field is level-mapped
+// and the config's URL set it, as [URLKeys] describes.
+//
+// Parameters:
+//   - query: the query to write into.
+func (pkr *PropKeyResolver) writeQuery(query url.Values) {
+	record := pkr.boundURLKeys()
+
+	for _, field := range pkr.fields {
+		// A field with only deprecated keys has no key to write.
+		key := field.Keys[0]
+		if key == "" {
+			continue
+		}
+
+		value, err := GetConfigFieldString(pkr.confValue, field)
+		if err != nil {
+			continue
+		}
+
+		// The level param fills a level-mapped key only while the URL leaves it
+		// out, so a default the URL named stays in the URL.
+		if pkr.fieldIsDefault(field, value) && (!field.levelMapped || !record.has(field.Name)) {
+			continue
+		}
+
+		query.Set(key, value)
+	}
 }
 
 // build sets each keyed field of a new config of configType to its default.

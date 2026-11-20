@@ -28,6 +28,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // newDefaultConfig returns a config with the default props applied.
 //
 // Parameters:
@@ -81,7 +97,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := newDefaultConfig(t)
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }
@@ -148,7 +164,7 @@ func TestConfigGetURL(t *testing.T) {
 
 		roundTrip := newDefaultConfig(t)
 		require.NoError(t, roundTrip.SetURL(serviceURL))
-		assert.Equal(t, config, roundTrip)
+		assert.Equal(t, *config, withoutURLKeys(roundTrip))
 	})
 }
 
@@ -187,4 +203,16 @@ func keys[V any](m map[string]V) []string {
 	}
 
 	return result
+}
+
+// TestConfigGetURLKeepsDefaultType verifies that the URL a config writes keeps
+// a type its URL set to the default. The level param then leaves the
+// notification type of the config read back from it alone.
+func TestConfigGetURLKeepsDefaultType(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	require.NoError(t, config.SetURL(parseTestURL(t, "signalgrid://clientkey@channeltoken?type=INFO")))
+
+	assert.Equal(t, []string{"INFO"}, config.GetURL().Query()["type"])
 }

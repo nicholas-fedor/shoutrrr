@@ -12,6 +12,10 @@ import (
 
 // Config for the Pushover notification service.
 type Config struct {
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the priority key at its default and the level param leaves it alone.
+	urlKeys
+
 	// Token is the application's API token, written as the password of the service URL.
 	Token string `desc:"API Token/Key" sensitive:"true" url:"pass"`
 	// User is the user or group key to send to, written as the host of the service URL.
@@ -28,7 +32,7 @@ type Config struct {
 	// Pushover repeats an emergency notification every Retry until the user
 	// acknowledges it or Expire passes. It stops after 50 repeats, even when
 	// Expire has not passed.
-	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 2 (emergency)" key:"priority"`
+	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 2 (emergency)" key:"priority" levelmapped:"true"`
 	// Timestamp is the Unix time, in seconds, that Pushover shows and orders the
 	// message by instead of when it received the message. 0 leaves it to Pushover.
 	Timestamp int64 `default:"0" desc:"Unix time in seconds to show instead of when Pushover received the message" key:"timestamp"`
@@ -41,6 +45,10 @@ type Config struct {
 	// It is whole seconds, at most 3 hours. Zero uses 1 hour.
 	Expire time.Duration `desc:"How long an emergency notification repeats, at most 3h (default 1h)" key:"expire" optional:""`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Priorities and emergency settings the Message API accepts.
 const (

@@ -176,15 +176,16 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
 }
 
-// applyLevel sets the priority of a message from its level param when neither
-// the service URL nor the send params set it. Debug uses 2, which shows only an
-// icon, warning uses 5, which adds a sound, and error uses 8, which adds
-// vibration. Info leaves the application's default priority.
+// applyLevel sets the priority of a message from its level param. A send calls
+// it only when neither the service URL nor the send params set the priority.
+// Debug uses 2, which shows only an icon, warning uses 5, which adds a sound,
+// and error uses 8, which adds vibration. Info leaves the application's
+// default priority.
 //
 // Parameters:
 //   - config: the config for this send, with params already applied.
 //   - params: the send params, or nil.
-func (s *Service) applyLevel(config *Config, params *types.Params) {
+func applyLevel(config *Config, params *types.Params) {
 	if params == nil {
 		return
 	}
@@ -194,7 +195,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 		return
 	}
 
-	if levelPriority, mapped := levelPriorities[level]; mapped && !config.prioritySet && s.pkr.KeepsDefault(config, params, priorityKey) {
+	if levelPriority, mapped := levelPriorities[level]; mapped {
 		config.Priority = levelPriority
 	}
 }
@@ -265,10 +266,12 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 		return config, nil, err
 	}
 
-	s.applyLevel(&config, params)
-
-	// A priority the URL, the params, or the level set, even 0, is sent as it is.
-	config.prioritySet = config.prioritySet || !s.pkr.KeepsDefault(&config, params, priorityKey)
+	// A priority the URL or the params set, even 0, is sent as it is. The level
+	// chooses one otherwise, which is never 0.
+	config.prioritySet = !s.pkr.KeepsDefault(&config, params, priorityKey)
+	if !config.prioritySet {
+		applyLevel(&config, params)
+	}
 
 	// Validate priority is within valid range (-2 to 10)
 	if err := s.validator.ValidatePriority(config.Priority); err != nil {

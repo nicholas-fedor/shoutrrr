@@ -47,6 +47,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // TestConfigSetURL verifies that SetURL reads the host from the URL authority,
 // the token from the last path segment with any subpath before it, and the
 // other settings and the extras JSON from the query, noting a priority the
@@ -112,14 +128,14 @@ func TestConfigSetURL(t *testing.T) {
 			t.Parallel()
 
 			// The config holds values an earlier URL set, which a URL that
-			// leaves them out does not keep.
-			config := &Config{
-				Title: "Old", Priority: 9, DisableTLS: true, SkipTLSVerify: true, Date: "old",
-				Extras: map[string]any{"old": true}, prioritySet: true,
-			}
+			// leaves them out does not keep. Its priority counts as set only
+			// when the new URL sets it.
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+
+				"?title=Old&priority=9&disabletls=yes&skiptlsverify=yes&date=old&extras="+url.QueryEscape(`{"old":true}`))))
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }
@@ -183,11 +199,13 @@ func TestConfigSetURLErrors(t *testing.T) {
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	// tests lists configs with the URL each should produce.
+	// tests lists configs, or URLs to read one from, with the URL each config
+	// should produce.
 	tests := []struct {
 		name   string
-		config Config
+		rawURL string
 		want   string
+		config Config
 	}{
 		{name: "host and token", config: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true}, want: testServiceURL},
 		{
@@ -206,23 +224,25 @@ func TestConfigGetURL(t *testing.T) {
 			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=No" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
 		},
-		{
-			name:   "priority set to 0",
-			config: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true, prioritySet: true},
-			want:   testServiceURL + "?priority=0",
-		},
+		{name: "priority the URL set to 0", rawURL: testServiceURL + "?priority=0", want: testServiceURL + "?priority=0"},
+		{name: "title the URL set to its default", rawURL: testServiceURL + "?title=" + url.QueryEscape(defaultTitle), want: testServiceURL},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serviceURL := tt.config.GetURL()
+			config := tt.config
+			if tt.rawURL != "" {
+				require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+			}
+
+			serviceURL := config.GetURL()
 			assert.Equal(t, tt.want, serviceURL.String())
 
 			roundTrip := &Config{Title: defaultTitle}
 			require.NoError(t, roundTrip.SetURL(serviceURL))
-			assert.Equal(t, tt.config, *roundTrip)
+			assert.Equal(t, withoutURLKeys(&config), withoutURLKeys(roundTrip))
 		})
 	}
 }

@@ -25,6 +25,10 @@ type Config struct {
 	// fields.
 	standard.EnumlessConfig
 
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the color key at its default and the level param leaves it alone.
+	urlKeys
+
 	// WebhookID is the webhook ID, written as the host of the service URL.
 	WebhookID string `url:"host"`
 	// Token is the webhook token, written as the userinfo of the service URL.
@@ -55,7 +59,7 @@ type Config struct {
 	// them.
 	Mentions []string `desc:"Mentions to add to each message, the only ones that ping: everyone, here, user:ID, or role:ID" key:"mentions" optional:""`
 	// Color is the embed color for messages without a level.
-	Color uint `base:"16" default:"0x50D9ff" desc:"The color of the left border for plain messages" key:"color"`
+	Color uint `base:"16" default:"0x50D9ff" desc:"The color of the left border for plain messages" key:"color" levelmapped:"true"`
 	// ColorError is the embed color for error messages.
 	ColorError uint `base:"16" default:"0xd60510" desc:"The color of the left border for error messages" key:"colorError"`
 	// ColorWarn is the embed color for warning messages.
@@ -70,6 +74,10 @@ type Config struct {
 	// The service URL marks it with the /raw path.
 	JSON bool `default:"No" desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field" key:"json"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Scheme defines the protocol identifier for this service's configuration URL.
 const Scheme = "discord"

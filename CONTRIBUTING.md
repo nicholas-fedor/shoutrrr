@@ -253,7 +253,9 @@ Every service follows the same rules, so services behave alike for users and for
   Check each enum field with `format.CheckEnumValue`, because reading a URL rejects a value outside the enum.
 - Some services let the level param set a key only while the URL leaves that key at its default.
   A URL that names the default turns the mapping off.
-  The URL its config writes must keep the key even at its default, so the mapping stays off.
+  Such a service checks the key with `KeepsDefault`.
+  Its config embeds `format.URLKeys` through an unexported alias, so the config records the keys its URL set.
+  Tag the key's field `levelmapped:"true"`, so the URL its config writes keeps the key even at its default and the mapping stays off.
 - Apply the defaults that reading a URL fills in, such as a default host, to each send's config too.
   Use one method for both, so a config built in code reaches the endpoint its URL would.
 - Drop the empty elements of each list setting from each send's config with `util.NonEmpty`, in that same method.
@@ -373,7 +375,7 @@ Every service follows the same rules, so services behave alike for users and for
   A service passes only when the send fails with an error that names the status.
 - The `request_body_replayable` contract check reads the body of every request an HTTP service sends.
   Each body must declare its length, and its `GetBody` must give the same bytes again.
-- The `explicit_defaults` contract check sets each config key with a default to that default in the URL.
+- The `explicit_defaults` contract check sets each config key to its default in the URL, or to an empty value when it has none.
   A service built from that URL and one built from the URL its config writes must send a titled message alike at every level.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.

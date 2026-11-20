@@ -176,7 +176,8 @@ func TestInitialize(t *testing.T) {
 
 	service := newTestService(t, testServiceURL+"?priority=3")
 
-	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, UseHeader: true, prioritySet: true}, service.Config)
+	assert.Equal(t, Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, UseHeader: true, prioritySet: true},
+		withoutURLKeys(service.Config))
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)

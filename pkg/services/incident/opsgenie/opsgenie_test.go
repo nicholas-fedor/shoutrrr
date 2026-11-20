@@ -134,7 +134,7 @@ func TestInitialize(t *testing.T) {
 
 		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey+"?priority=P2")
 
-		assert.Equal(t, &Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey, Priority: "P2"}, service.Config)
+		assert.Equal(t, Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey, Priority: "P2"}, withoutURLKeys(service.Config))
 	})
 
 	t.Run("missing API key", func(t *testing.T) {

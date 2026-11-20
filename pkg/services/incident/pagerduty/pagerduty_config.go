@@ -13,6 +13,10 @@ import (
 
 // Config holds the configuration for the PagerDuty service.
 type Config struct {
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the severity key at its default and the level param leaves it alone.
+	urlKeys
+
 	// IntegrationKey is the integration's routing key, written as the path of
 	// the service URL.
 	IntegrationKey string `desc:"The PagerDuty API integration key" sensitive:"true" url:"path"`
@@ -20,7 +24,7 @@ type Config struct {
 	Host string `default:"events.pagerduty.com" desc:"The PagerDuty API host." url:"host"`
 	// Severity is the event severity: critical, error, warning, or info.
 	// When neither the URL nor the send sets it, the level param chooses it.
-	Severity string `default:"error" desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
+	Severity string `default:"error" desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity" levelmapped:"true"`
 	// Source is the location of the affected system, preferably a hostname or
 	// FQDN.
 	Source string `default:"default" desc:"The unique location of the affected system, preferably a hostname or FQDN; required" key:"source"`
@@ -45,6 +49,10 @@ type Config struct {
 	// Port is the Events API port.
 	Port uint16 `default:"443" desc:"The PagerDuty API port." url:"port"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Service identity and URL defaults.
 const (

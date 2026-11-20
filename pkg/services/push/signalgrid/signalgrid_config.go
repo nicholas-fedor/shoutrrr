@@ -11,6 +11,10 @@ import (
 
 // Config holds settings for the Signalgrid notification service.
 type Config struct {
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the type key at its default and the level param leaves it alone.
+	urlKeys
+
 	// ClientKey is the Signalgrid client key used to authenticate Push API requests.
 	ClientKey string `desc:"Signalgrid client key" sensitive:"true" url:"user"`
 	// Channel is the destination channel token.
@@ -18,10 +22,14 @@ type Config struct {
 	// Title is an optional notification title. It is omitted from the API request when empty.
 	Title string `desc:"Notification title" key:"title" optional:""`
 	// Type is the visual severity of the notification. Default: INFO.
-	Type notificationType `default:"INFO" desc:"Notification severity (CRIT, WARN, INFO, SUCCESS)" key:"type"`
+	Type notificationType `default:"INFO" desc:"Notification severity (CRIT, WARN, INFO, SUCCESS)" key:"type" levelmapped:"true"`
 	// Critical delivers the notification as a critical alert when true.
 	Critical bool `default:"No" desc:"Deliver as a critical alert" key:"critical"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Service identity.
 const (

@@ -18,6 +18,10 @@ type Config struct {
 	// fields.
 	standard.EnumlessConfig
 
+	// urlKeys records the keys that the URL set, so a URL that names the
+	// deprecated scheme at its default is warned about too.
+	urlKeys
+
 	// Title is the notification title.
 	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
 	// Host is the server host, with an optional port.
@@ -56,6 +60,10 @@ type Config struct {
 	// SkipTLSVerify skips verification of the server's TLS certificate.
 	SkipTLSVerify bool `default:"no" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Scheme is the URL scheme identifier for the Bark service.
 const Scheme = "bark"

@@ -46,6 +46,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // newDefaultConfig returns a config with the struct tag defaults applied.
 //
 // Parameters:
@@ -146,7 +162,7 @@ func TestConfigURLRoundTrip(t *testing.T) {
 		config := newDefaultConfig(t)
 		require.NoError(t, config.SetURL(original.GetURL()))
 
-		assert.Equal(t, original, *config)
+		assert.Equal(t, original, withoutURLKeys(config))
 	})
 
 	t.Run("thread name", func(t *testing.T) {
@@ -405,4 +421,16 @@ func TestCreatePostURLFromConfig(t *testing.T) {
 			assert.Equal(t, tt.want, CreatePostURLFromConfig(&tt.config))
 		})
 	}
+}
+
+// TestConfigGetURLKeepsDefaultColor verifies that the URL a config writes
+// keeps a color its URL set to the default. The level param then leaves the
+// embed color of the config read back from it alone.
+func TestConfigGetURLKeepsDefaultColor(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	require.NoError(t, config.SetURL(parseTestURL(t, "discord://token@123456789?color=0x50D9ff")))
+
+	assert.Equal(t, []string{"0x50d9ff"}, config.GetURL().Query()["color"])
 }

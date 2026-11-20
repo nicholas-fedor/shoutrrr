@@ -668,16 +668,6 @@ var allowlist = map[string]map[string]knownFailure{
 		// deadline and a slow lookup leaves the message request the rest.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failDeadlineChanged},
 	},
-	checkExplicitDefaults: {
-		// These services record a key the URL set to its default only in the
-		// service's resolver. The URL their config writes leaves the key out.
-		// The level param then changes it again.
-		"discord":    {"Discord keeps an explicit default color out of the URL its config writes", failExplicitDefaultLost},
-		"ntfy":       {"ntfy keeps an explicit default priority out of the URL its config writes", failExplicitDefaultLost},
-		"pagerduty":  {"PagerDuty keeps an explicit default severity out of the URL its config writes", failExplicitDefaultLost},
-		"pushover":   {"Pushover keeps an explicit default priority out of the URL its config writes", failExplicitDefaultLost},
-		"signalgrid": {"Signalgrid keeps an explicit default type out of the URL its config writes", failExplicitDefaultLost},
-	},
 	checkUnknownParams: {
 		// Generic sends every param that is not a config key as a field of the
 		// webhook body, and the logger uses its params as template data.
@@ -2082,10 +2072,11 @@ func checkGetBody(req *http.Request, body []byte) failure {
 // when the URL left that key at its default. A URL that names the default
 // turns the mapping off, and the URL its config writes must keep it off.
 //
-// For each key with a default, one service is built from the fixture URL with
-// the key set to its default. Another is built from the URL that service's
-// config writes. Each sends with a title at every level, since a service may
-// map any level onto its default and some map it only for titled messages.
+// For each config key, one service is built from the fixture URL with the key
+// set to its default, or to an empty value when it has none. Another is built
+// from the URL that service's config writes. Each sends with a title at every
+// level, since a service may map any level onto its default and some map it
+// only for titled messages.
 // The two services must send alike as [sameSends] judges it. How often they
 // dial may differ. A key whose default the fixture URL cannot take is skipped.
 //
@@ -2111,7 +2102,7 @@ func runExplicitDefaults(t *testing.T, fx *fixture) failure {
 
 	for _, node := range format.GetConfigFormat(config).Items {
 		field := node.Field()
-		if field.DefaultValue == "" || len(field.Keys) == 0 {
+		if len(field.Keys) == 0 {
 			continue
 		}
 

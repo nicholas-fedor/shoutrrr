@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
@@ -23,6 +22,10 @@ type Config struct {
 	// EnumlessConfig provides the empty enum set, since Gotify has no enum
 	// fields.
 	standard.EnumlessConfig
+
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the priority key at its default and the level param leaves it alone.
+	urlKeys
 
 	// Extras holds the custom key-value pairs sent with each message, parsed
 	// from JSON.
@@ -48,7 +51,7 @@ type Config struct {
 	// Priority is the message priority, from -2 to 10, higher being more
 	// important. It is sent only when the URL or the send sets it, or the
 	// level param chooses it.
-	Priority int `default:"0" desc:"Message priority, from -2 to 10" key:"priority"`
+	Priority int `default:"0" desc:"Message priority, from -2 to 10" key:"priority" levelmapped:"true"`
 	// DisableTLS sends the request over HTTP instead of HTTPS.
 	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 	// SkipTLSVerify skips verification of the server's TLS certificate.
@@ -63,12 +66,16 @@ type Config struct {
 	// turns it on, and a config built in code turns it on by setting it.
 	UseHeader bool `default:"Yes" desc:"Send the token in the X-Gotify-Key header instead of the URL query" key:"useheader"`
 
-	// prioritySet is true when the URL, the send params, or the level set the
-	// priority, so a priority of 0 is sent instead of leaving the application
-	// default. Reading a URL records whether that URL set it, and each send
-	// adds its params and level.
+	// prioritySet is true when the URL or the send params set the priority, so
+	// a priority of 0 is sent instead of leaving the application default.
+	// Reading a URL records whether that URL set it, and each send decides it
+	// again with its params.
 	prioritySet bool
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Service identity.
 const (
@@ -123,16 +130,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	values := format.BuildQueryWithCustomFields(resolver, url.Values{})
-
-	// A priority the URL set stays in the URL even at its default of 0, which
-	// the query leaves out otherwise. The config read back from the URL then
-	// still sends the priority, and the level param leaves it alone.
-	if c.prioritySet {
-		values.Set(priorityKey, strconv.Itoa(c.Priority))
-	}
-
-	query := values.Encode()
+	query := format.BuildQuery(resolver)
 
 	if c.Extras != nil {
 		// Extras that cannot be written as JSON, such as a channel, are left
