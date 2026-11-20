@@ -153,7 +153,7 @@ func TestInitialize(t *testing.T) {
 
 		service := newTestService(t, "pushover://:apptoken@usertoken?devices=phone")
 
-		assert.Equal(t, &Config{User: "usertoken", Token: "apptoken", Devices: []string{"phone"}}, service.Config)
+		assert.Equal(t, Config{User: "usertoken", Token: "apptoken", Devices: []string{"phone"}}, withoutURLKeys(service.Config))
 		assert.Nil(t, service.Client, "Initialize leaves the deprecated client field unset")
 	})
 
@@ -281,13 +281,18 @@ func TestSend(t *testing.T) {
 // TestSendLevelPriority verifies that the level param sets the priority, debug
 // to low (-1), info and warning to normal (0), and error to high (1), and that
 // a priority from the service URL or the send params, or an unknown level,
-// leaves the priority as it is.
+// leaves the priority as it is. A config built in code that replaces the one
+// read from the URL takes the level's priority, because the URL's record
+// belongs to the config it was read into.
 func TestSendLevelPriority(t *testing.T) {
 	t.Parallel()
 
+	// tests lists service URLs and send params with the priority each send
+	// should carry. A config, when set, replaces the one read from the URL.
 	tests := map[string]struct {
-		rawURL       string
+		config       *Config
 		params       *types.Params
+		rawURL       string
 		wantPriority string
 	}{
 		"debug":                       {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Debug"}, wantPriority: "-1"},
@@ -298,6 +303,12 @@ func TestSendLevelPriority(t *testing.T) {
 		"default priority in the URL": {rawURL: "pushover://:apptoken@usertoken?priority=0", params: &types.Params{"level": "Error"}, wantPriority: "0"},
 		"priority param":              {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error", "priority": "0"}, wantPriority: "0"},
 		"unknown level":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "critical"}, wantPriority: "0"},
+		"config built in code after a URL with a default priority": {
+			rawURL:       "pushover://:apptoken@usertoken?priority=0",
+			config:       &Config{User: "usertoken", Token: "apptoken"},
+			params:       &types.Params{"level": "Error"},
+			wantPriority: "1",
+		},
 	}
 
 	for name, tc := range tests {
@@ -305,6 +316,10 @@ func TestSendLevelPriority(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tc.rawURL)
+			if tc.config != nil {
+				service.Config = tc.config
+			}
+
 			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
 			service.SetHTTPClient(client)
 

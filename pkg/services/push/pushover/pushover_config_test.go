@@ -36,6 +36,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // TestConfigSetURL verifies that SetURL reads the user key from the host, the
 // API token from the password, and the devices, priority, title, and
 // encryption key from the query.
@@ -77,7 +93,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }
@@ -145,7 +161,7 @@ func TestConfigGetURL(t *testing.T) {
 
 	roundTrip := &Config{}
 	require.NoError(t, roundTrip.SetURL(serviceURL))
-	assert.Equal(t, config, roundTrip)
+	assert.Equal(t, *config, withoutURLKeys(roundTrip))
 }
 
 // TestConfigQueryResolver verifies the config's query props: devices join with
@@ -238,4 +254,16 @@ func TestMaskURL(t *testing.T) {
 
 		assert.NotPanics(t, func() { MaskURL(nil) })
 	})
+}
+
+// TestConfigGetURLKeepsDefaultPriority verifies that the URL a config writes
+// keeps a priority its URL set to the default. The level param then leaves the
+// priority of the config read back from it alone.
+func TestConfigGetURLKeepsDefaultPriority(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "pushover://:apptoken@usertoken?priority=0")))
+
+	assert.Equal(t, []string{"0"}, config.GetURL().Query()["priority"])
 }

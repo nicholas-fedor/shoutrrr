@@ -14,6 +14,11 @@ import (
 
 // Config holds the configuration for the Ntfy service.
 type Config struct {
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the priority key at its default and the level param leaves it alone.
+	// A URL that names the deprecated scheme at its default is warned about too.
+	urlKeys
+
 	// Title is the message title.
 	Title string `default:"" desc:"Message title" key:"title"`
 	// Host is the ntfy server host, with an optional port.
@@ -53,7 +58,7 @@ type Config struct {
 	Actions []string `desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons" key:"actions" optional:"" sep:";"`
 	// Priority is the message priority, from Min to Max. When neither the URL
 	// nor the send sets it, the level param chooses it.
-	Priority priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max" key:"priority"`
+	Priority priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max" key:"priority" levelmapped:"true"`
 	// Markdown renders the message as Markdown.
 	Markdown bool `default:"no" desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting" key:"markdown"`
 	// Cache keeps the message on the server for clients that connect later.
@@ -71,6 +76,10 @@ type Config struct {
 	// DisableTLS publishes over HTTP whatever Scheme says.
 	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Identifiers and defaults for this service's configuration URL.
 const (

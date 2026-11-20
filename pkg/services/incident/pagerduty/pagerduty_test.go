@@ -126,14 +126,14 @@ func TestInitialize(t *testing.T) {
 
 		service := newTestService(t, testServiceURL+"?source=db1")
 
-		assert.Equal(t, &Config{
+		assert.Equal(t, Config{
 			IntegrationKey: testIntegrationKey,
 			Host:           "events.pagerduty.com",
 			Port:           443,
 			Severity:       "error",
 			Source:         "db1",
 			Action:         "trigger",
-		}, service.Config)
+		}, withoutURLKeys(service.Config))
 
 		client, ok := service.client.Client().(*http.Client)
 		require.True(t, ok, "client is a %T", service.client.Client())

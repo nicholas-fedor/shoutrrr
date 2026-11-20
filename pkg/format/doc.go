@@ -54,6 +54,14 @@
 //	SkipTLSVerify bool `default:"No" deprecatedkeys:"insecureskipverify" key:"skiptlsverify"`
 //	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`
 //
+// # Keys a URL Set
+//
+// A config that embeds [URLKeys] records the keys its URL set, so
+// [PropKeyResolver.KeepsDefault] can tell a default that the URL named from
+// one that it left out. A `levelmapped:"true"` tag marks a field that a
+// service maps the level param onto. The URL its config writes keeps such a
+// key whenever a URL set it, even at its default.
+//
 // # Format Conversion
 //
 // The package provides conversion between text, markdown, and HTML formats:

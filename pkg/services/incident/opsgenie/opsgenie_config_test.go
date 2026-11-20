@@ -36,6 +36,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // TestConfigSetURL verifies that SetURL reads the host and port, the API key
 // from the path, and the alert props from the query, and applies the default
 // host when the URL omits it.
@@ -107,7 +123,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }
@@ -269,4 +285,16 @@ func TestConfigQueryResolver(t *testing.T) {
 			},
 			format.GetConfigQueryResolver(config).QueryFields())
 	})
+}
+
+// TestConfigGetURLKeepsEmptyPriority verifies that the URL a config writes
+// keeps an empty priority its URL set. The level param then leaves the
+// priority of the config read back from it alone.
+func TestConfigGetURLKeepsEmptyPriority(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "opsgenie://api.opsgenie.com/"+testAPIKey+"?priority=")))
+
+	assert.Equal(t, []string{""}, config.GetURL().Query()["priority"])
 }

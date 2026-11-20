@@ -148,9 +148,9 @@ func TestPropKeyResolverSet(t *testing.T) {
 	require.ErrorContains(t, err, "valid keys: [duration signed str testenum]")
 }
 
-// TestPropKeyResolverIsDefault verifies that a value is compared with the
-// default as the formatter prints it.
-func TestPropKeyResolverIsDefault(t *testing.T) {
+// TestPropKeyResolverFieldIsDefault verifies that a value is compared with
+// the default as the formatter prints it.
+func TestPropKeyResolverFieldIsDefault(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
@@ -175,22 +175,20 @@ func TestPropKeyResolverIsDefault(t *testing.T) {
 		{name: "no default, zero value", key: "plain", value: "No", want: true},
 		{name: "no default, other value", key: "plain", value: "Yes", want: false},
 		{name: "no default, empty value", key: "plain", value: "", want: true},
-		{name: "unknown key", key: "unknown", value: "", want: false},
-		{name: "key in another case", key: "Enabled", value: "Yes", want: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, resolver.IsDefault(tt.key, tt.value))
+			assert.Equal(t, tt.want, resolver.fieldIsDefault(resolver.keyFields[tt.key], tt.value))
 		})
 	}
 
 	var unbound PropKeyResolver
 
 	unbound.keyFields = resolver.keyFields
-	assert.False(t, unbound.IsDefault("retries", "3"))
+	assert.False(t, unbound.fieldIsDefault(resolver.keyFields["retries"], "3"))
 }
 
 // TestPropKeyResolverDefaultsShared verifies that a resolver builds its
@@ -201,7 +199,7 @@ func TestPropKeyResolverDefaultsShared(t *testing.T) {
 	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
 	bound := resolver.Bind(&spelledDefaultsConfig{})
 
-	require.True(t, bound.IsDefault("level", "High"))
+	require.True(t, bound.fieldIsDefault(bound.keyFields["level"], "High"))
 
 	assert.Same(t, resolver.defaults, bound.defaults)
 	assert.True(t, resolver.defaults.value.IsValid(), "the bound copy's check built the shared defaults")
@@ -217,15 +215,14 @@ func TestPropKeyResolverDefaultsWithoutCache(t *testing.T) {
 	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
 	resolver.defaults = nil
 
-	assert.True(t, resolver.IsDefault("level", "High"))
-	assert.False(t, resolver.IsDefault("broken", "0"))
+	assert.True(t, resolver.fieldIsDefault(resolver.keyFields["level"], "High"))
+	assert.False(t, resolver.fieldIsDefault(resolver.keyFields["broken"], "0"))
 	assert.Nil(t, resolver.defaults)
 }
 
 // TestPropKeyResolverKeepsDefault verifies that a property keeps its default
-// only when the config holds the default value and neither Set nor the params
-// set the property under any of its keys, in any case, even to the default
-// value.
+// only when the config holds the default value and the params do not set the
+// property under any of its keys, in any case, even to the default value.
 func TestPropKeyResolverKeepsDefault(t *testing.T) {
 	t.Parallel()
 
@@ -267,19 +264,6 @@ func TestPropKeyResolverKeepsDefault(t *testing.T) {
 			assert.Equal(t, tc.want, resolver.KeepsDefault(tc.config, tc.params, tc.key))
 		})
 	}
-
-	// A property that Set sets, as a service URL query does, is explicitly
-	// configured even when its value is the default.
-	t.Run("set to the default through Set", func(t *testing.T) {
-		t.Parallel()
-
-		config := &spelledDefaultsConfig{}
-		urlResolver := NewPropKeyResolver(config)
-		require.NoError(t, urlResolver.Set("RETRIES", "3"))
-
-		assert.False(t, urlResolver.KeepsDefault(config, nil, "retries"))
-		assert.True(t, urlResolver.KeepsDefault(&spelledDefaultsConfig{Enabled: true}, nil, "enabled"))
-	})
 }
 
 // TestPropKeyResolverKeyIsPrimary verifies that only the first key of a field

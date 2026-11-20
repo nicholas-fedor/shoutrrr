@@ -13,6 +13,10 @@ import (
 
 // Config holds the configuration for the OpsGenie service.
 type Config struct {
+	// urlKeys records the keys that the URL set, so the URL the config writes
+	// keeps the priority key at its default and the level param leaves it alone.
+	urlKeys
+
 	// Details holds custom properties of the alert, set as key:value pairs.
 	Details map[string]string `desc:"Map of key-value pairs to use as custom properties of the alert" key:"details" optional:"true"`
 	// APIKey is the Opsgenie API key, written as the path of the service URL.
@@ -35,7 +39,7 @@ type Config struct {
 	//
 	// It is sent in upper case. Empty leaves the API's default of P3. When
 	// neither the URL nor the send sets it, the level param chooses it.
-	Priority string `desc:"Priority level of the alert. Possible values are P1, P2, P3, P4 and P5" key:"priority" optional:"true"`
+	Priority string `desc:"Priority level of the alert. Possible values are P1, P2, P3, P4 and P5" key:"priority" levelmapped:"true" optional:"true"`
 	// Note is added to the alert when it is created.
 	Note string `desc:"Additional note that will be added while creating the alert" key:"note" optional:"true"`
 	// User is the display name of the request owner.
@@ -56,6 +60,10 @@ type Config struct {
 	// Port is the Opsgenie API port.
 	Port uint16 `default:"443" desc:"The OpsGenie API port." url:"port"`
 }
+
+// urlKeys records the keys that a config's URL set. It is an alias, so the
+// field that embeds it stays unexported.
+type urlKeys = format.URLKeys
 
 // Service identity and URL defaults.
 const (

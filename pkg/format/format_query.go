@@ -10,6 +10,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// urlQueryRead reads a URL query into the config a resolver is bound to,
+// keeping the config's record of the keys the URL set.
+type urlQueryRead struct {
+	// cqr is the resolver bound to the config.
+	cqr types.ConfigQueryResolver
+	// pkr is cqr when it is a [PropKeyResolver], or nil.
+	pkr *PropKeyResolver
+	// record is the config's record, or nil when it has none.
+	record *URLKeys
+	// cleared reports whether the read has emptied the record.
+	cleared bool
+}
+
 // KeyPrefix is the prefix used to escape custom URL query keys that conflict with service config prop keys.
 // It consists of two underscore characters ("__").
 const KeyPrefix = "__"
@@ -32,6 +45,9 @@ const (
 // deprecated key and its replacement are different keys. The
 // replacement wins, as [PropKeyResolver.Set] documents.
 //
+// A config that embeds [URLKeys] starts its record anew and records each key
+// that this query sets.
+//
 // Parameters:
 //   - cqr: the resolver bound to the config.
 //   - query: the parsed URL query, such as the result of util.ParseURLQuery.
@@ -41,16 +57,24 @@ const (
 //     spellings, or the first key's [ErrInvalidConfigKey] or value error,
 //     naming the key.
 func ApplyQuery(cqr types.ConfigQueryResolver, query url.Values) error {
-	return applyKeys(slices.Sorted(maps.Keys(query)), cqr.QueryFields(), queryKeySource, nil, func(key, _ string) error {
+	read := newURLQueryRead(cqr)
+
+	err := applyKeys(slices.Sorted(maps.Keys(query)), cqr.QueryFields(), queryKeySource, nil, func(key, lower string) error {
 		// A key built in code may hold no values, which reads as empty.
-		return cqr.Set(key, query.Get(key))
+		return read.set(key, lower, query.Get(key))
 	})
+	if err == nil {
+		read.clearRecord()
+	}
+
+	return err
 }
 
 // BuildQuery writes the config props of a config as a URL query string.
 //
 // A [PropKeyResolver] writes only primary keys, and leaves out props that hold
-// their default value.
+// their default value. It still writes a level-mapped prop that the config's
+// URL set to its default, as [URLKeys] describes.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -67,7 +91,8 @@ func BuildQuery(cqr types.ConfigQueryResolver) string {
 // A custom field whose key matches a config key in any case is moved to the
 // key with the [KeyPrefix] prefix first, so reading the query back keeps it a
 // custom field. A [PropKeyResolver] writes only primary keys, and leaves out
-// props that hold their default value.
+// props that hold their default value. It still writes a level-mapped prop
+// that the config's URL set to its default, as [URLKeys] describes.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -87,19 +112,16 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 		}
 	}
 
-	pkr, isPkr := cqr.(*PropKeyResolver)
+	if pkr, isPkr := cqr.(*PropKeyResolver); isPkr {
+		pkr.writeQuery(query)
+
+		return query
+	}
 
 	for _, key := range fields {
-		if isPkr && !pkr.KeyIsPrimary(key) {
-			continue
+		if value, err := cqr.Get(key); err == nil {
+			query.Set(key, value)
 		}
-
-		value, err := cqr.Get(key)
-		if err != nil || isPkr && pkr.IsDefault(key, value) {
-			continue
-		}
-
-		query.Set(key, value)
 	}
 
 	return query
@@ -111,7 +133,8 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 // Config keys match and apply as in [ApplyQuery], and are removed from the
 // query. A key that is not a config key is kept, not rejected. A key with the
 // [KeyPrefix] prefix whose rest matches a config key in any case then takes
-// the place of that rest, as a custom key.
+// the place of that rest, as a custom key. A config that embeds [URLKeys]
+// starts its record anew, as in [ApplyQuery].
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -125,7 +148,11 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 //     spellings, or the first value error in key order. The error names its
 //     key.
 func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (url.Values, error) {
+	read := newURLQueryRead(cqr)
+
 	if query == nil {
+		read.clearRecord()
+
 		return url.Values{}, nil
 	}
 
@@ -145,11 +172,13 @@ func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (u
 			return nil
 		}
 
-		return cqr.Set(key, values[0])
+		return read.set(key, lower, values[0])
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	read.clearRecord()
 
 	// Escaped keys are restored once every config key is gone, so a restored
 	// key never meets the config key it was escaped from.
@@ -282,4 +311,62 @@ func checkSpellings(keys, lowers, configKeys []string) error {
 //   - bool: true when the key's lower-case form is one of configKeys.
 func isConfigKey(key string, configKeys []string) bool {
 	return slices.Contains(configKeys, strings.ToLower(key))
+}
+
+// newURLQueryRead starts reading a URL query into the config that cqr is
+// bound to.
+//
+// Parameters:
+//   - cqr: the resolver bound to the config.
+//
+// Returns:
+//   - *urlQueryRead: the read, which reaches the config's record when cqr is a
+//     [PropKeyResolver] bound to a config that embeds [URLKeys].
+func newURLQueryRead(cqr types.ConfigQueryResolver) *urlQueryRead {
+	read := &urlQueryRead{cqr: cqr, pkr: nil, record: nil, cleared: false}
+
+	if pkr, isPkr := cqr.(*PropKeyResolver); isPkr {
+		read.pkr = pkr
+		read.record = pkr.boundURLKeys()
+	}
+
+	return read
+}
+
+// clearRecord empties the config's record, once per read.
+//
+// A read calls it when it sets its first key, and again after a query that
+// set none succeeds, so a rejected query leaves the record of the last URL as
+// it is.
+func (r *urlQueryRead) clearRecord() {
+	if !r.cleared {
+		r.record.reset()
+		r.cleared = true
+	}
+}
+
+// set sets a config prop from the query, and records its key once the value
+// is set.
+//
+// Parameters:
+//   - key: the query key as written.
+//   - lower: the query key in lower case.
+//   - value: the query value.
+//
+// Returns:
+//   - error: the error from the resolver's Set, or nil.
+func (r *urlQueryRead) set(key, lower, value string) error {
+	if err := r.cqr.Set(key, value); err != nil {
+		return err
+	}
+
+	r.clearRecord()
+
+	if r.pkr != nil {
+		if field, found := r.pkr.keyFields[lower]; found {
+			r.record.add(field.Name)
+		}
+	}
+
+	return nil
 }

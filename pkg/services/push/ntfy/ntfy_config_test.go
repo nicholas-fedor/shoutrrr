@@ -84,17 +84,23 @@ func defaultConfig(override func(*Config)) Config {
 	return config
 }
 
-// withoutEmptyLists returns config with tag and action lists that hold only
-// an empty string set to nil. Default props leave those lists as [""], which
-// the service sends as no header, so the tests compare them as empty.
+// forComparison returns a copy of a config read from a URL that compares
+// equal to a config built in code with the same values.
+//
+// Tag and action lists that hold only an empty string become nil. Default
+// props leave those lists as [""], which the service sends as no header. The
+// record of the keys the URL set is emptied, and the GetURL tests check what
+// it keeps.
 //
 // Parameters:
 //   - original: the config.
 //
 // Returns:
-//   - Config: a copy of the config with empty lists as nil.
-func withoutEmptyLists(original *Config) Config {
+//   - Config: the copy.
+func forComparison(original *Config) Config {
 	config := *original
+	config.urlKeys = urlKeys{}
+
 	if len(config.Tags) == 1 && config.Tags[0] == "" {
 		config.Tags = nil
 	}
@@ -224,7 +230,7 @@ func TestConfigSetURL(t *testing.T) {
 
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, withoutEmptyLists(config))
+			assert.Equal(t, tt.want, forComparison(config))
 		})
 	}
 }
@@ -356,7 +362,7 @@ func TestConfigGetURL(t *testing.T) {
 
 			roundTrip := newDefaultConfig(t)
 			require.NoError(t, roundTrip.SetURL(serviceURL))
-			assert.Equal(t, tt.config, withoutEmptyLists(roundTrip))
+			assert.Equal(t, tt.config, forComparison(roundTrip))
 		})
 	}
 }
@@ -464,4 +470,16 @@ func TestConfigQueryResolver(t *testing.T) {
 		"actions", "at", "attach", "cache", "click", "delay", "disabletls", "disabletlsverification", "email", "filename",
 		"firebase", "icon", "in", "markdown", "priority", "scheme", "skiptlsverify", "tags", "title", "token",
 	}, config.QueryFields())
+}
+
+// TestConfigGetURLKeepsDefaultPriority verifies that the URL a config writes
+// keeps a priority its URL set to the default. The level param then leaves the
+// priority of the config read back from it alone.
+func TestConfigGetURLKeepsDefaultPriority(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+"?priority=default")))
+
+	assert.Equal(t, []string{"Default"}, config.GetURL().Query()["priority"])
 }

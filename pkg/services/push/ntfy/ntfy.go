@@ -95,7 +95,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
-	// The resolver records the keys the URL set, so a scheme the URL set
+	// The config records the keys its URL set, so a scheme the URL set
 	// does not keep its default.
 	if !s.pkr.KeepsDefault(s.Config, nil, "scheme") {
 		s.warnings.DeprecatedKeys(context.Background(), s, []format.Deprecation{schemeKey})

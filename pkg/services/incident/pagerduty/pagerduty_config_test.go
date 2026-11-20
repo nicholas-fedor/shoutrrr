@@ -32,6 +32,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
+// withoutURLKeys returns a copy of a config without its record of the keys
+// its URL set, so it compares equal to a config built in code with the same
+// values. The GetURL tests check what the record keeps.
+//
+// Parameters:
+//   - config: the config read from a URL.
+//
+// Returns:
+//   - Config: a copy of the config with an empty record.
+func withoutURLKeys(config *Config) Config {
+	copied := *config
+	copied.urlKeys = urlKeys{}
+
+	return copied
+}
+
 // TestConfigSetURL verifies that SetURL reads the integration key from the
 // path, the host and port with the PagerDuty events host and port 443 as
 // defaults, and the event props from the query, starting from their defaults.
@@ -98,7 +114,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, *config)
+			assert.Equal(t, tt.want, withoutURLKeys(config))
 		})
 	}
 }
@@ -212,6 +228,13 @@ func TestConfigGetURL(t *testing.T) {
 			name:   "explicit default port",
 			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey + "?severity=critical",
 			want:   "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?severity=critical",
+		},
+		{
+			// The level param leaves the severity alone once the URL names
+			// it, so the URL the config writes keeps it.
+			name:   "severity set to its default",
+			rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?severity=error",
+			want:   "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?severity=error",
 		},
 	}
 
