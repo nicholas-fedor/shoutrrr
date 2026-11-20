@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency pymdown-extensions to v13.1.1 by @renovate[bot] in [#2314](https://github.com/nicholas-fedor/shoutrrr/pull/2314)
+- Update dependency backrefs to v8.3.1 by @renovate[bot] in [#2313](https://github.com/nicholas-fedor/shoutrrr/pull/2313)
 - Update github/codeql-action action to v4.39.4 by @renovate[bot] in [#2309](https://github.com/nicholas-fedor/shoutrrr/pull/2309)
 - Update dependency platformdirs to v4.14.8 by @renovate[bot] in [#2308](https://github.com/nicholas-fedor/shoutrrr/pull/2308)
 - Update dependency mkdocs-material to v9.8.2 by @renovate[bot] in [#2300](https://github.com/nicholas-fedor/shoutrrr/pull/2300)
