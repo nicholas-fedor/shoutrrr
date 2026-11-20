@@ -178,7 +178,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 // into the URL, the settings that differ from their defaults and the extras
 // JSON into the query, and round-trips through SetURL. The configs start with
 // the default title and the token in the header, as reading a URL leaves
-// them. A config that keeps UseHeader false writes useheader=No.
+// them. A config that keeps UseHeader false writes useheader=No. A priority
+// the URL set, even to 0, stays in the URL.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -204,6 +205,11 @@ func TestConfigGetURL(t *testing.T) {
 			},
 			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=No" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
+		},
+		{
+			name:   "priority set to 0",
+			config: Config{Host: testHost, Token: testToken, Title: defaultTitle, UseHeader: true, prioritySet: true},
+			want:   testServiceURL + "?priority=0",
 		},
 	}
 

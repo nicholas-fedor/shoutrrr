@@ -289,6 +289,10 @@ const (
 	// length and can be read again through GetBody, so a redirect or retry can
 	// send it again.
 	checkRequestBodyReplayable = "request_body_replayable"
+	// checkExplicitDefaults verifies that a config key set to its default in
+	// the URL still counts as set after its config's URL is read back, so the
+	// level param leaves it alone.
+	checkExplicitDefaults = "explicit_defaults"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -346,6 +350,7 @@ const (
 	failRedirectUnreported                      // a send answered with a redirect status failed without naming the status
 	failBodyUnsized                             // a request body did not declare its length
 	failBodyNotReplayable                       // a request body could not be read again through GetBody
+	failExplicitDefaultLost                     // a key set to its default sent differently once its config's URL was read back
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -663,6 +668,16 @@ var allowlist = map[string]map[string]knownFailure{
 		// deadline and a slow lookup leaves the message request the rest.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failDeadlineChanged},
 	},
+	checkExplicitDefaults: {
+		// These services record a key the URL set to its default only in the
+		// service's resolver. The URL their config writes leaves the key out.
+		// The level param then changes it again.
+		"discord":    {"Discord keeps an explicit default color out of the URL its config writes", failExplicitDefaultLost},
+		"ntfy":       {"ntfy keeps an explicit default priority out of the URL its config writes", failExplicitDefaultLost},
+		"pagerduty":  {"PagerDuty keeps an explicit default severity out of the URL its config writes", failExplicitDefaultLost},
+		"pushover":   {"Pushover keeps an explicit default priority out of the URL its config writes", failExplicitDefaultLost},
+		"signalgrid": {"Signalgrid keeps an explicit default type out of the URL its config writes", failExplicitDefaultLost},
+	},
 	checkUnknownParams: {
 		// Generic sends every param that is not a config key as a field of the
 		// webhook body, and the logger uses its params as template data.
@@ -769,6 +784,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkEmptyListElements, runEmptyListElements},
 		{checkRedirectFails, runRedirectFails},
 		{checkRequestBodyReplayable, runRequestBodyReplayable},
+		{checkExplicitDefaults, runExplicitDefaults},
 	}
 
 	for _, check := range checks {
@@ -2059,6 +2075,139 @@ func checkGetBody(req *http.Request, body []byte) failure {
 	}
 }
 
+// runExplicitDefaults verifies that a config key a URL sets to its default
+// keeps counting as set once the config's URL is read back.
+//
+// Several services map the level param onto a key, such as a priority, only
+// when the URL left that key at its default. A URL that names the default
+// turns the mapping off, and the URL its config writes must keep it off.
+//
+// For each key with a default, one service is built from the fixture URL with
+// the key set to its default. Another is built from the URL that service's
+// config writes. Each sends with a title at every level, since a service may
+// map any level onto its default and some map it only for titled messages.
+// The two services must send alike as [sameSends] judges it. How often they
+// dial may differ. A key whose default the fixture URL cannot take is skipped.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture.
+//
+// Returns:
+//   - failure: a failExplicitDefaultLost failure, a failInit or failPanic
+//     failure from a send, or none.
+func runExplicitDefaults(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if result.kind != failNone || config == nil {
+		return result
+	}
+
+	// A config whose key stays at its default writes the URL it would write
+	// without the key, so many keys share a read-back URL. Each read-back URL
+	// is sent once per level.
+	readBackSends := map[string]variantSend{}
+
+	for _, node := range format.GetConfigFormat(config).Items {
+		field := node.Field()
+		if field.DefaultValue == "" || len(field.Keys) == 0 {
+			continue
+		}
+
+		explicitURL := withURLQuery(t, fx.url, field.Keys[0], field.DefaultValue)
+
+		explicit, result := fixtureConfig(t, explicitURL)
+		if result.kind == failInit {
+			continue
+		}
+
+		readBackURL := explicit.GetURL().String()
+
+		for _, level := range []types.MessageLevel{types.Debug, types.Info, types.Warning, types.Error} {
+			want, result := sendLevel(t, fx, explicitURL, level)
+			if result.kind != failNone {
+				return result
+			}
+
+			sendKey := level.String() + " " + readBackURL
+
+			got, sent := readBackSends[sendKey]
+			if !sent {
+				if got, result = sendLevel(t, fx, readBackURL, level); result.kind != failNone {
+					return result
+				}
+
+				readBackSends[sendKey] = got
+			}
+
+			same, result := sameSends(t, &got, &want, func() (variantSend, failure) { return sendLevel(t, fx, explicitURL, level) })
+			if result.kind != failNone {
+				return result
+			}
+
+			if !same {
+				return fail(failExplicitDefaultLost,
+					"at the %s level, %s made %q to %q (%d requests) and returned %v, "+
+						"but %s, the URL its config writes, made %q to %q (%d requests) and %v",
+					level, explicitURL, want.sent, want.endpoints, want.requests, want.err,
+					readBackURL, got.sent, got.endpoints, got.requests, got.err)
+			}
+		}
+	}
+
+	return failure{}
+}
+
+// sendLevel sends a titled message through a service built from a URL, with
+// the level param.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture whose injected client and dialer answer the send.
+//   - rawURL: the service URL.
+//   - level: the message level to send at.
+//
+// Returns:
+//   - variantSend: what the send did, with the addresses it dialed but not
+//     how often.
+//   - failure: a failInit or failPanic failure, or none.
+func sendLevel(t *testing.T, fx *fixture, rawURL string, level types.MessageLevel) (variantSend, failure) {
+	t.Helper()
+
+	var (
+		send   variantSend
+		result failure
+	)
+
+	located := *fx
+	located.url = rawURL
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, &located, false)
+		env.recordSent = true
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		params := types.Params{}
+		params.SetTitle("contract title")
+		params.SetLevel(level)
+
+		send, result = env.sendRecorded(service, &params)
+
+		// A service that redials a refused broker until the deadline dials a
+		// varying number of times, so only the addresses it dials count.
+		send.dials = 0
+	})
+
+	return send, result
+}
+
 // runCheckedConfig verifies that a service checks the config of each send as
 // reading a service URL checks it. It sends with the zero value of the
 // service's config type, as a caller building one in code would leave it. It
@@ -2478,13 +2627,8 @@ func runEmptyListElements(t *testing.T, fx *fixture) failure {
 // reads back or sends unlike its baseline.
 //
 // Reading the variant's URL back must give the result of reading the
-// baseline's URL back. A send with the variant must make the same requests and
-// dials as a send with the baseline, with the same headers and bodies. It must
-// also make as many requests and dials, counting requests outside the injected
-// client and repeated dials. Its error must match too. When the two sends
-// differ, the baseline is sent again, and a word that differs between the two
-// baseline sends, such as a random transaction ID, may hold anything in the
-// variant send.
+// baseline's URL back. A send with the variant must send as a send with the
+// baseline does, as [sameSends] judges it.
 //
 // Parameters:
 //   - t: the test.
@@ -2517,17 +2661,9 @@ func compareEmptyElement(t *testing.T, fx *fixture, baseline, variant *configVar
 		return result
 	}
 
-	sameCounts := got.requests == want.requests && got.dials == want.dials
-
-	same := fmt.Sprint(got.err) == fmt.Sprint(want.err)
-	if same && (!sameCounts || !slices.Equal(got.sent, want.sent) || !slices.Equal(got.endpoints, want.endpoints)) {
-		again, result := sendVariant(t, fx, baseline.config)
-		if result.kind != failNone {
-			return result
-		}
-
-		same = sameCounts && matchAll(t, got.sent, want.sent, again.sent) &&
-			matchAll(t, got.endpoints, want.endpoints, again.endpoints)
+	same, result := sameSends(t, &got, &want, func() (variantSend, failure) { return sendVariant(t, fx, baseline.config) })
+	if result.kind != failNone {
+		return result
 	}
 
 	if !same {
@@ -2538,6 +2674,48 @@ func compareEmptyElement(t *testing.T, fx *fixture, baseline, variant *configVar
 	}
 
 	return failure{}
+}
+
+// sameSends reports whether a send did what a reference send did.
+//
+// The send must make as many requests and dials as the reference, counting
+// requests outside the injected client. Its requests must have the same
+// headers, bodies, and endpoints. Its error must match too. When only the
+// requests differ, again sends the reference once more. A word that differs
+// between the two reference sends may then hold anything in got. A random
+// transaction ID is such a word.
+//
+// Parameters:
+//   - t: the test.
+//   - got: the send to judge.
+//   - want: the reference send.
+//   - again: sends the reference once more.
+//
+// Returns:
+//   - bool: whether got matches want.
+//   - failure: a failure from sending the reference again, or none.
+func sameSends(t *testing.T, got, want *variantSend, again func() (variantSend, failure)) (bool, failure) {
+	t.Helper()
+
+	if fmt.Sprint(got.err) != fmt.Sprint(want.err) {
+		return false, failure{}
+	}
+
+	if got.requests != want.requests || got.dials != want.dials {
+		return false, failure{}
+	}
+
+	if slices.Equal(got.sent, want.sent) && slices.Equal(got.endpoints, want.endpoints) {
+		return true, failure{}
+	}
+
+	reference, result := again()
+	if result.kind != failNone {
+		return false, result
+	}
+
+	return matchAll(t, got.sent, want.sent, reference.sent) &&
+		matchAll(t, got.endpoints, want.endpoints, reference.endpoints), failure{}
 }
 
 // matchAll reports whether each of got matches the text at its index in want,
@@ -3158,34 +3336,7 @@ func sendVariant(t *testing.T, fx *fixture, config types.ServiceConfig) (variant
 		field, _ := configField(service)
 		field.Set(reflect.ValueOf(cloneConfig(t, config)))
 
-		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
-
-		if result = env.send(service, nil); result.kind != failNone {
-			return
-		}
-
-		send.err = env.sendErr
-		send.requests = int64(env.httpCalls()) +
-			defaultTransportHits.Load() - defaultBefore +
-			lookupHits.Load() - lookupBefore
-		send.dials = env.dials.Load()
-
-		env.sentMu.Lock()
-		send.sent = env.sent
-		env.sentMu.Unlock()
-
-		for i := range env.client.Calls {
-			if req, ok := env.client.Calls[i].Arguments.Get(0).(*http.Request); ok {
-				send.endpoints = append(send.endpoints, req.URL.Scheme+"://"+req.URL.Host+req.URL.Path)
-				send.urls = append(send.urls, req.URL)
-			}
-		}
-
-		env.dialMu.Lock()
-		dialed := slices.Compact(slices.Sorted(slices.Values(env.dialed)))
-		env.dialMu.Unlock()
-
-		send.endpoints = append(send.endpoints, dialed...)
+		send, result = env.sendRecorded(service, nil)
 	})
 
 	return send, result
@@ -4385,6 +4536,48 @@ func (e *env) send(service types.Service, params *types.Params) failure {
 	}
 
 	return failure{}
+}
+
+// sendRecorded sends a message and records what the send did.
+//
+// Parameters:
+//   - service: the service to send through.
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - variantSend: what the send did, or nothing when Send panicked.
+//   - failure: a failPanic failure, or none.
+func (e *env) sendRecorded(service types.Service, params *types.Params) (variantSend, failure) {
+	defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
+
+	if result := e.send(service, params); result.kind != failNone {
+		return variantSend{}, result
+	}
+
+	send := variantSend{
+		err: e.sendErr,
+		requests: int64(e.httpCalls()) +
+			defaultTransportHits.Load() - defaultBefore +
+			lookupHits.Load() - lookupBefore,
+		dials: e.dials.Load(),
+	}
+
+	e.sentMu.Lock()
+	send.sent = e.sent
+	e.sentMu.Unlock()
+
+	for i := range e.client.Calls {
+		if req, ok := e.client.Calls[i].Arguments.Get(0).(*http.Request); ok {
+			send.endpoints = append(send.endpoints, req.URL.Scheme+"://"+req.URL.Host+req.URL.Path)
+			send.urls = append(send.urls, req.URL)
+		}
+	}
+
+	e.dialMu.Lock()
+	send.endpoints = append(send.endpoints, slices.Compact(slices.Sorted(slices.Values(e.dialed)))...)
+	e.dialMu.Unlock()
+
+	return send, failure{}
 }
 
 // trySend sends a message, recording its error and any panic in the env.
