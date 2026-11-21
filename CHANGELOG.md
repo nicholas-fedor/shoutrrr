@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Map deprecated keys onto replacement keys by @nicholas-fedor in [#2321](https://github.com/nicholas-fedor/shoutrrr/pull/2321)
 - Share one icon URL check between slack and mattermost by @nicholas-fedor in [#2294](https://github.com/nicholas-fedor/shoutrrr/pull/2294)
 
 ### Documentation
