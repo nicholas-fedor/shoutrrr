@@ -241,7 +241,7 @@ func TestInitialize(t *testing.T) {
 		{
 			name:       "deprecated scheme",
 			rawURL:     testServiceURL + "?scheme=http",
-			wantScheme: "http",
+			wantScheme: "https",
 			wantAPIURL: "http://ntfy.sh/" + testTopic,
 			wantLog:    `WARN config key is deprecated key=scheme replacement=disabletls` + "\n",
 		},
@@ -276,7 +276,7 @@ func TestInitialize(t *testing.T) {
 
 		err := (&Service{}).Initialize(parseTestURL(t, testServiceURL+"?scheme=ftp"), log.New(t.Output(), "", 0))
 
-		require.ErrorIs(t, err, ErrInvalidScheme)
+		require.ErrorIs(t, err, format.ErrInvalidValueForType)
 	})
 }
 
@@ -904,7 +904,7 @@ func TestSendTLSParams(t *testing.T) {
 
 		service := newTestService(t, testServiceURL)
 
-		require.ErrorIs(t, service.Send("Hello", &types.Params{"scheme": "ftp"}), ErrInvalidScheme)
+		require.ErrorIs(t, service.Send("Hello", &types.Params{"scheme": "ftp"}), format.ErrInvalidValueForType)
 	})
 
 	t.Run("custom client", func(t *testing.T) {
@@ -920,9 +920,11 @@ func TestSendTLSParams(t *testing.T) {
 }
 
 // TestSendSchemePrecedence verifies that disabletls decides the protocol of a
-// send over the deprecated scheme. A disabletls param overrides a stored http
-// scheme, a scheme param of either protocol applies when the params do not set
-// disabletls, and disabletls wins when the params set both.
+// send over the deprecated scheme.
+//
+// A disabletls param overrides a stored http scheme, from the URL or set in
+// code. A scheme param of either protocol applies when the params do not set
+// disabletls. disabletls wins when the params set both.
 func TestSendSchemePrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -930,8 +932,17 @@ func TestSendSchemePrecedence(t *testing.T) {
 		params  *types.Params
 		name    string
 		rawURL  string
+		scheme  string
 		wantURL string
 	}{
+		{
+			name:    "disabletls param overrides a Scheme set in code",
+			rawURL:  testServiceURL,
+			scheme:  "http",
+			params:  &types.Params{"disabletls": "no"},
+			wantURL: testEndpoint,
+		},
+		{name: "Scheme set in code", rawURL: testServiceURL, scheme: "http", wantURL: "http://ntfy.sh/" + testTopic},
 		{
 			name:    "disabletls param overrides the stored scheme",
 			rawURL:  testServiceURL + "?scheme=http",
@@ -965,6 +976,10 @@ func TestSendSchemePrecedence(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tt.rawURL)
+			if tt.scheme != "" {
+				service.Config.Scheme = tt.scheme
+			}
+
 			client, captured := newRecordingClient(t, published)
 			service.SetHTTPClient(client)
 

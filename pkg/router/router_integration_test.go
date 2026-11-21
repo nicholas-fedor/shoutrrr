@@ -3500,6 +3500,8 @@ func runURLParts(t *testing.T, fx *fixture) failure {
 // runDeprecatedFields verifies that the config URL holds no deprecated key, and
 // that each deprecated config field has a valid tag. A value set only through a
 // deprecated field must reach the config URL and come back in its replacement.
+// Each value of a key that another key replaces must set the replacement as
+// its mapping says, from the URL and from a field set in code.
 //
 // Parameters:
 //   - t: the test for this case.
@@ -3516,6 +3518,10 @@ func runDeprecatedFields(t *testing.T, fx *fixture) failure {
 	}
 
 	deprecatedKeys := deprecatedKeysOf(config)
+	if reported := reportedDeprecatedKeys(config); !slices.Equal(deprecatedKeys, reported) {
+		return fail(failDeprecatedField, "the resolver reports the deprecated keys %v, not %v", reported, deprecatedKeys)
+	}
+
 	if key := deprecatedKeyIn(config.GetURL(), deprecatedKeys); key != "" {
 		return fail(failDeprecatedField, "the config URL holds the deprecated key %q", key)
 	}
@@ -3532,6 +3538,12 @@ func runDeprecatedFields(t *testing.T, fx *fixture) failure {
 	for field := range configType.Elem().Fields() {
 		if replacement, tagged := field.Tag.Lookup("deprecated"); tagged {
 			if result := checkDeprecatedField(t, config, field.Name, replacement, deprecatedKeys); result.kind != failNone {
+				return result
+			}
+		}
+
+		if _, replaced := field.Tag.Lookup("replacedby"); replaced {
+			if result := checkReplacedField(t, fx.url, config, &field, deprecatedKeys); result.kind != failNone {
 				return result
 			}
 		}
@@ -3587,6 +3599,128 @@ func checkDeprecatedField(
 	}
 
 	return failure{}
+}
+
+// checkReplacedField verifies each value of a field whose keys another key
+// replaces. A URL that sets the field's key to the value, and a copy of config
+// with only the field set to it, must both give the replacement the value that
+// the field's mapping names. The copy's config URL must hold no deprecated key.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - rawURL: the fixture's service URL.
+//   - config: the fixture's config.
+//   - field: the replaced field.
+//   - deprecatedKeys: the config's deprecated keys, which the URL must not hold.
+//
+// Returns:
+//   - failure: a failDeprecatedField failure, or the zero value.
+func checkReplacedField(
+	t *testing.T,
+	rawURL string,
+	config types.ServiceConfig,
+	field *reflect.StructField,
+	deprecatedKeys []string,
+) failure {
+	t.Helper()
+
+	replacementKey := strings.ToLower(field.Tag.Get("replacedby"))
+
+	var replaced, replacement *format.FieldInfo
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		switch keys := item.Field().Keys; {
+		case item.Field().Name == field.Name:
+			replaced = item.Field()
+		case len(keys) > 0 && keys[0] == replacementKey:
+			replacement = item.Field()
+		default:
+		}
+	}
+
+	if replaced == nil || len(replaced.Keys) == 0 || replacement == nil {
+		return fail(failDeprecatedField, "%s names %q, which is no primary key of a keyed field", field.Name, replacementKey)
+	}
+
+	// A field without a mapping passes its values as written.
+	mapping := sampleText + "=" + sampleText
+	if tag, mapped := field.Tag.Lookup("replacedvalues"); mapped {
+		mapping = tag
+	}
+
+	key := replaced.Keys[0]
+	scratch := reflect.New(reflect.TypeOf(config).Elem()).Elem()
+
+	for pair := range strings.SplitSeq(mapping, ",") {
+		from, to, _ := strings.Cut(pair, "=")
+
+		if valid, err := format.SetConfigField(scratch, replacement, to); !valid || err != nil {
+			return fail(failDeprecatedField, "%s maps %q onto %q, which %s cannot hold", field.Name, from, to, replacement.Name)
+		}
+
+		expected := scratch.FieldByName(replacement.Name)
+
+		read, result := fixtureConfig(t, withReplacedKey(t, rawURL, key, from, replacementKey))
+		if read == nil {
+			return fail(failDeprecatedField, "%s=%s does not parse: %s", key, from, result.detail)
+		}
+
+		if got := reflect.ValueOf(read).Elem().FieldByName(replacement.Name); !got.Equal(expected) {
+			return fail(failDeprecatedField, "%s=%s set %s to %v, not %v", key, from, replacement.Name, got, expected)
+		}
+
+		clone := cloneConfig(t, config)
+		fields := reflect.ValueOf(clone).Elem()
+		fields.FieldByName(replacement.Name).SetZero()
+		fields.FieldByName(field.Name).SetString(from)
+
+		configURL := clone.GetURL()
+		if found := deprecatedKeyIn(configURL, deprecatedKeys); found != "" {
+			return fail(failDeprecatedField, "the config URL holds the deprecated key %q", found)
+		}
+
+		restored, result := fixtureConfig(t, configURL.String())
+		if restored == nil {
+			return fail(failDeprecatedField, "the config URL with %s set to %q does not parse: %s", field.Name, from, result.detail)
+		}
+
+		if got := reflect.ValueOf(restored).Elem().FieldByName(replacement.Name); !got.Equal(expected) {
+			return fail(failDeprecatedField, "%s set to %q came back in %s as %v, not %v", field.Name, from, replacement.Name, got, expected)
+		}
+	}
+
+	return failure{}
+}
+
+// withReplacedKey sets a replaced key in a service URL's query, after removing
+// the key that replaces it in any spelling, so the replaced key decides.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - rawURL: the service URL.
+//   - key: the replaced key.
+//   - value: the value to set.
+//   - replacementKey: the key that replaces it.
+//
+// Returns:
+//   - string: the service URL with the key set.
+func withReplacedKey(t *testing.T, rawURL, key, value, replacementKey string) string {
+	t.Helper()
+
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	query := serviceURL.Query()
+	for name := range query {
+		if strings.EqualFold(name, replacementKey) {
+			query.Del(name)
+		}
+	}
+
+	query.Set(key, value)
+	serviceURL.RawQuery = query.Encode()
+
+	return serviceURL.String()
 }
 
 // runSendBudget verifies that a direct Send without a deadline bounds every
@@ -4205,18 +4339,65 @@ func hasKey(config types.ServiceConfig, key string) bool {
 	return false
 }
 
-// deprecatedKeysOf lists the deprecated keys of every field of a config.
+// deprecatedKeysOf lists the deprecated keys that a config's fields declare.
+// The keys of a field with a `replacedby` tag count too, since another key
+// replaces them.
+//
+// They are read from the field declarations, not the resolver, so a key the
+// resolver fails to register still counts.
 //
 // Parameters:
 //   - config: the service config.
 //
 // Returns:
-//   - []string: the deprecated keys in lower case.
+//   - []string: the deprecated keys in lower case, sorted.
 func deprecatedKeysOf(config types.ServiceConfig) []string {
 	var keys []string
 
+	configType := reflect.TypeOf(config)
+	isStruct := configType.Kind() == reflect.Pointer && configType.Elem().Kind() == reflect.Struct
+
 	for _, item := range format.GetConfigFormat(config).Items {
-		keys = append(keys, item.Field().DeprecatedKeys...)
+		field := item.Field()
+		keys = append(keys, field.DeprecatedKeys...)
+
+		if !isStruct {
+			continue
+		}
+
+		if declared, found := configType.Elem().FieldByName(field.Name); found {
+			if _, replaced := declared.Tag.Lookup("replacedby"); replaced {
+				keys = append(keys, field.Keys...)
+			}
+		}
+	}
+
+	slices.Sort(keys)
+
+	return slices.Compact(keys)
+}
+
+// reportedDeprecatedKeys lists the deprecated keys that a config's resolver
+// reports among params that hold every key it knows.
+//
+// Parameters:
+//   - config: the service config.
+//
+// Returns:
+//   - []string: the deprecated keys in lower case, sorted.
+func reportedDeprecatedKeys(config types.ServiceConfig) []string {
+	resolver := format.NewPropKeyResolver(config)
+
+	params := types.Params{}
+	for _, key := range resolver.QueryFields() {
+		params[key] = ""
+	}
+
+	deprecations := resolver.DeprecatedParams(&params)
+	keys := make([]string, 0, len(deprecations))
+
+	for _, deprecation := range deprecations {
+		keys = append(keys, deprecation.Name)
 	}
 
 	return keys

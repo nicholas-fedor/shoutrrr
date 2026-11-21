@@ -42,15 +42,6 @@ type Service struct {
 // reports, so the service does not use HTTPTimeout.
 const HTTPTimeout = 10
 
-// Deprecations of the scheme. Its replacement is another field, which the
-// format package's deprecation tags cannot describe.
-var (
-	// schemeKey is the deprecated scheme key and its replacement.
-	schemeKey = format.Deprecation{Name: "scheme", Replacement: "disabletls"}
-	// schemeField is the deprecated Scheme field and its replacement.
-	schemeField = format.Deprecation{Name: "Scheme", Replacement: "DisableTLS"}
-)
-
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
@@ -78,7 +69,7 @@ func (s *Service) GetID() string {
 //
 // Returns:
 //   - error: the error from applying the default props or reading the URL,
-//     such as [ErrTopicRequired], [ErrInvalidTopic], or [ErrInvalidScheme].
+//     such as [ErrTopicRequired] or [ErrInvalidTopic].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -94,12 +85,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 
 	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
-
-	// The config records the keys its URL set, so a scheme the URL set
-	// does not keep its default.
-	if !s.pkr.KeepsDefault(s.Config, nil, "scheme") {
-		s.warnings.DeprecatedKeys(context.Background(), s, []format.Deprecation{schemeKey})
-	}
 
 	return nil
 }
@@ -305,11 +290,11 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	return s.client.Client()
 }
 
-// sendConfig returns the config for one send. Deprecated config fields and
-// the stored scheme move into their replacements before the params apply, so
-// a param can still turn an option off. A scheme param of either protocol
-// applies only when the params do not set disabletls. Each deprecated field
-// and param key is warned about once.
+// sendConfig returns the config for one send.
+//
+// Deprecated config fields, such as a Scheme of http set in code, move into
+// their replacements before the params apply, so a param can still turn an
+// option off. Each deprecated field and param key is warned about once.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its warnings.
@@ -317,8 +302,9 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 //
 // Returns:
 //   - Config: the config for this send.
-//   - error: a params error, [ErrInvalidScheme], or the error from the
-//     config's checks, such as [ErrTopicRequired].
+//   - error: an error syncing a Scheme set in code to a value other than
+//     http or https, a params error, or the error from the config's checks,
+//     such as [ErrTopicRequired].
 func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
@@ -328,48 +314,10 @@ func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config,
 	}
 
 	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
-
-	// A URL with an http scheme turns TLS off as it is read, so an http scheme
-	// with TLS on was set on the deprecated field directly.
-	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
-		s.warnings.DeprecatedFields(ctx, s, []format.Deprecation{schemeField})
-	}
-
 	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
-
-	if hasParam(params, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(ctx, s, []format.Deprecation{schemeKey})
-	}
-
-	// The stored scheme turns TLS off before the params apply, so a disabletls
-	// param can turn it back on. DisableTLS alone then decides the protocol.
-	if err := config.applyScheme(); err != nil {
-		return config, err
-	}
-
-	config.Scheme = schemeHTTPS
 
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return config, fmt.Errorf("updating config from params: %w", err)
-	}
-
-	if hasParam(params, schemeKey.Name) {
-		disableTLS := config.DisableTLS
-
-		// The scheme param decides the protocol on its own, so https turns
-		// TLS back on.
-		config.DisableTLS = false
-
-		if err := config.applyScheme(); err != nil {
-			return config, err
-		}
-
-		// disabletls replaces scheme, so it wins when the params set both.
-		if hasParam(params, schemeKey.Replacement) {
-			config.DisableTLS = disableTLS
-		}
-
-		config.Scheme = schemeHTTPS
 	}
 
 	s.applyLevel(&config, params)
@@ -391,26 +339,4 @@ func addHeaderIfNotEmpty(headers *http.Header, key, value string) {
 	if value != "" {
 		headers.Add(key, value)
 	}
-}
-
-// hasParam reports whether params set key, matched case-insensitively.
-//
-// Parameters:
-//   - params: the send params, or nil.
-//   - key: the param key in lower case.
-//
-// Returns:
-//   - bool: whether params hold the key.
-func hasParam(params *types.Params, key string) bool {
-	if params == nil {
-		return false
-	}
-
-	for paramKey := range *params {
-		if strings.EqualFold(paramKey, key) {
-			return true
-		}
-	}
-
-	return false
 }
