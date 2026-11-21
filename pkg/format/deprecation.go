@@ -52,8 +52,8 @@ const (
 
 // ErrInvalidDeprecatedField reports a `deprecated` tag that names no usable
 // replacement, or a config that is not a pointer to a struct. A usable
-// replacement is a direct, exported field of the same type that is not
-// deprecated itself.
+// replacement is a direct, exported field of the same type that is neither
+// deprecated nor replaced itself.
 //
 // It also reports these tags:
 //   - A `replacedby` tag on a field that is not a keyed string field.
@@ -74,9 +74,10 @@ var deprecatedFieldPairsByType sync.Map
 //
 // A deprecated field carries a `deprecated` tag that names its replacement.
 // The replacement must be a direct, exported field of the same type, and it
-// cannot be deprecated itself. The value moves only when the deprecated field
-// is set and the replacement holds its zero value. A replacement with a
-// non-zero value wins. A replacement set to its zero value, such as a bool set
+// cannot be deprecated or replaced itself. The value moves only when the
+// deprecated field is set, the replacement holds its zero value, and no
+// earlier deprecated field moved into it. A replacement with a non-zero value
+// wins. A replacement set to its zero value, such as a bool set
 // to false by the URL or the caller, looks unset, so a set deprecated field
 // replaces it. The deprecated field keeps the value the caller gave it.
 //
@@ -125,8 +126,17 @@ func SyncDeprecatedFields(config types.ServiceConfig) ([]Deprecation, error) {
 	// writes the other replacements.
 	var valueErr error
 
+	// Up to four assigned replacements fit on the stack.
+	var buf [4]int
+
+	assigned := buf[:0]
+
 	for i := range pairs {
-		set, err := pairs[i].copy(structValue)
+		set, took, err := pairs[i].copy(structValue, assigned)
+		if took {
+			assigned = append(assigned, pairs[i].replacement)
+		}
+
 		if err != nil {
 			if valueErr == nil {
 				valueErr = err
@@ -164,8 +174,18 @@ func moveDeprecatedFields(structValue reflect.Value) {
 		return
 	}
 
+	// Up to four assigned replacements fit on the stack.
+	var buf [4]int
+
+	assigned := buf[:0]
+
 	for i := range pairs {
-		if _, err := pairs[i].copy(structValue); err == nil {
+		_, took, err := pairs[i].copy(structValue, assigned)
+		if took {
+			assigned = append(assigned, pairs[i].replacement)
+		}
+
+		if err == nil {
 			structValue.Field(pairs[i].deprecated).SetZero()
 		}
 	}
@@ -186,8 +206,8 @@ func moveDeprecatedFields(structValue reflect.Value) {
 //     `replacedby` tag, in field order. Callers must not change it.
 //   - error: [ErrInvalidDeprecatedField] when a tag names no usable
 //     replacement. A promoted field is rejected, because an embedded pointer
-//     on its path can be nil. A deprecated field is rejected, because chains
-//     would depend on field order.
+//     on its path can be nil. A deprecated or replaced field is rejected,
+//     because chains would depend on field order.
 func deprecatedFieldPairs(structType reflect.Type) ([]deprecatedFieldPair, error) {
 	cached, _ := deprecatedFieldPairsByType.Load(structType)
 	if pairs, found := cached.([]deprecatedFieldPair); found {
@@ -227,8 +247,9 @@ func deprecatedFieldPairs(structType reflect.Type) ([]deprecatedFieldPair, error
 
 		replacement, found := structType.FieldByName(name)
 		_, chained := replacement.Tag.Lookup(deprecatedFieldTag)
+		_, replaced := replacement.Tag.Lookup(replacedByTag)
 
-		if !found || len(replacement.Index) != 1 || chained || name == field.Name ||
+		if !found || len(replacement.Index) != 1 || chained || replaced || name == field.Name ||
 			!field.IsExported() || !replacement.IsExported() || replacement.Type != field.Type {
 			invalid = fmt.Errorf(
 				"%w: %s.%s names %q as its replacement",
@@ -259,64 +280,77 @@ func deprecatedFieldPairs(structType reflect.Type) ([]deprecatedFieldPair, error
 }
 
 // copy copies the deprecated field into its replacement when the deprecated
-// field is set and the replacement holds its zero value.
+// field is set and the replacement holds its zero value and no earlier pair of
+// the same sync assigned it.
 //
 // A replaced field's value is mapped first, and it is set only when it holds
-// neither its zero value nor its default in any case.
+// neither its zero value nor its default in any case. Its value is checked
+// against the replacement whether or not it is copied.
 //
 // Parameters:
 //   - structValue: the addressable struct value.
+//   - assigned: the indexes of the replacements that earlier pairs of the same
+//     sync assigned, so a value mapped onto its zero value still wins over
+//     later pairs.
 //
 // Returns:
-//   - bool: whether the deprecated field is set.
-//   - error: an error wrapping [ErrInvalidValueForType] for a replaced field's
+//   - set: whether the deprecated field is set.
+//   - took: whether a replaced field's value was copied, so the caller adds
+//     the replacement to assigned.
+//   - err: an error wrapping [ErrInvalidValueForType] for a replaced field's
 //     value that its mapping does not list, or that the replacement cannot
 //     hold. Nothing is copied then.
-func (p *deprecatedFieldPair) copy(structValue reflect.Value) (bool, error) {
+//
+//nolint:nonamedreturns // Same-type returns need names.
+func (p *deprecatedFieldPair) copy(structValue reflect.Value, assigned []int) (set, took bool, err error) {
 	deprecated := structValue.Field(p.deprecated)
 	if deprecated.IsZero() {
-		return false, nil
+		return false, false, nil
 	}
 
 	replacement := structValue.Field(p.replacement)
+	unset := replacement.IsZero() && !slices.Contains(assigned, p.replacement)
 
+	// The deprecated field holds a non-zero value, so a replacement it is
+	// copied into no longer looks unset, and later pairs leave it alone.
 	if p.replaced == nil {
-		if replacement.IsZero() {
+		if unset {
 			replacement.Set(deprecated)
 		}
 
-		return true, nil
+		return true, false, nil
 	}
 
 	value := deprecated.String()
 	if equalFoldSameLength(value, p.replaced.DefaultValue) {
-		return false, nil
+		return false, false, nil
 	}
 
 	mapped, err := p.replaced.replacedValue(value)
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", p.deprecation.Name, err)
+		return false, false, fmt.Errorf("%s: %w", p.deprecation.Name, err)
 	}
 
-	if !replacement.IsZero() {
-		return true, nil
+	parsed, found := p.mappedValues[mapped]
+	if !found {
+		// A value passed as written, or mapped onto a list, map, or other
+		// reference, is parsed into a scratch struct. The tag check cannot know a
+		// value passed as written, so this also checks it.
+		scratch := reflect.New(structValue.Type()).Elem()
+		if valid, err := SetConfigField(scratch, p.replacementField, mapped); !valid || err != nil {
+			return false, false, fmt.Errorf(
+				"%s: %w: %q for %s", p.deprecation.Name, ErrInvalidValueForType, mapped, p.replacementField.Name,
+			)
+		}
+
+		parsed = scratch.Field(p.replacement)
 	}
 
-	if parsed, found := p.mappedValues[mapped]; found {
+	if unset {
 		replacement.Set(parsed)
-
-		return true, nil
 	}
 
-	// A field without a mapping passes its value as written, which the tag
-	// check cannot know, so the value is checked here.
-	if valid, err := SetConfigField(structValue, p.replacementField, mapped); !valid || err != nil {
-		return false, fmt.Errorf(
-			"%s: %w: %q for %s", p.deprecation.Name, ErrInvalidValueForType, mapped, p.replacementField.Name,
-		)
-	}
-
-	return true, nil
+	return true, unset, nil
 }
 
 // replacedFieldPair pairs a field whose keys another key replaces with the

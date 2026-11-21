@@ -102,6 +102,19 @@ type chainedReplacementConfig struct {
 	Old bool `deprecated:"Newer"`
 }
 
+// replacedReplacementConfig has a deprecated field whose replacement's keys
+// another key replaces.
+type replacedReplacementConfig struct {
+	urlStub
+
+	// Old names the replaced Scheme.
+	Old string `deprecated:"Scheme"`
+	// Scheme's key is replaced by the tls key.
+	Scheme string `key:"scheme" replacedby:"tls" replacedvalues:"http=yes"`
+	// TLS replaces the scheme key.
+	TLS bool `key:"tls"`
+}
+
 // partlyInvalidConfig has a valid pair before an invalid one.
 type partlyInvalidConfig struct {
 	urlStub
@@ -126,6 +139,20 @@ type sharedReplacementConfig struct {
 	Zeta string `deprecated:"New"`
 	// Alpha is the second deprecated field that New replaces.
 	Alpha string `deprecated:"New"`
+}
+
+// zeroMappedSharedConfig has a replaced field whose mapping can give its
+// replacement the zero value, declared before a deprecated field that names
+// the same replacement.
+type zeroMappedSharedConfig struct {
+	urlStub
+
+	// Switch maps off onto On's zero value.
+	Switch string `key:"switch" replacedby:"on" replacedvalues:"off=no,on=yes"`
+	// Legacy names On as its replacement.
+	Legacy bool `deprecated:"On"`
+	// On replaces Switch and Legacy.
+	On bool `key:"on"`
 }
 
 // firstUseConfig has a deprecated field. Only
@@ -388,7 +415,8 @@ func TestSyncReplacedFieldsLookAlikeDefault(t *testing.T) {
 
 // TestSyncReplacedFieldsPassThrough verifies that a value passed as written
 // moves into its replacement when the replacement can hold it. A value it
-// cannot hold fails, naming the field, and a move leaves it in place.
+// cannot hold fails, naming the field, and a move leaves it in place. The value
+// is checked even when the replacement already holds a value.
 func TestSyncReplacedFieldsPassThrough(t *testing.T) {
 	t.Parallel()
 
@@ -408,6 +436,34 @@ func TestSyncReplacedFieldsPassThrough(t *testing.T) {
 
 	moveDeprecatedFields(configValue(invalid))
 	assert.Equal(t, &passThroughReplacedConfig{Old: "many"}, invalid, "a value the replacement cannot hold should stay")
+
+	// tests lists values set beside a replacement that already holds a value,
+	// which is never overwritten, with whether each value is accepted.
+	tests := []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{name: "valid value", value: "5", valid: true},
+		{name: "invalid value", value: "many", valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &passThroughReplacedConfig{Old: tt.value, Count: 3}
+
+			_, err := SyncDeprecatedFields(config)
+			if tt.valid {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, ErrInvalidValueForType)
+			}
+
+			assert.Equal(t, 3, config.Count)
+		})
+	}
 }
 
 // TestEnumsOf verifies that the enum formatters come from a new config of the
@@ -442,6 +498,7 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 		{name: "unexported replacement", config: &unexportedReplacementConfig{Old: true}},
 		{name: "promoted replacement", config: &promotedReplacementConfig{Old: true}},
 		{name: "deprecated replacement", config: &chainedReplacementConfig{Old: true}},
+		{name: "replaced replacement", config: &replacedReplacementConfig{Old: "x"}},
 		{name: "unknown replacement key", config: &unknownReplacementKeyConfig{Old: "x"}},
 		{name: "replaced field that is not a string", config: &nonStringReplacedConfig{Old: true}},
 		{name: "replaced field without keys", config: &unkeyedReplacedConfig{Old: "x"}},
@@ -477,7 +534,8 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 
 // TestSyncDeprecatedFieldsSharedReplacement verifies that when two deprecated
 // fields name one replacement, the first one declared that is set wins, for a
-// sync and for a move, while the report stays sorted by name.
+// sync and for a move, while the report stays sorted by name. A value mapped
+// onto the replacement's zero value counts as set too.
 func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
 	t.Parallel()
 
@@ -493,6 +551,15 @@ func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
 	moved := &sharedReplacementConfig{Zeta: "z", Alpha: "a"}
 	moveDeprecatedFields(configValue(moved))
 	assert.Equal(t, &sharedReplacementConfig{New: "z"}, moved)
+
+	zero := &zeroMappedSharedConfig{Switch: "off", Legacy: true}
+	_, err = SyncDeprecatedFields(zero)
+	require.NoError(t, err)
+	assert.False(t, zero.On, "a value mapped onto the zero value should still win")
+
+	movedZero := &zeroMappedSharedConfig{Switch: "off", Legacy: true}
+	moveDeprecatedFields(configValue(movedZero))
+	assert.Equal(t, &zeroMappedSharedConfig{}, movedZero)
 }
 
 // TestDeprecatedFieldPairsFirstUse verifies that concurrent first calls for a
