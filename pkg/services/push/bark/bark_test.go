@@ -156,7 +156,7 @@ func TestInitialize(t *testing.T) {
 
 		err := (&Service{}).Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=ftp"), log.New(t.Output(), "", 0))
 
-		require.ErrorIs(t, err, ErrInvalidScheme)
+		require.ErrorIs(t, err, format.ErrInvalidValueForType)
 	})
 
 	t.Run("missing device key", func(t *testing.T) {
@@ -310,9 +310,9 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 // TestSendSchemePrecedence verifies that disabletls decides the protocol of a
 // send over the deprecated scheme.
 //
-// A disabletls param overrides a stored http scheme. A scheme param of either
-// protocol applies when the params do not set disabletls. disabletls wins when
-// the params set both.
+// A disabletls param overrides a stored http scheme, from the URL or set in
+// code. A scheme param of either protocol applies when the params do not set
+// disabletls. disabletls wins when the params set both.
 func TestSendSchemePrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -321,8 +321,17 @@ func TestSendSchemePrecedence(t *testing.T) {
 		params  *types.Params
 		name    string
 		rawURL  string
+		scheme  string
 		wantURL string
 	}{
+		{
+			name:    "disabletls param overrides a Scheme set in code",
+			rawURL:  "bark://:devicekey@hostname",
+			scheme:  "http",
+			params:  &types.Params{"disabletls": "no"},
+			wantURL: "https://hostname/push",
+		},
+		{name: "Scheme set in code", rawURL: "bark://:devicekey@hostname", scheme: "http", wantURL: "http://hostname/push"},
 		{
 			name:    "disabletls param overrides the stored scheme",
 			rawURL:  "bark://:devicekey@hostname?scheme=http",
@@ -351,6 +360,10 @@ func TestSendSchemePrecedence(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tt.rawURL)
+			if tt.scheme != "" {
+				service.Config.Scheme = tt.scheme
+			}
+
 			client, captured := newRespondingClient(t, http.StatusOK, successBody)
 			service.SetHTTPClient(client)
 
@@ -669,7 +682,7 @@ func TestSendContextErrors(t *testing.T) {
 
 		err := service.SendContext(t.Context(), "Message", nil)
 
-		require.ErrorIs(t, err, ErrInvalidScheme)
+		require.ErrorIs(t, err, format.ErrInvalidValueForType)
 	})
 
 	t.Run("invalid scheme param", func(t *testing.T) {
@@ -681,7 +694,7 @@ func TestSendContextErrors(t *testing.T) {
 
 		err := service.SendContext(t.Context(), "Message", &types.Params{"scheme": "ftp"})
 
-		require.ErrorIs(t, err, ErrInvalidScheme)
+		require.ErrorIs(t, err, format.ErrInvalidValueForType)
 	})
 
 	t.Run("canceled context", func(t *testing.T) {

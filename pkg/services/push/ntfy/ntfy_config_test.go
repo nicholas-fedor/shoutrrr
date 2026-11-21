@@ -200,9 +200,9 @@ func TestConfigSetURL(t *testing.T) {
 			want:   defaultConfig(func(*Config) {}),
 		},
 		{
-			name:   "deprecated http scheme turns TLS off and is kept",
+			name:   "deprecated http scheme turns TLS off",
 			rawURL: testServiceURL + "?scheme=http",
-			want:   defaultConfig(func(c *Config) { c.Scheme, c.DisableTLS = "http", true }),
+			want:   defaultConfig(func(c *Config) { c.DisableTLS = true }),
 		},
 		{
 			name:   "disabletls wins over the deprecated scheme",
@@ -212,7 +212,7 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "deprecated https scheme",
 			rawURL: testServiceURL + "?scheme=HTTPS",
-			want:   defaultConfig(func(c *Config) { c.Scheme = "HTTPS" }),
+			want:   defaultConfig(func(*Config) {}),
 		},
 		{name: "at alias", rawURL: testServiceURL + "?at=tomorrow,%2010am", want: defaultConfig(func(c *Config) { c.Delay = "tomorrow, 10am" })},
 		{name: "in alias", rawURL: testServiceURL + "?in=10m", want: defaultConfig(func(c *Config) { c.Delay = "10m" })},
@@ -263,7 +263,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid priority", rawURL: testServiceURL + "?priority=extreme", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?cache=maybe", wantErr: format.ErrInvalidBoolValue},
-		{name: "invalid scheme", rawURL: testServiceURL + "?scheme=ftp", wantErr: ErrInvalidScheme},
+		{name: "invalid scheme", rawURL: testServiceURL + "?scheme=ftp", wantErr: format.ErrInvalidValueForType},
 	}
 
 	for _, tt := range tests {
@@ -309,6 +309,15 @@ func TestConfigGetAPIURL(t *testing.T) {
 			assert.Equal(t, tt.want, tt.config.GetAPIURL())
 		})
 	}
+
+	t.Run("disabletls over a Scheme set in code", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Scheme: "http"}
+		require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+"?disabletls=no")))
+
+		assert.Equal(t, testEndpoint, config.GetAPIURL())
+	})
 }
 
 // TestConfigGetURL verifies that GetURL writes the credentials, host, and
@@ -368,9 +377,10 @@ func TestConfigGetURL(t *testing.T) {
 }
 
 // TestConfigGetURLDeprecated verifies that GetURL writes a value set through
-// a deprecated field under its replacement's key, and an http scheme as
-// disabletls, without changing the config. An invalid scheme is kept, so
-// reading the URL reports it.
+// a deprecated field under its replacement's key, and a Scheme of http set in
+// code as disabletls, without changing the config. A config URL never carries
+// the deprecated scheme key, so an invalid scheme is left out. A send reports
+// it.
 func TestConfigGetURLDeprecated(t *testing.T) {
 	t.Parallel()
 
@@ -397,7 +407,7 @@ func TestConfigGetURLDeprecated(t *testing.T) {
 		{
 			name:      "invalid scheme",
 			config:    defaultConfig(func(c *Config) { c.Scheme = "ftp" }),
-			wantQuery: url.Values{"scheme": {"ftp"}},
+			wantQuery: url.Values{},
 		},
 	}
 
@@ -427,7 +437,7 @@ func TestConfigSetURLKeepsCallerURL(t *testing.T) {
 
 // TestConfigReadAfterParse verifies the fields that a program reading the
 // parsed config sees, as programs that build their own requests from it do.
-// An http scheme keeps Scheme as written and sets DisableTLS too.
+// Scheme keeps its default, and DisableTLS decides the protocol.
 func TestConfigReadAfterParse(t *testing.T) {
 	t.Parallel()
 
@@ -438,7 +448,7 @@ func TestConfigReadAfterParse(t *testing.T) {
 		wantDisableTLS bool
 	}{
 		{name: "defaults", rawURL: testServiceURL, wantScheme: "https"},
-		{name: "http scheme", rawURL: testServiceURL + "?scheme=http", wantScheme: "http", wantDisableTLS: true},
+		{name: "http scheme", rawURL: testServiceURL + "?scheme=http", wantScheme: "https", wantDisableTLS: true},
 		{name: "disabletls", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "https", wantDisableTLS: true},
 		{name: "disabletls over an http scheme", rawURL: testServiceURL + "?scheme=http&DisableTLS=no", wantScheme: "https"},
 	}

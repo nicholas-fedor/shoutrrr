@@ -102,6 +102,19 @@ type chainedReplacementConfig struct {
 	Old bool `deprecated:"Newer"`
 }
 
+// replacedReplacementConfig has a deprecated field whose replacement's keys
+// another key replaces.
+type replacedReplacementConfig struct {
+	urlStub
+
+	// Old names the replaced Scheme.
+	Old string `deprecated:"Scheme"`
+	// Scheme's key is replaced by the tls key.
+	Scheme string `key:"scheme" replacedby:"tls" replacedvalues:"http=yes"`
+	// TLS replaces the scheme key.
+	TLS bool `key:"tls"`
+}
+
 // partlyInvalidConfig has a valid pair before an invalid one.
 type partlyInvalidConfig struct {
 	urlStub
@@ -128,6 +141,20 @@ type sharedReplacementConfig struct {
 	Alpha string `deprecated:"New"`
 }
 
+// zeroMappedSharedConfig has a replaced field whose mapping can give its
+// replacement the zero value, declared before a deprecated field that names
+// the same replacement.
+type zeroMappedSharedConfig struct {
+	urlStub
+
+	// Switch maps off onto On's zero value.
+	Switch string `key:"switch" replacedby:"on" replacedvalues:"off=no,on=yes"`
+	// Legacy names On as its replacement.
+	Legacy bool `deprecated:"On"`
+	// On replaces Switch and Legacy.
+	On bool `key:"on"`
+}
+
 // firstUseConfig has a deprecated field. Only
 // [TestDeprecatedFieldPairsFirstUse] uses it, so its pairs are built there.
 type firstUseConfig struct {
@@ -137,6 +164,96 @@ type firstUseConfig struct {
 	New string
 	// Old is the deprecated field that New replaces.
 	Old string `deprecated:"New"`
+}
+
+// replacedConfig has deprecated keys whose values another key takes over, as
+// ntfy's scheme key does for disabletls. Scheme keeps its keys, so its default
+// is still set.
+type replacedConfig struct {
+	URLKeys
+	urlStub
+
+	// Scheme's keys are deprecated. A value of http sets DisableTLS to yes, and
+	// https sets it to no.
+	Scheme string `default:"https" key:"scheme,proto" replacedby:"disabletls" replacedvalues:"http=yes,https=no"`
+	// DisableTLS replaces the scheme keys.
+	DisableTLS bool `default:"No" key:"disabletls"`
+	// Label's key is deprecated, and its values pass to the name key as written.
+	Label string `key:"label" replacedby:"name"`
+	// Name replaces the label key.
+	Name string `key:"name"`
+}
+
+// unknownReplacementKeyConfig names a replacement key that no field has.
+type unknownReplacementKeyConfig struct {
+	urlStub
+
+	// Old names a missing key.
+	Old string `key:"old" replacedby:"missing"`
+}
+
+// unkeyedReplacedConfig gives a replaced key to a field without a key tag.
+type unkeyedReplacedConfig struct {
+	urlStub
+
+	// Old has no keys to replace.
+	Old string `replacedby:"new"`
+	// New would replace the old field's keys.
+	New string `key:"new"`
+}
+
+// nonStringReplacedConfig gives a replaced key to a field that is not a string.
+type nonStringReplacedConfig struct {
+	urlStub
+
+	// Old is a bool.
+	Old bool `key:"old" replacedby:"new"`
+	// New replaces the old key.
+	New bool `key:"new"`
+}
+
+// chainedReplacedConfig names a replacement key whose own field is replaced.
+type chainedReplacedConfig struct {
+	urlStub
+
+	// Old names the newer key, which is replaced itself.
+	Old string `key:"old" replacedby:"newer"`
+	// Newer names the newest key.
+	Newer string `key:"newer" replacedby:"newest"`
+	// Newest replaces the newer key.
+	Newest string `key:"newest"`
+}
+
+// unparsableReplacedValueConfig maps a value onto one the replacement cannot
+// hold.
+type unparsableReplacedValueConfig struct {
+	urlStub
+
+	// Old maps on onto maybe, which is not a bool.
+	Old string `key:"old" replacedby:"new" replacedvalues:"on=maybe"`
+	// New replaces the old key.
+	New bool `key:"new"`
+}
+
+// malformedReplacedValuesConfig has a value mapping without an equals sign.
+type malformedReplacedValuesConfig struct {
+	urlStub
+
+	// Old has a malformed mapping.
+	Old string `key:"old" replacedby:"new" replacedvalues:"on"`
+	// New replaces the old key.
+	New bool `key:"new"`
+}
+
+// passThroughReplacedConfig replaces a field's key and deprecated key with
+// the key of an int field, without a mapping, so a value passes as written.
+type passThroughReplacedConfig struct {
+	urlStub
+
+	// Old passes its value to Count as written.
+	Old string `deprecatedkeys:"older" key:"old" replacedby:"count"`
+	// Count replaces the old keys.
+	Count int `key:"count"`
 }
 
 // TestSyncDeprecatedFields verifies how deprecated fields reach their
@@ -202,10 +319,168 @@ func TestSyncDeprecatedFields(t *testing.T) {
 	}
 }
 
+// TestSyncReplacedFields verifies how a field whose keys another key
+// replaces reaches the replacement's field when code sets it.
+//
+//   - A value other than the field's default, in any case, maps onto the
+//     replacement while the replacement holds its zero value.
+//   - A set replacement wins, and the field is still reported.
+//   - The default, in any case, and the zero value count as unset.
+//   - A field without a value mapping passes its value as written.
+func TestSyncReplacedFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		config *replacedConfig
+		want   *replacedConfig
+		name   string
+		used   []Deprecation
+	}{
+		{name: "zero value", config: &replacedConfig{}, want: &replacedConfig{}, used: []Deprecation{}},
+		{
+			name:   "default",
+			config: &replacedConfig{Scheme: "https"},
+			want:   &replacedConfig{Scheme: "https"},
+			used:   []Deprecation{},
+		},
+		{
+			name:   "default in another case",
+			config: &replacedConfig{Scheme: "HTTPS", DisableTLS: true},
+			want:   &replacedConfig{Scheme: "HTTPS", DisableTLS: true},
+			used:   []Deprecation{},
+		},
+		{
+			name:   "mapped value",
+			config: &replacedConfig{Scheme: "http"},
+			want:   &replacedConfig{Scheme: "http", DisableTLS: true},
+			used:   []Deprecation{{Name: "Scheme", Replacement: "DisableTLS"}},
+		},
+		{
+			name:   "mapped value in another case",
+			config: &replacedConfig{Scheme: "HTTP"},
+			want:   &replacedConfig{Scheme: "HTTP", DisableTLS: true},
+			used:   []Deprecation{{Name: "Scheme", Replacement: "DisableTLS"}},
+		},
+		{
+			name:   "replacement set",
+			config: &replacedConfig{Label: "old", Name: "new"},
+			want:   &replacedConfig{Label: "old", Name: "new"},
+			used:   []Deprecation{{Name: "Label", Replacement: "Name"}},
+		},
+		{
+			name:   "value without a mapping",
+			config: &replacedConfig{Label: "old"},
+			want:   &replacedConfig{Label: "old", Name: "old"},
+			used:   []Deprecation{{Name: "Label", Replacement: "Name"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			used, err := SyncDeprecatedFields(tt.config)
+			require.NoError(t, err)
+			assert.Equal(t, tt.used, used)
+			assert.Equal(t, tt.want, tt.config)
+		})
+	}
+}
+
+// TestSyncReplacedFieldsUnmappedValue verifies that a value the mapping does
+// not list fails, naming the field. That field is not copied, and a later
+// deprecated field still is, so a GetURL that ignores the error keeps it.
+func TestSyncReplacedFieldsUnmappedValue(t *testing.T) {
+	t.Parallel()
+
+	config := &replacedConfig{Scheme: "ftp", Label: "old"}
+
+	used, err := SyncDeprecatedFields(config)
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+	require.ErrorContains(t, err, "Scheme: ")
+	assert.Nil(t, used)
+	assert.False(t, config.DisableTLS)
+	assert.Equal(t, "old", config.Name, "a later deprecated field should still be copied")
+}
+
+// TestSyncReplacedFieldsLookAlikeDefault verifies that a look-alike of the
+// default, which Unicode case folding matches, is not taken as the default.
+// It fails as the URL path rejects it.
+func TestSyncReplacedFieldsLookAlikeDefault(t *testing.T) {
+	t.Parallel()
+
+	_, err := SyncDeprecatedFields(&replacedConfig{Scheme: "httpſ"})
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+}
+
+// TestSyncReplacedFieldsPassThrough verifies that a value passed as written
+// moves into its replacement when the replacement can hold it. A value it
+// cannot hold fails, naming the field, and a move leaves it in place. The value
+// is checked even when the replacement already holds a value.
+func TestSyncReplacedFieldsPassThrough(t *testing.T) {
+	t.Parallel()
+
+	valid := &passThroughReplacedConfig{Old: "5"}
+
+	used, err := SyncDeprecatedFields(valid)
+	require.NoError(t, err)
+	assert.Equal(t, []Deprecation{{Name: "Old", Replacement: "Count"}}, used)
+	assert.Equal(t, 5, valid.Count)
+
+	invalid := &passThroughReplacedConfig{Old: "many"}
+
+	_, err = SyncDeprecatedFields(invalid)
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+	require.ErrorContains(t, err, "Old: ")
+	assert.Zero(t, invalid.Count)
+
+	moveDeprecatedFields(configValue(invalid))
+	assert.Equal(t, &passThroughReplacedConfig{Old: "many"}, invalid, "a value the replacement cannot hold should stay")
+
+	// tests lists values set beside a replacement that already holds a value,
+	// which is never overwritten, with whether each value is accepted.
+	tests := []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{name: "valid value", value: "5", valid: true},
+		{name: "invalid value", value: "many", valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &passThroughReplacedConfig{Old: tt.value, Count: 3}
+
+			_, err := SyncDeprecatedFields(config)
+			if tt.valid {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, ErrInvalidValueForType)
+			}
+
+			assert.Equal(t, 3, config.Count)
+		})
+	}
+}
+
+// TestEnumsOf verifies that the enum formatters come from a new config of the
+// type, and that a type that is not a config has none.
+func TestEnumsOf(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, map[string]types.EnumFormatter{}, enumsOf(reflect.TypeFor[replacedConfig]()))
+	assert.Nil(t, enumsOf(reflect.TypeFor[int]()))
+}
+
 // TestSyncDeprecatedFieldsInvalid verifies that a config that is not a
 // pointer to a struct fails with [ErrInvalidDeprecatedField]. A tag that names
 // no usable replacement fails the same way and leaves every field unchanged.
-// A replacement must be a direct field that is not deprecated itself.
+// A replacement must be a direct field that is not deprecated itself. A
+// replaced key needs a string field, a replacement key whose field is not
+// replaced, and a well-formed mapping onto values the replacement can hold.
 func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -223,6 +498,13 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 		{name: "unexported replacement", config: &unexportedReplacementConfig{Old: true}},
 		{name: "promoted replacement", config: &promotedReplacementConfig{Old: true}},
 		{name: "deprecated replacement", config: &chainedReplacementConfig{Old: true}},
+		{name: "replaced replacement", config: &replacedReplacementConfig{Old: "x"}},
+		{name: "unknown replacement key", config: &unknownReplacementKeyConfig{Old: "x"}},
+		{name: "replaced field that is not a string", config: &nonStringReplacedConfig{Old: true}},
+		{name: "replaced field without keys", config: &unkeyedReplacedConfig{Old: "x"}},
+		{name: "replaced replacement key", config: &chainedReplacedConfig{Old: "x"}},
+		{name: "mapped value the replacement cannot hold", config: &unparsableReplacedValueConfig{Old: "on"}},
+		{name: "malformed value mapping", config: &malformedReplacedValuesConfig{Old: "on"}},
 	}
 
 	for _, tt := range tests {
@@ -252,7 +534,8 @@ func TestSyncDeprecatedFieldsInvalid(t *testing.T) {
 
 // TestSyncDeprecatedFieldsSharedReplacement verifies that when two deprecated
 // fields name one replacement, the first one declared that is set wins, for a
-// sync and for a move, while the report stays sorted by name.
+// sync and for a move, while the report stays sorted by name. A value mapped
+// onto the replacement's zero value counts as set too.
 func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
 	t.Parallel()
 
@@ -268,6 +551,15 @@ func TestSyncDeprecatedFieldsSharedReplacement(t *testing.T) {
 	moved := &sharedReplacementConfig{Zeta: "z", Alpha: "a"}
 	moveDeprecatedFields(configValue(moved))
 	assert.Equal(t, &sharedReplacementConfig{New: "z"}, moved)
+
+	zero := &zeroMappedSharedConfig{Switch: "off", Legacy: true}
+	_, err = SyncDeprecatedFields(zero)
+	require.NoError(t, err)
+	assert.False(t, zero.On, "a value mapped onto the zero value should still win")
+
+	movedZero := &zeroMappedSharedConfig{Switch: "off", Legacy: true}
+	moveDeprecatedFields(configValue(movedZero))
+	assert.Equal(t, &zeroMappedSharedConfig{}, movedZero)
 }
 
 // TestDeprecatedFieldPairsFirstUse verifies that concurrent first calls for a
@@ -285,10 +577,11 @@ func TestDeprecatedFieldPairsFirstUse(t *testing.T) {
 	deprecatedFieldPairsByType.Delete(structType)
 
 	want := []deprecatedFieldPair{{
-		Name:        "Old",
-		Replacement: "New",
-		deprecated:  2,
-		replacement: 1,
+		deprecation:      Deprecation{Name: "Old", Replacement: "New"},
+		replaced:         nil,
+		replacementField: nil,
+		deprecated:       2,
+		replacement:      1,
 	}}
 
 	var wg sync.WaitGroup
@@ -326,7 +619,8 @@ func TestDeprecatedFieldPairsFirstUse(t *testing.T) {
 
 // TestMoveDeprecatedFields verifies that moving copies each set deprecated
 // field into a replacement at its zero value and then clears it, and that a
-// struct with an invalid tag is left unchanged.
+// struct with an invalid tag is left unchanged. A replaced field moves its
+// mapped value, and a value without a mapping stays.
 func TestMoveDeprecatedFields(t *testing.T) {
 	t.Parallel()
 
@@ -337,6 +631,14 @@ func TestMoveDeprecatedFields(t *testing.T) {
 	invalid := &partlyInvalidConfig{Old: true}
 	moveDeprecatedFields(configValue(invalid))
 	assert.Equal(t, &partlyInvalidConfig{Old: true}, invalid)
+
+	replaced := &replacedConfig{Scheme: "http", Label: "old"}
+	moveDeprecatedFields(configValue(replaced))
+	assert.Equal(t, &replacedConfig{DisableTLS: true, Name: "old"}, replaced)
+
+	unmapped := &replacedConfig{Scheme: "ftp"}
+	moveDeprecatedFields(configValue(unmapped))
+	assert.Equal(t, &replacedConfig{Scheme: "ftp"}, unmapped, "a value without a mapping should stay")
 }
 
 // TestDeprecatedConfigGetURL verifies the pattern a service follows in

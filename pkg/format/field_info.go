@@ -1,6 +1,7 @@
 package format
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -28,6 +29,10 @@ type FieldInfo struct {
 	DefaultValue string
 	// Template is the field's `tpl` tag, or empty.
 	Template string
+	// replacedBy is the key that replaces the field's keys, in lower case,
+	// from its `replacedby` tag, or empty. The field's keys then set the
+	// replacement's field instead of their own.
+	replacedBy string
 	// URLParts lists the URL parts from the field's `url` tag.
 	URLParts []URLPart
 	// Keys are the query keys from the field's `key` tag, in lower case. The
@@ -37,6 +42,11 @@ type FieldInfo struct {
 	// set the field like Keys. A URL never contains them, and the resolver
 	// reports each one used so the service can warn about it.
 	DeprecatedKeys []string
+	// replacedValues maps each value of the field's keys onto the value the
+	// replacement key takes, from its `replacedvalues` tag. Nil passes values
+	// as written. A malformed tag gives an empty mapping, which accepts no
+	// value.
+	replacedValues []valueReplacement
 	// Base is the number base of a numeric field, from its `base` tag, or 10.
 	Base int
 	// index is the field's index in owner.
@@ -59,13 +69,31 @@ type FieldInfo struct {
 	levelMapped bool
 }
 
+// valueReplacement maps a value of a replaced key onto the value its
+// replacement key takes.
+type valueReplacement struct {
+	// from is the value of the replaced key, in lower case.
+	from string
+	// to is the value the replacement key takes.
+	to string
+}
+
 // DefaultBase represents the default numeric base (decimal) for fields.
 const DefaultBase = 10
 
-// levelMappedTag marks a field that a service maps the level param onto, so
-// the URL that its config writes keeps the key whenever a URL set it to its
-// default.
-const levelMappedTag = "levelmapped"
+// Struct tags that mark config fields.
+const (
+	// levelMappedTag marks a field that a service maps the level param onto,
+	// so the URL that its config writes keeps the key whenever a URL set it to
+	// its default.
+	levelMappedTag = "levelmapped"
+	// replacedByTag names the key that replaces a field's keys.
+	replacedByTag = "replacedby"
+	// replacedValuesTag maps the values of a field's replaced keys onto the
+	// values of the key that replaces them, as from=to pairs separated by
+	// commas.
+	replacedValuesTag = "replacedvalues"
+)
 
 // IsEnum reports whether the field is an enum.
 //
@@ -84,6 +112,53 @@ func (fi *FieldInfo) IsEnum() bool {
 //   - bool: true when the field's `url` tag names the part.
 func (fi *FieldInfo) IsURLPart(part URLPart) bool {
 	return slices.Contains(fi.URLParts, part)
+}
+
+// replacedValue returns the value that the replacement key takes for a value
+// of the field's keys.
+//
+// The value matches its mapping in any case, but only at the mapped value's
+// byte length, so a look-alike such as the long s in httpſ does not match
+// https. A field without a mapping passes the value as written.
+//
+// Parameters:
+//   - value: the value of a key that the replacement key replaces.
+//
+// Returns:
+//   - string: the value for the replacement key.
+//   - error: an error wrapping [ErrInvalidValueForType] that lists the
+//     accepted values, for a value the mapping does not list.
+func (fi *FieldInfo) replacedValue(value string) (string, error) {
+	if fi.replacedValues == nil {
+		return value, nil
+	}
+
+	for _, replacement := range fi.replacedValues {
+		if equalFoldSameLength(replacement.from, value) {
+			return replacement.to, nil
+		}
+	}
+
+	accepted := make([]string, 0, len(fi.replacedValues))
+	for _, replacement := range fi.replacedValues {
+		accepted = append(accepted, replacement.from)
+	}
+
+	return "", fmt.Errorf("%w: %q (accepted: %s)", ErrInvalidValueForType, value, strings.Join(accepted, ", "))
+}
+
+// replaces reports whether the field's key replaces the keys of another field.
+//
+// That holds when the field's primary key is the one that the other field's
+// `replacedby` tag names, and the field's own keys are not replaced.
+//
+// Parameters:
+//   - replaced: the field whose keys another key replaces.
+//
+// Returns:
+//   - bool: true when the field is the replacement of replaced.
+func (fi *FieldInfo) replaces(replaced *FieldInfo) bool {
+	return fi.replacedBy == "" && len(fi.Keys) > 0 && fi.Keys[0] == replaced.replacedBy
 }
 
 // value returns the field in config. A field read from config's own struct
@@ -133,6 +208,8 @@ func newValueFieldInfo(name string, valueType reflect.Type, base int) *FieldInfo
 		Title:          false,
 		Sensitive:      false,
 		levelMapped:    false,
+		replacedBy:     "",
+		replacedValues: nil,
 	}
 }
 
@@ -207,6 +284,14 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 
 		info.levelMapped = fieldDef.Tag.Get(levelMappedTag) == "true"
 
+		if tag, ok := fieldDef.Tag.Lookup(replacedByTag); ok {
+			info.replacedBy = strings.ToLower(tag)
+		}
+
+		if tag, ok := fieldDef.Tag.Lookup(replacedValuesTag); ok {
+			info.replacedValues = parseReplacedValues(tag)
+		}
+
 		if tag, ok := fieldDef.Tag.Lookup("url"); ok {
 			info.URLParts = ParseURLParts(tag)
 		}
@@ -263,4 +348,46 @@ func getFieldBase(field *reflect.StructField) int {
 
 	// Default to base 10 if not tagged
 	return DefaultBase
+}
+
+// equalFoldSameLength reports whether two strings match in any case and have
+// the same byte length.
+//
+// The length check rejects a look-alike that Unicode case folding matches,
+// such as the long s in httpſ against https.
+//
+// Parameters:
+//   - a: the first string.
+//   - b: the second string.
+//
+// Returns:
+//   - bool: true when the strings match.
+func equalFoldSameLength(a, b string) bool {
+	return len(a) == len(b) && strings.EqualFold(a, b)
+}
+
+// parseReplacedValues reads a `replacedvalues` tag.
+//
+// Parameters:
+//   - tag: from=to pairs separated by commas, such as "http=yes,https=no".
+//
+// Returns:
+//   - []valueReplacement: the pairs in tag order, each from value in lower
+//     case. A tag with a pair that has no equals sign or an empty from value
+//     gives an empty, non-nil slice, which accepts no value and which
+//     [SyncDeprecatedFields] reports.
+func parseReplacedValues(tag string) []valueReplacement {
+	pairs := strings.Split(tag, ",")
+	values := make([]valueReplacement, 0, len(pairs))
+
+	for _, pair := range pairs {
+		from, to, found := strings.Cut(pair, "=")
+		if !found || from == "" {
+			return []valueReplacement{}
+		}
+
+		values = append(values, valueReplacement{from: strings.ToLower(from), to: to})
+	}
+
+	return values
 }
