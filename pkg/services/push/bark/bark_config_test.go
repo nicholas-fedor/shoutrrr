@@ -27,22 +27,6 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
-// withoutURLKeys returns a copy of a config without its record of the keys
-// its URL set, so it compares equal to a config built in code with the same
-// values. The GetURL tests check what the record keeps.
-//
-// Parameters:
-//   - config: the config read from a URL.
-//
-// Returns:
-//   - Config: a copy of the config with an empty record.
-func withoutURLKeys(config *Config) Config {
-	copied := *config
-	copied.urlKeys = urlKeys{}
-
-	return copied
-}
-
 // TestConfigGetAPIURL verifies that GetAPIURL joins the configured path and the
 // endpoint with exactly one slash between each part.
 func TestConfigGetAPIURL(t *testing.T) {
@@ -129,7 +113,16 @@ func TestConfigSetURLScheme(t *testing.T) {
 
 		err := (&Config{}).SetURL(parseTestURL(t, "bark://:devicekey@hostname?scheme=ftp"))
 
-		require.ErrorIs(t, err, ErrInvalidScheme)
+		require.ErrorIs(t, err, format.ErrInvalidValueForType)
+	})
+
+	t.Run("disabletls over a Scheme set in code", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Scheme: "http"}
+		require.NoError(t, config.SetURL(parseTestURL(t, "bark://:devicekey@hostname?disabletls=no")))
+
+		assert.Equal(t, "https://hostname/push", config.GetAPIURL("push"))
 	})
 }
 
@@ -163,7 +156,7 @@ func TestConfigSetURL(t *testing.T) {
 				Host:       "example.com:2225",
 				Path:       "/",
 				DeviceKey:  "device-key",
-				Scheme:     "http",
+				Scheme:     "https",
 				DisableTLS: true,
 				Sound:      "bell",
 				Badge:      5,
@@ -183,7 +176,7 @@ func TestConfigSetURL(t *testing.T) {
 			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			assert.Equal(t, tt.want, withoutURLKeys(config))
+			assert.Equal(t, tt.want, *config)
 		})
 	}
 }
@@ -265,11 +258,11 @@ func TestConfigGetURLCategory(t *testing.T) {
 	assert.Equal(t, original, *config)
 }
 
-// TestConfigGetURLScheme verifies that GetURL writes an http scheme as
-// disabletls without changing the config.
+// TestConfigGetURLScheme verifies that GetURL writes a Scheme of http set in
+// code as disabletls without changing the config.
 //
-// A config URL then never carries the deprecated scheme key. An invalid
-// scheme is kept, so reading the URL reports it.
+// A config URL never carries the deprecated scheme key, so an invalid scheme
+// is left out. A send reports it.
 func TestConfigGetURLScheme(t *testing.T) {
 	t.Parallel()
 
@@ -279,9 +272,9 @@ func TestConfigGetURLScheme(t *testing.T) {
 		scheme    string
 		wantQuery string
 	}{
-		{name: "http from the URL", scheme: "http", wantQuery: "disabletls=Yes"},
+		{name: "http", scheme: "http", wantQuery: "disabletls=Yes"},
 		{name: "uppercase https", scheme: "HTTPS", wantQuery: ""},
-		{name: "invalid", scheme: "ftp", wantQuery: "scheme=ftp"},
+		{name: "invalid", scheme: "ftp", wantQuery: ""},
 	}
 
 	for _, tt := range tests {

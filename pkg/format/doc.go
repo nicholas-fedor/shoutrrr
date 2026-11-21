@@ -36,7 +36,7 @@
 //
 // # Deprecated Keys and Fields
 //
-// A renamed option keeps working through two struct tags.
+// A renamed option keeps working through struct tags.
 //
 // A `deprecatedkeys` tag on a keyed field lists its old keys, separated by
 // commas. They set the field like its other keys. They are never written to a
@@ -53,6 +53,19 @@
 //
 //	SkipTLSVerify bool `default:"No" deprecatedkeys:"insecureskipverify" key:"skiptlsverify"`
 //	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`
+//
+// A `replacedby` tag deprecates the keys of a string field in favor of the
+// key it names, whose field may have another type. A `replacedvalues` tag maps
+// each value of the old keys, in any case, onto a value of the new key, and a
+// value it does not list is rejected. The old keys set the new key's field.
+// Setting that field through any of its keys resets the old field to its
+// default, so a value set on it in code before no longer overrides the new
+// key. The old keys lose to the new key and are reported as deprecated keys.
+// [SyncDeprecatedFields] moves a value set on the old field in code into the
+// new key's field the same way.
+//
+//	Scheme string `default:"https" key:"scheme" replacedby:"disabletls" replacedvalues:"http=yes,https=no"`
+//	DisableTLS bool `default:"No" key:"disabletls"`
 //
 // # Keys a URL Set
 //

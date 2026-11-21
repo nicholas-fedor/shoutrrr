@@ -18,8 +18,17 @@ import (
 
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
-	// keyFields maps each key and deprecated key, in lower case, to its field.
+	// keyFields maps each key and deprecated key, in lower case, to the field
+	// it sets. A key that another key replaces maps to the replacement's field.
 	keyFields map[string]*FieldInfo
+	// replacedKeys maps each key that another key replaces, in lower case, to
+	// its own field, whose mapping turns the key's values into the
+	// replacement's. It is nil for a config without replaced keys.
+	replacedKeys map[string]*FieldInfo
+	// replacedFields maps the name of each field whose key replaces other
+	// keys to the fields whose keys it replaces. It is nil for a config
+	// without replaced keys.
+	replacedFields map[string][]*FieldInfo
 	// deprecatedKeys maps each deprecated key to the primary key of its field.
 	deprecatedKeys map[string]string
 	// usedDeprecatedKeys holds the deprecated keys that Set has received.
@@ -77,7 +86,10 @@ var (
 // NewPropKeyResolver creates a new PropKeyResolver and initializes it using the provided config.
 //
 // The resolver knows the fields with a `key` tag. Each key and deprecated key
-// matches in any case.
+// matches in any case. The key that a field's `replacedby` tag names replaces
+// the field's keys and deprecated keys, which count as its deprecated keys and
+// set its field. Keys whose `replacedby` tag names no usable replacement are
+// left out, and [SyncDeprecatedFields] reports the tag.
 //
 // Parameters:
 //   - config: the config to resolve keys for, which the resolver is bound to.
@@ -93,10 +105,21 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	keys := make([]string, 0, len(items))
 	fields := make([]*FieldInfo, 0, len(items))
 
+	var replaced []*FieldInfo
+
 	for _, item := range items {
 		field := *item.Field()
 		if len(field.Keys) == 0 {
 			continue // Skip fields without explicit 'key' tags
+		}
+
+		// A replaced field is listed for its default. Its keys set the field of
+		// the key that replaces them, so they are added once every field is read.
+		if field.replacedBy != "" {
+			replaced = append(replaced, &field)
+			fields = append(fields, &field)
+
+			continue
 		}
 
 		keyCount := len(keys)
@@ -123,6 +146,36 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 		}
 	}
 
+	var (
+		replacedKeys   map[string]*FieldInfo
+		replacedFields map[string][]*FieldInfo
+	)
+
+	for _, field := range replaced {
+		replacement := keyFields[field.replacedBy]
+		if replacement == nil || !replacement.replaces(field) {
+			continue
+		}
+
+		if replacedKeys == nil {
+			replacedKeys = map[string]*FieldInfo{}
+			replacedFields = map[string][]*FieldInfo{}
+		}
+
+		replacedFields[replacement.Name] = append(replacedFields[replacement.Name], field)
+
+		for _, fieldKeys := range [][]string{field.Keys, field.DeprecatedKeys} {
+			for _, key := range fieldKeys {
+				if key != "" {
+					keys = append(keys, key)
+					keyFields[key] = replacement
+					replacedKeys[key] = field
+					deprecatedKeys[key] = replacement.Keys[0]
+				}
+			}
+		}
+	}
+
 	sort.Strings(keys)
 
 	confValue := reflect.ValueOf(config)
@@ -132,6 +185,8 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 
 	return PropKeyResolver{
 		keyFields:          keyFields,
+		replacedKeys:       replacedKeys,
+		replacedFields:     replacedFields,
 		confValue:          confValue,
 		deprecatedKeys:     deprecatedKeys,
 		usedDeprecatedKeys: map[string]bool{},
@@ -320,14 +375,19 @@ func (pkr *PropKeyResolver) QueryFields() []string {
 // A deprecated key is recorded for [PropKeyResolver.DeprecatedKeys]. It sets
 // the property unless a key that is not deprecated already set it, so the
 // replacement key wins whatever the order of the URL query. Its value is
-// checked either way.
+// checked either way. A key that another key replaces sets the replacement's
+// property to its mapped value. Setting a property through any of its keys
+// resets the properties whose keys it replaces to their defaults, so a value
+// set on them in code before no longer overrides it when the config is synced.
 //
 // Parameters:
 //   - key: the property key, matched case-insensitively.
 //   - value: the formatted property value.
 //
 // Returns:
-//   - error: [ErrInvalidConfigKey] for an unknown key, or the value's parse error.
+//   - error: [ErrInvalidConfigKey] for an unknown key, an error wrapping
+//     [ErrInvalidValueForType] for a value that a replaced key's mapping does
+//     not list, or the value's parse error.
 func (pkr *PropKeyResolver) Set(key, value string) error {
 	key = strings.ToLower(key)
 	field, found := pkr.keyFields[key]
@@ -691,6 +751,10 @@ func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
 
 // set sets the value of a target struct tagged with the corresponding key.
 //
+// A key that another key replaces sets the replacement's field to its mapped
+// value. The fields whose keys the set field's key replaces are reset to their
+// defaults.
+//
 // Parameters:
 //   - target: the config struct value to set.
 //   - key: the property key in lower case.
@@ -698,18 +762,44 @@ func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
 //
 // Returns:
 //   - error: an error wrapping [ErrInvalidConfigKey] that lists the valid
-//     keys, [ErrInvalidValueForType], or the value's parse error, or nil.
+//     keys, an error wrapping [ErrInvalidValueForType], or the value's parse
+//     error, or nil.
 func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
-	if field, found := pkr.keyFields[key]; found {
-		valid, err := SetConfigField(target, field, value)
-		if !valid && err == nil {
-			return ErrInvalidValueForType
+	field, found := pkr.keyFields[key]
+	if !found {
+		return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
+	}
+
+	if replaced, isReplaced := pkr.replacedKeys[key]; isReplaced {
+		mapped, err := replaced.replacedValue(value)
+		if err != nil {
+			return err
 		}
 
+		value = mapped
+	}
+
+	valid, err := SetConfigField(target, field, value)
+	if !valid && err == nil {
+		return ErrInvalidValueForType
+	}
+
+	if err != nil {
 		return err
 	}
 
-	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
+	for _, replaced := range pkr.replacedFields[field.Name] {
+		if replaced.DefaultValue == "" {
+			replaced.value(target).SetZero()
+
+			continue
+		}
+
+		// A default that does not parse is reported by SetDefaultProps.
+		_, _ = SetConfigField(target, replaced, replaced.DefaultValue) //nolint:errcheck // SetDefaultProps reports it.
+	}
+
+	return nil
 }
 
 // writeQuery writes the props of the bound config into a query, each under
@@ -724,9 +814,10 @@ func (pkr *PropKeyResolver) writeQuery(query url.Values) {
 	record := pkr.boundURLKeys()
 
 	for _, field := range pkr.fields {
-		// A field with only deprecated keys has no key to write.
+		// A field with only deprecated keys has no key to write, and the keys
+		// of a replaced field are deprecated.
 		key := field.Keys[0]
-		if key == "" {
+		if key == "" || field.replacedBy != "" {
 			continue
 		}
 

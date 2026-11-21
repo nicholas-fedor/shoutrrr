@@ -684,6 +684,210 @@ func TestPropKeyResolverDeprecatedParams(t *testing.T) {
 	require.ErrorContains(t, err, `setting param "aa"`)
 }
 
+// TestPropKeyResolverReplacedKey verifies that a key another key replaces
+// sets the replacement's field with its mapped value, in any case, and is
+// reported as deprecated.
+//
+// Its own field keeps its default, its keys are never primary, and a config
+// URL never holds them. A value without a mapping fails and changes nothing.
+// A field without a mapping passes its value as written.
+func TestPropKeyResolverReplacedKey(t *testing.T) {
+	t.Parallel()
+
+	config := &replacedConfig{}
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	assert.Equal(t, []string{"disabletls", "label", "name", "proto", "scheme"}, resolver.QueryFields())
+	assert.False(t, resolver.KeyIsPrimary("scheme"))
+	assert.False(t, resolver.KeyIsPrimary("proto"))
+	assert.True(t, resolver.KeyIsPrimary("disabletls"))
+
+	require.NoError(t, resolver.Set("SCHEME", "HTTP"))
+	assert.True(t, config.DisableTLS)
+	assert.Equal(t, "https", config.Scheme, "the replaced field should keep its default")
+	assert.Equal(t, "disabletls=Yes", BuildQuery(&resolver))
+
+	require.NoError(t, resolver.Set("proto", "https"))
+	assert.False(t, config.DisableTLS)
+
+	require.ErrorIs(t, resolver.Set("scheme", "ftp"), ErrInvalidValueForType)
+	assert.False(t, config.DisableTLS)
+
+	require.NoError(t, resolver.Set("label", "Old Label"))
+	assert.Equal(t, "Old Label", config.Name)
+	assert.Empty(t, config.Label)
+
+	assert.Equal(t, []Deprecation{
+		{Name: "label", Replacement: "name"},
+		{Name: "proto", Replacement: "disabletls"},
+		{Name: "scheme", Replacement: "disabletls"},
+	}, resolver.DeprecatedKeys())
+
+	config.Scheme = "http"
+
+	assert.Equal(t, "name=Old+Label", BuildQuery(&resolver), "a config URL should never hold a replaced key")
+}
+
+// TestPropKeyResolverReplacedKeyOrder verifies that the replacement key wins
+// over a replaced key in either order of a URL query, and that the URL records
+// the replacement's field. The value of a replaced key that loses is still
+// checked.
+func TestPropKeyResolverReplacedKeyOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		{name: "replaced key first", keys: []string{"scheme", "disabletls"}},
+		{name: "replacement key first", keys: []string{"disabletls", "scheme"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &replacedConfig{}
+			resolver := NewPropKeyResolver(config)
+			values := map[string]string{"scheme": "http", "disabletls": "no"}
+
+			for _, key := range tt.keys {
+				require.NoError(t, resolver.Set(key, values[key]))
+			}
+
+			assert.False(t, config.DisableTLS)
+		})
+	}
+
+	config := &replacedConfig{}
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, ApplyQuery(&resolver, url.Values{"scheme": {"https"}}))
+	assert.False(t, config.DisableTLS)
+	assert.False(t, resolver.KeepsDefault(config, nil, "disabletls"), "the URL should record the replacement's field")
+
+	require.NoError(t, resolver.Set("disabletls", "no"))
+	require.ErrorIs(t, resolver.Set("scheme", "ftp"), ErrInvalidValueForType, "a losing replaced key should still be checked")
+}
+
+// TestPropKeyResolverReplacedParams verifies that params with a replaced key
+// are reported, set the replacement's field over the config's value, and lose
+// to the replacement key in the same params.
+func TestPropKeyResolverReplacedParams(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&replacedConfig{})
+	params := &types.Params{"Scheme": "https"}
+
+	assert.Equal(t, []Deprecation{{Name: "scheme", Replacement: "disabletls"}}, resolver.DeprecatedParams(params))
+
+	enabled := &replacedConfig{DisableTLS: true}
+	require.NoError(t, resolver.UpdateConfigFromParams(enabled, params))
+	assert.False(t, enabled.DisableTLS)
+	assert.False(t, resolver.KeepsDefault(enabled, &types.Params{"scheme": "http"}, "disabletls"))
+
+	both := &replacedConfig{}
+	require.NoError(t, resolver.UpdateConfigFromParams(both, &types.Params{"scheme": "http", "DisableTLS": "no"}))
+	assert.False(t, both.DisableTLS)
+
+	err := resolver.UpdateConfigFromParams(&replacedConfig{}, &types.Params{"scheme": "ftp"})
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+	require.ErrorContains(t, err, `setting param "scheme"`)
+}
+
+// TestPropKeyResolverReplacedDeprecatedKey verifies that a deprecated key of a
+// replaced field sets the replacement's field and is reported as deprecated in
+// favor of the replacement key, which wins when both are set.
+func TestPropKeyResolverReplacedDeprecatedKey(t *testing.T) {
+	t.Parallel()
+
+	config := &passThroughReplacedConfig{}
+	resolver := NewPropKeyResolver(config)
+
+	assert.Equal(t, []string{"count", "old", "older"}, resolver.QueryFields())
+
+	require.NoError(t, resolver.Set("older", "7"))
+	assert.Equal(t, 7, config.Count)
+	assert.Empty(t, config.Old)
+	assert.Equal(t, []Deprecation{{Name: "older", Replacement: "count"}}, resolver.DeprecatedKeys())
+
+	require.NoError(t, resolver.Set("count", "3"))
+	require.NoError(t, resolver.Set("older", "9"))
+	assert.Equal(t, 3, config.Count, "the replacement key should win")
+}
+
+// TestPropKeyResolverReplacementResetsReplaced verifies that setting a
+// replacement's field, through its own key or a replaced key, resets the
+// replaced field to its default. A value set on it in code before then no
+// longer overrides the replacement when the config is synced.
+func TestPropKeyResolverReplacementResetsReplaced(t *testing.T) {
+	t.Parallel()
+
+	// tests lists queries that set DisableTLS on a config whose Scheme was set
+	// to http in code, with the DisableTLS each should leave after a sync.
+	tests := []struct {
+		query url.Values
+		name  string
+		want  bool
+	}{
+		{name: "replacement key", query: url.Values{"disabletls": {"no"}}, want: false},
+		{name: "replaced key", query: url.Values{"scheme": {"https"}}, want: false},
+		{name: "both keys", query: url.Values{"disabletls": {"no"}, "scheme": {"http"}}, want: false},
+		{name: "replaced key turning TLS off", query: url.Values{"scheme": {"http"}}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &replacedConfig{Scheme: "http", Label: "code"}
+			resolver := NewPropKeyResolver(config)
+			require.NoError(t, ApplyQuery(&resolver, tt.query))
+			assert.Equal(t, "https", config.Scheme)
+			assert.Equal(t, "code", config.Label, "a field another key does not replace should keep its value")
+
+			_, err := SyncDeprecatedFields(config)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, config.DisableTLS)
+		})
+	}
+
+	labeled := &replacedConfig{Label: "code"}
+	resolver := NewPropKeyResolver(labeled)
+	require.NoError(t, resolver.UpdateConfigFromParams(labeled, &types.Params{"name": "param"}))
+	assert.Empty(t, labeled.Label, "a replaced field without a default should be cleared")
+	assert.Equal(t, "param", labeled.Name)
+}
+
+// TestPropKeyResolverReplacedKeyMissing verifies that a replaced key is left
+// out when no field has its replacement key as its primary key, or when that
+// field's keys are replaced too, so it fails as an unknown key.
+func TestPropKeyResolverReplacedKeyMissing(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs with a replaced key named old that has no usable
+	// replacement, with the keys the resolver keeps.
+	tests := []struct {
+		config types.ServiceConfig
+		name   string
+		keys   []string
+	}{
+		{name: "missing replacement", config: &unknownReplacementKeyConfig{}, keys: []string{}},
+		{name: "chained replacement", config: &chainedReplacedConfig{}, keys: []string{"newer", "newest"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := NewPropKeyResolver(tt.config)
+
+			require.ErrorIs(t, resolver.Set("old", "x"), ErrInvalidConfigKey)
+			assert.Equal(t, tt.keys, resolver.QueryFields())
+		})
+	}
+}
+
 // TestPropKeyResolverKeepsDefaultConcurrent verifies that concurrent sends can
 // check defaults with one resolver whose defaults are not yet built.
 //

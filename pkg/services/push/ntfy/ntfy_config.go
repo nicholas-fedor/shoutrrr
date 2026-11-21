@@ -16,7 +16,6 @@ import (
 type Config struct {
 	// urlKeys records the keys that the URL set, so the URL the config writes
 	// keeps the priority key at its default and the level param leaves it alone.
-	// A URL that names the deprecated scheme at its default is warned about too.
 	urlKeys
 
 	// Title is the message title.
@@ -34,11 +33,13 @@ type Config struct {
 	// Token is the access token for Bearer authentication. It takes
 	// precedence over Username and Password.
 	Token string `desc:"Access token for Bearer auth, takes precedence over username and password" key:"token" optional:"" sensitive:"true"`
-	// Scheme is the server's protocol, http or https. A URL or params that set
-	// it to http turn TLS off, and GetURL writes that as disabletls.
+	// Scheme is the server's protocol, http or https. The scheme key sets
+	// DisableTLS instead, with http turning TLS off. A Scheme of http set in
+	// code turns TLS off while DisableTLS is false, and GetURL writes it as
+	// disabletls. Reading the scheme or disabletls key resets it to https.
 	//
 	// Deprecated: Use [Config.DisableTLS], which the disabletls key sets.
-	Scheme string `default:"https" desc:"Deprecated: use disabletls. Server protocol, http or https" key:"scheme"`
+	Scheme string `default:"https" desc:"Deprecated: use disabletls. Server protocol, http or https" key:"scheme" replacedby:"disabletls" replacedvalues:"http=yes,https=no"`
 	// Click is the URL opened when the notification is tapped.
 	Click string `desc:"Website opened when notification is clicked" key:"click" optional:""`
 	// Attach is the URL of a file to attach.
@@ -89,7 +90,7 @@ const (
 	DefaultHost = "ntfy.sh"
 )
 
-// Protocols that the deprecated scheme accepts.
+// Schemes of the API URL.
 const (
 	// schemeHTTP publishes over plain HTTP.
 	schemeHTTP = "http"
@@ -107,8 +108,6 @@ var (
 	// ErrInvalidTopic indicates a topic name that ntfy does not accept, or a
 	// path with an empty segment.
 	ErrInvalidTopic = errors.New("invalid topic: use up to 64 letters, digits, underscores, and dashes")
-	// ErrInvalidScheme indicates a scheme other than http or https.
-	ErrInvalidScheme = errors.New("invalid scheme: use http or https, or disabletls instead")
 )
 
 // topicNameBytes marks the bytes a topic name may hold, which are ASCII
@@ -134,31 +133,32 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 }
 
 // GetAPIURL constructs the API URL for the Ntfy service based on the configuration.
-// It uses HTTP when TLS is disabled or the deprecated scheme is http, and HTTPS
+// It uses HTTP when TLS is disabled or the deprecated Scheme is http, and HTTPS
 // otherwise.
 //
 // Returns:
 //   - string: the URL of the topic, after its base path when the config has one.
 func (c *Config) GetAPIURL() string {
-	// A config built in code may not have its default host yet, so the URL is
-	// built from a copy that has it.
+	// A config built in code may not have its default host or its synced
+	// deprecated fields yet, so the URL is built from a copy that has them.
 	config := *c
-	_ = config.applyDefaultHost() //nolint:errcheck // An invalid host is used as written, and a request to it fails.
+	_, _ = format.SyncDeprecatedFields(&config) //nolint:errcheck // An invalid scheme leaves TLS as DisableTLS says.
+	_ = config.applyDefaultHost()               //nolint:errcheck // An invalid host is used as written, and a request to it fails.
 
 	return config.apiURL(config.Topic)
 }
 
 // GetURL returns a URL representation of the Config's current field values.
 // A value set through a deprecated field is written under its replacement's
-// key, and an http scheme is written as disabletls.
+// key, so a Scheme of http set in code is written as disabletls. The
+// deprecated scheme key is never written.
 //
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	synced := *c
 
-	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
-	synced.normalizeScheme()
+	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // An invalid scheme is left out, and a send reports it.
 	resolver := format.NewPropKeyResolver(&synced)
 
 	return synced.getURL(&resolver)
@@ -186,8 +186,8 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// apiURL returns the server URL with a path, using HTTP when TLS is disabled or
-// the deprecated scheme is http, and HTTPS otherwise.
+// apiURL returns the server URL with a path, using HTTP when TLS is disabled
+// and HTTPS otherwise.
 //
 // Parameters:
 //   - urlPath: the URL path, with or without its first slash.
@@ -196,7 +196,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 //   - string: the URL.
 func (c *Config) apiURL(urlPath string) string {
 	scheme := schemeHTTPS
-	if c.DisableTLS || strings.EqualFold(c.Scheme, schemeHTTP) {
+	if c.DisableTLS {
 		scheme = schemeHTTP
 	}
 
@@ -224,23 +224,6 @@ func (c *Config) applyDefaultHost() error {
 
 	if host == "" {
 		c.Host = util.JoinURLHost(DefaultHost, port)
-	}
-
-	return nil
-}
-
-// applyScheme checks the deprecated Scheme and turns TLS off when it is http,
-// so DisableTLS alone decides the protocol. An empty Scheme counts as https.
-//
-// Returns:
-//   - error: [ErrInvalidScheme] for a scheme other than http or https.
-func (c *Config) applyScheme() error {
-	switch strings.ToLower(c.Scheme) {
-	case schemeHTTP:
-		c.DisableTLS = true
-	case schemeHTTPS, "":
-	default:
-		return fmt.Errorf("%w: %q", ErrInvalidScheme, c.Scheme)
 	}
 
 	return nil
@@ -275,20 +258,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
-}
-
-// normalizeScheme writes an http scheme as DisableTLS and resets the scheme to
-// its default, so a config URL carries disabletls instead of the deprecated
-// scheme key. An invalid scheme is kept, so reading the URL reports it.
-func (c *Config) normalizeScheme() {
-	switch strings.ToLower(c.Scheme) {
-	case schemeHTTP:
-		c.DisableTLS = true
-		c.Scheme = schemeHTTPS
-	case schemeHTTPS, "":
-		c.Scheme = schemeHTTPS
-	default:
-	}
 }
 
 // prepare drops the empty tags and actions, as reading a list setting does.
@@ -339,10 +308,9 @@ func (c *Config) prepare() error {
 //
 // Returns:
 //   - error: a host error such as [util.ErrInvalidHost]. An error wrapping
-//     [util.ErrInvalidQuery] for a malformed query or a query parameter error.
-//     [ErrInvalidScheme] for a scheme other than http or https. Otherwise the
-//     error from the config's checks, such as [ErrInvalidTopic] for an invalid
-//     topic name.
+//     [util.ErrInvalidQuery] for a malformed query, or a query parameter error,
+//     such as a scheme other than http or https. Otherwise the error from the
+//     config's checks, such as [ErrInvalidTopic] for an invalid topic name.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -376,39 +344,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	disableTLS := c.DisableTLS
-
-	if err := c.applyScheme(); err != nil {
-		return err
-	}
-
-	// disabletls replaces scheme, so it wins when the query sets both. The
-	// scheme resets, so a send that applies the stored scheme keeps the choice.
-	if hasQueryKey(query, "disabletls") {
-		c.DisableTLS = disableTLS
-		c.Scheme = schemeHTTPS
-	}
-
 	return c.prepare()
-}
-
-// hasQueryKey reports whether query sets key, matched case-insensitively as
-// the config keys are.
-//
-// Parameters:
-//   - query: the URL query.
-//   - key: the key in lower case.
-//
-// Returns:
-//   - bool: whether the query holds the key.
-func hasQueryKey(query url.Values, key string) bool {
-	for queryKey := range query {
-		if strings.EqualFold(queryKey, key) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // isTopicName reports whether name is a topic name ntfy accepts.

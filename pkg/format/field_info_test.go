@@ -111,6 +111,50 @@ func TestGetStructFieldInfoDeprecated(t *testing.T) {
 	assert.Nil(t, fields[1].DeprecatedKeys)
 }
 
+// TestGetStructFieldInfoReplaced verifies that a field's replacement key and
+// value mapping are read from its tags. A malformed mapping accepts no value,
+// so a key with one never sets its replacement.
+func TestGetStructFieldInfoReplaced(t *testing.T) {
+	t.Parallel()
+
+	fields := getStructFieldInfo(reflect.TypeFor[replacedConfig](), nil)
+	require.Len(t, fields, 4)
+
+	scheme, label := fields[0], fields[2]
+	assert.Equal(t, "disabletls", scheme.replacedBy)
+	assert.Equal(t, []valueReplacement{{from: "http", to: "yes"}, {from: "https", to: "no"}}, scheme.replacedValues)
+	assert.Equal(t, "name", label.replacedBy)
+	assert.Nil(t, label.replacedValues)
+	assert.Empty(t, fields[1].replacedBy)
+
+	malformed := getStructFieldInfo(reflect.TypeFor[malformedReplacedValuesConfig](), nil)
+	_, err := malformed[0].replacedValue("on")
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+}
+
+// TestFieldInfoReplacedValue verifies that a value maps in any case onto its
+// replacement, that a value the mapping does not list fails naming the
+// accepted values, and that a field without a mapping passes values as
+// written.
+func TestFieldInfoReplacedValue(t *testing.T) {
+	t.Parallel()
+
+	fields := getStructFieldInfo(reflect.TypeFor[replacedConfig](), nil)
+	scheme, label := fields[0], fields[2]
+
+	mapped, err := scheme.replacedValue("HTTP")
+	require.NoError(t, err)
+	assert.Equal(t, "yes", mapped)
+
+	_, err = scheme.replacedValue("httpſ")
+	require.ErrorIs(t, err, ErrInvalidValueForType)
+	require.ErrorContains(t, err, "(accepted: http, https)")
+
+	mapped, err = label.replacedValue("As Written")
+	require.NoError(t, err)
+	assert.Equal(t, "As Written", mapped)
+}
+
 // TestGetStructFieldInfoSensitive verifies that only a `sensitive:"true"` tag
 // marks a field as sensitive.
 func TestGetStructFieldInfoSensitive(t *testing.T) {

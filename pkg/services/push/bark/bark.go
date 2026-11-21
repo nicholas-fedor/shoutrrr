@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
@@ -67,15 +66,6 @@ type Service struct {
 // [DefaultHTTPClient].
 const defaultHTTPTimeout = 30 * time.Second
 
-// Deprecations of the scheme. Its replacement is another field, which the
-// format package's deprecation tags cannot describe.
-var (
-	// schemeKey is the deprecated scheme key and its replacement.
-	schemeKey = format.Deprecation{Name: "scheme", Replacement: "disabletls"}
-	// schemeField is the deprecated Scheme field and its replacement.
-	schemeField = format.Deprecation{Name: "Scheme", Replacement: "DisableTLS"}
-)
-
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
@@ -133,8 +123,8 @@ func (s *Service) GetID() string {
 
 // Initialize sets up the Bark service with configuration from the provided URL.
 //
-// It keeps an HTTP client that is already set, and warns once when the URL
-// uses the deprecated scheme key. It performs no network I/O.
+// It keeps an HTTP client that is already set, and warns once about each
+// deprecated key the URL uses. It performs no network I/O.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -142,7 +132,7 @@ func (s *Service) GetID() string {
 //
 // Returns:
 //   - error: the error from applying the default props or reading the URL,
-//     such as [ErrMissingDeviceKey] or [ErrInvalidScheme].
+//     such as [ErrMissingDeviceKey].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -157,11 +147,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	// The config records the keys its URL set, so a scheme the URL set
-	// does not keep its default.
-	if !s.pkr.KeepsDefault(s.Config, nil, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(context.Background(), s, []format.Deprecation{schemeKey})
-	}
+	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
 	return nil
 }
@@ -193,8 +179,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, the error
-//     from the params or the config's checks, such as [ErrInvalidScheme] or
-//     [ErrMissingDeviceKey], or the send error. A request error
+//     from the params or the config's checks, such as [ErrMissingDeviceKey],
+//     or the send error. A request error
 //     matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -306,7 +292,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		return fmt.Errorf("marshaling request to JSON: %w", err)
 	}
 
-	apiURL := config.GetAPIURL("push")
+	apiURL := config.apiURL("push")
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(requestBody))
 	if err != nil {
@@ -373,11 +359,10 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 
 // sendConfig returns the config for one send.
 //
-// The stored scheme moves into DisableTLS before the params apply, so a
-// disabletls param can turn TLS back on. A scheme param of either protocol
-// applies only when the params do not set disabletls. The deprecated Scheme
-// field and scheme param are each warned about once. So is a category, which
-// the push leaves out.
+// A Scheme of http set in code moves into DisableTLS before the params apply,
+// so a disabletls param can turn TLS back on. The deprecated Scheme field and
+// scheme param are each warned about once. So is a category, which the push
+// leaves out.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its warnings.
@@ -385,51 +370,22 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 //
 // Returns:
 //   - Config: the config for this send.
-//   - error: a params error wrapping [ErrUpdateParamsFailed],
-//     [ErrInvalidScheme], or the error from the config's checks, such as
-//     [ErrMissingDeviceKey].
+//   - error: an error syncing a Scheme set in code to a value other than http
+//     or https, a params error wrapping [ErrUpdateParamsFailed], or the error
+//     from the config's checks, such as [ErrMissingDeviceKey].
 func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
-	// A URL with an http scheme turns TLS off as it is read, so an http scheme
-	// with TLS on was set on the deprecated field directly.
-	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
-		s.warnings.DeprecatedFields(ctx, s, []format.Deprecation{schemeField})
+	deprecatedFields, err := format.SyncDeprecatedFields(&config)
+	if err != nil {
+		return config, fmt.Errorf("syncing deprecated config fields: %w", err)
 	}
 
-	if params != nil && hasKey(*params, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(ctx, s, []format.Deprecation{schemeKey})
-	}
-
-	// The stored scheme turns TLS off before the params apply, so a disabletls
-	// param can turn it back on. DisableTLS alone then decides the protocol.
-	if err := config.applyScheme(); err != nil {
-		return config, err
-	}
-
-	config.Scheme = schemeHTTPS
+	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return config, fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
-	}
-
-	if params != nil && hasKey(*params, schemeKey.Name) {
-		disableTLS := config.DisableTLS
-
-		// The scheme param decides the protocol on its own, so https turns
-		// TLS back on.
-		config.DisableTLS = false
-
-		if err := config.applyScheme(); err != nil {
-			return config, err
-		}
-
-		// disabletls replaces scheme, so it wins when the params set both.
-		if hasKey(*params, schemeKey.Replacement) {
-			config.DisableTLS = disableTLS
-		}
-
-		config.Scheme = schemeHTTPS
 	}
 
 	if err := config.validate(); err != nil {
