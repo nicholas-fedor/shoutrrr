@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency charset-normalizer to v3.5.3 by @renovate[bot] in [#2325](https://github.com/nicholas-fedor/shoutrrr/pull/2325)
 - Update dependency watchdog to v7.1.1 by @renovate[bot] in [#2322](https://github.com/nicholas-fedor/shoutrrr/pull/2322)
 - Update dependency certifi to v2026.11.20 by @renovate[bot] in [#2319](https://github.com/nicholas-fedor/shoutrrr/pull/2319)
 - Update dependency pyyaml to v6.0.4 by @renovate[bot] in [#2317](https://github.com/nicholas-fedor/shoutrrr/pull/2317)
