@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Sync deprecated config fields in one send step by @nicholas-fedor in [#2348](https://github.com/nicholas-fedor/shoutrrr/pull/2348)
 - Sync deprecated fields when reading config props by @nicholas-fedor in [#2342](https://github.com/nicholas-fedor/shoutrrr/pull/2342)
 
 ### Chores
