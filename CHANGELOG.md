@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Merge automerged updates only after every check passes by @nicholas-fedor in [#2338](https://github.com/nicholas-fedor/shoutrrr/pull/2338)
 - Update github/codeql-action action to v4.39.5 by @renovate[bot] in [#2336](https://github.com/nicholas-fedor/shoutrrr/pull/2336)
 - Update binwiederhier/ntfy:latest docker digest to ca35419 by @renovate[bot] in [#2335](https://github.com/nicholas-fedor/shoutrrr/pull/2335)
 - Update module github.com/eclipse/paho.golang to v0.24.0 by @renovate[bot] in [#2331](https://github.com/nicholas-fedor/shoutrrr/pull/2331)
