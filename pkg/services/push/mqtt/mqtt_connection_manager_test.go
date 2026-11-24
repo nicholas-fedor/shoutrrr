@@ -59,7 +59,9 @@ func TestPublishPacketSize(t *testing.T) {
 			_, err := publish.Packet().ToControlPacket().WriteTo(&encoded)
 			require.NoError(t, err)
 
-			assert.Equal(t, uint64(encoded.Len()), publishPacketSize(publish))
+			size, err := publishPacketSize(publish)
+			require.NoError(t, err)
+			assert.Equal(t, uint64(encoded.Len()), size)
 		})
 	}
 }
@@ -139,4 +141,26 @@ func TestLimitedConnectionDone(t *testing.T) {
 	connection.ConnectionManager = mocks.NewMockConnectionManager(t)
 
 	assert.Nil(t, connection.Done())
+}
+
+// TestLimitedConnectionPublishUnencodable verifies that a publish whose
+// properties paho cannot encode fails without reaching the wrapped
+// connection. A Subscription Identifier of -1 is outside the 0 to 268435455
+// that MQTT's variable byte integer holds. The mock has no expectations, so a
+// call to its Publish fails the test.
+func TestLimitedConnectionPublishUnencodable(t *testing.T) {
+	t.Parallel()
+
+	connection := newLimitedConnection()
+	connection.ConnectionManager = mocks.NewMockConnectionManager(t)
+
+	response, err := connection.Publish(t.Context(), &paho.Publish{
+		Topic:      "test/topic",
+		Payload:    []byte("message"),
+		Properties: &paho.PublishProperties{SubscriptionIdentifier: new(-1)},
+	})
+
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrMessageTooLarge)
+	assert.Nil(t, response)
 }

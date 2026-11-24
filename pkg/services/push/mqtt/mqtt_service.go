@@ -291,12 +291,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		},
 	)
 	// Per MQTT v5 spec, reason codes >= 0x80 indicate failures that are
-	// returned as a PublishError. The client returns a rejected QoS 2 PUBREC as
-	// a response alone and a rejected QoS 1 PUBACK as a response with an error,
-	// so the response is checked before the error. Packet Identifier not found
-	// without an error comes only from a QoS 2 PUBCOMP, which answers a PUBREL
-	// the client resent after a reconnect. The spec does not treat it as an
-	// error during recovery, and the broker accepted the message in its PUBREC.
+	// returned as a PublishError. The client returns a rejected QoS 1 PUBACK or
+	// QoS 2 PUBREC as a response with an error, so the response is checked
+	// before the error. Packet Identifier not found without an error comes
+	// only from a QoS 2 PUBCOMP, which answers a PUBREL the client resent
+	// after a reconnect. The spec does not treat it as an error during
+	// recovery, and the broker accepted the message in its PUBREC.
 	recovered := err == nil && resp != nil &&
 		resp.ReasonCode == packets.PubcompPacketIdentifierNotFound
 	if resp != nil && IsFailureCode(resp.ReasonCode) && !recovered {

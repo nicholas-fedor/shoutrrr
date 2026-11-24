@@ -36,10 +36,10 @@ type connectionEnder interface {
 
 // limitedConnection wraps a connection the service opened, and checks each
 // publish against the largest packet the broker accepts. The broker announces
-// that size in its CONNACK. paho.golang v0.23.0 records it but never checks a
-// publish against it (eclipse-paho/paho.golang#4). autopaho hands the CONNACK
-// to OnConnectionUp only after AwaitConnection returns, so AwaitConnection
-// also waits for it, after the first connection and after each reconnection.
+// that size in its CONNACK. paho.golang records it but never checks a publish
+// against it (eclipse-paho/paho.golang#4). autopaho hands the CONNACK to
+// OnConnectionUp only after AwaitConnection returns, so AwaitConnection also
+// waits for it, after the first connection and after each reconnection.
 type limitedConnection struct {
 	// ConnectionManager is the wrapped connection.
 	ConnectionManager
@@ -143,10 +143,15 @@ func (c *limitedConnection) Done() <-chan struct{} {
 // Returns:
 //   - *paho.PublishResponse: the broker's answer.
 //   - error: an error wrapping [ErrMessageTooLarge] for a packet over the
-//     limit, without sending it. Otherwise the wrapped connection's error as
-//     it is.
+//     limit, or paho's error for properties it cannot encode, without
+//     sending it. Otherwise the wrapped connection's error as it is.
 func (c *limitedConnection) Publish(ctx context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
-	size, limit := publishPacketSize(publish), uint64(c.maxPacketSize.Load())
+	size, err := publishPacketSize(publish)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := uint64(c.maxPacketSize.Load())
 	if size > limit {
 		return nil, fmt.Errorf("%w: the packet would be %d bytes, and the broker accepts at most %d",
 			ErrMessageTooLarge, size, limit)
@@ -221,10 +226,18 @@ func packetSizeLimit(maximumPacketSize *uint32) uint32 {
 //
 // Returns:
 //   - uint64: the packet size in bytes.
-func publishPacketSize(publish *paho.Publish) uint64 {
+//   - error: paho's error for properties it cannot encode, such as a
+//     Subscription Identifier outside 0 to 268435455.
+func publishPacketSize(publish *paho.Publish) (uint64, error) {
 	var properties uint64
+
 	if publish.Properties != nil {
-		properties = uint64(len(publish.Packet().Properties.Pack(packets.PUBLISH)))
+		packed, err := publish.Packet().Properties.Pack(packets.PUBLISH)
+		if err != nil {
+			return 0, fmt.Errorf("packing PUBLISH properties: %w", err)
+		}
+
+		properties = uint64(len(packed))
 	}
 
 	remaining := stringLengthSize + uint64(len(publish.Topic)) + uint64(len(publish.Payload)) +
@@ -233,7 +246,7 @@ func publishPacketSize(publish *paho.Publish) uint64 {
 		remaining += packetIDSize
 	}
 
-	return 1 + variableByteIntegerLength(remaining) + remaining
+	return 1 + variableByteIntegerLength(remaining) + remaining, nil
 }
 
 // variableByteIntegerLength returns how many bytes MQTT's variable byte

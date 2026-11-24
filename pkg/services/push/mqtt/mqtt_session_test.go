@@ -114,7 +114,8 @@ func pendingPublish(t *testing.T, session *limitedSession, prefix string, size i
 	publish.QoS = 1
 	publish.Payload = []byte(prefix + strings.Repeat("x", size-len(prefix)))
 
-	require.NoError(t, session.AddToSession(t.Context(), publish, make(chan packets.ControlPacket, 1)))
+	_, err := session.AddToSession(t.Context(), publish)
+	require.NoError(t, err)
 
 	return publish
 }
