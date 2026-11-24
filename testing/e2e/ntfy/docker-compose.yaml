@@ -12,7 +12,7 @@
 
 services:
   ntfy:
-    image: binwiederhier/ntfy:latest@sha256:038da2be5e668fee6d36a62884eea48975e1b71c29a56964e5298c1b9165a573
+    image: binwiederhier/ntfy:latest@sha256:ca35419d29a834824db2440fa9320897fbe40b026c5fc2360c76ed3501b5e716
     container_name: ntfy
     # Connections to the published port reach the container from the compose
     # network's gateway, whose address depends on the subnet Docker picks. The
