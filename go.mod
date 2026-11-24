@@ -5,7 +5,7 @@ go 1.27
 toolchain go1.27.4
 
 require (
-	github.com/eclipse/paho.golang v0.23.0
+	github.com/eclipse/paho.golang v0.24.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-colorable v0.1.16
