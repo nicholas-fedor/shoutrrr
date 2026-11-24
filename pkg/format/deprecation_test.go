@@ -641,28 +641,54 @@ func TestMoveDeprecatedFields(t *testing.T) {
 	assert.Equal(t, &replacedConfig{Scheme: "ftp"}, unmapped, "a value without a mapping should stay")
 }
 
-// TestDeprecatedConfigGetURL verifies the pattern a service follows in
-// GetURL. A value set only through a deprecated field reaches the URL under
-// the replacement key, and deprecated keys never appear. The config itself is
-// not changed.
-func TestDeprecatedConfigGetURL(t *testing.T) {
+// TestBuildQuerySyncsDeprecatedFields verifies that BuildQuery writes a value
+// set only through a deprecated field under its replacement's key without
+// changing the config, and that Get reads the same value.
+func TestBuildQuerySyncsDeprecatedFields(t *testing.T) {
 	t.Parallel()
 
-	config := &deprecatedConfig{Insecure: true}
+	// tests lists configs built in code with the query each should write.
+	tests := []struct {
+		config    types.ServiceConfig
+		name      string
+		wantQuery string
+	}{
+		{name: "deprecated field", config: &deprecatedConfig{Insecure: true}, wantQuery: "skipverify=Yes"},
+		{name: "replaced field", config: &replacedConfig{Scheme: "http"}, wantQuery: "disabletls=Yes"},
+		{name: "unmapped value beside another field", config: &replacedConfig{Scheme: "ftp", Label: "old"}, wantQuery: "name=old"},
+		{name: "replacement set", config: &replacedConfig{Scheme: "http", DisableTLS: true}, wantQuery: "disabletls=Yes"},
+		{name: "invalid tags", config: &partlyInvalidConfig{Old: true}, wantQuery: ""},
+	}
 
-	assert.Equal(t, "skipverify=Yes", config.GetURL().RawQuery)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			original := reflect.ValueOf(tt.config).Elem().Interface()
+			resolver := NewPropKeyResolver(tt.config)
+
+			assert.Equal(t, tt.wantQuery, BuildQuery(&resolver))
+			assert.Equal(t, original, reflect.ValueOf(tt.config).Elem().Interface(), "the config should not change")
+		})
+	}
+
+	assert.Empty(t, BuildQuery(&PropKeyResolver{}), "a resolver bound to no config should write nothing")
+
+	config := &deprecatedConfig{Insecure: true}
+	resolver := NewPropKeyResolver(config)
+
+	value, err := resolver.Get("skipverify")
+	require.NoError(t, err)
+	assert.Equal(t, "Yes", value, "Get should read the value BuildQuery writes")
 	assert.Equal(t, &deprecatedConfig{Insecure: true}, config)
 }
 
-// GetURL returns a URL with the config's query, built from a copy whose
-// deprecated fields are synced, as a service's GetURL does.
+// GetURL returns a URL with the config's query, as a service's GetURL does.
 //
 // Returns:
 //   - *url.URL: the config URL.
 func (c *deprecatedConfig) GetURL() *url.URL {
-	synced := *c
-	_, _ = SyncDeprecatedFields(&synced)
-	resolver := NewPropKeyResolver(&synced)
+	resolver := NewPropKeyResolver(c)
 
 	return &url.URL{Scheme: "deprecated", RawQuery: BuildQuery(&resolver)}
 }

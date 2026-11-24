@@ -74,7 +74,9 @@ func ApplyQuery(cqr types.ConfigQueryResolver, query url.Values) error {
 //
 // A [PropKeyResolver] writes only primary keys, and leaves out props that hold
 // their default value. It still writes a level-mapped prop that the config's
-// URL set to its default, as [URLKeys] describes.
+// URL set to its default, as [URLKeys] describes. It writes a value set only
+// through a deprecated field under its replacement's key, as
+// [SyncDeprecatedFields] would copy it. The config itself is not changed.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.
@@ -90,9 +92,7 @@ func BuildQuery(cqr types.ConfigQueryResolver) string {
 //
 // A custom field whose key matches a config key in any case is moved to the
 // key with the [KeyPrefix] prefix first, so reading the query back keeps it a
-// custom field. A [PropKeyResolver] writes only primary keys, and leaves out
-// props that hold their default value. It still writes a level-mapped prop
-// that the config's URL set to its default, as [URLKeys] describes.
+// custom field. The config props are written as [BuildQuery] writes them.
 //
 // Parameters:
 //   - cqr: the resolver bound to the config.

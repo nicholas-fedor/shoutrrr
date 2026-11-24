@@ -291,6 +291,9 @@ func (pkr *PropKeyResolver) DeprecatedParams(params *types.Params) []Deprecation
 
 // Get returns the value of a config property tagged with the corresponding key.
 //
+// A value set only through a deprecated field is read from its replacement's
+// key, as [BuildQuery] writes it.
+//
 // Parameters:
 //   - key: the property key, matched case-insensitively.
 //
@@ -300,7 +303,7 @@ func (pkr *PropKeyResolver) DeprecatedParams(params *types.Params) []Deprecation
 //     error, or nil.
 func (pkr *PropKeyResolver) Get(key string) (string, error) {
 	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
-		return GetConfigFieldString(pkr.confValue, field)
+		return GetConfigFieldString(syncedCopy(pkr.confValue), field)
 	}
 
 	return "", fmt.Errorf("%w: %v", ErrInvalidConfigKey, key)
@@ -812,6 +815,7 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 //   - query: the query to write into.
 func (pkr *PropKeyResolver) writeQuery(query url.Values) {
 	record := pkr.boundURLKeys()
+	confValue := syncedCopy(pkr.confValue)
 
 	for _, field := range pkr.fields {
 		// A field with only deprecated keys has no key to write, and the keys
@@ -821,7 +825,7 @@ func (pkr *PropKeyResolver) writeQuery(query url.Values) {
 			continue
 		}
 
-		value, err := GetConfigFieldString(pkr.confValue, field)
+		value, err := GetConfigFieldString(confValue, field)
 		if err != nil {
 			continue
 		}

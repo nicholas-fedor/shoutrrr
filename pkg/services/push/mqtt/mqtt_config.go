@@ -195,16 +195,12 @@ func (c *Config) Enums() map[string]types.EnumFormatter {
 // Returns:
 //   - *url.URL: the URL in the format mqtt://[user][:pass]@host:port/topic?options.
 func (c *Config) GetURL() *url.URL {
-	synced := *c
-
-	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
-
 	// The scheme carries DisableTLS, so the query leaves the key out.
-	query := synced
+	query := *c
 	query.DisableTLS = false
 	resolver := format.NewPropKeyResolver(&query)
 
-	return synced.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // QueryFields returns a list of all configurable query parameter names.
