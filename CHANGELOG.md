@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update anchore/sbom-action action to v0.24.4 by @renovate[bot] in [#2328](https://github.com/nicholas-fedor/shoutrrr/pull/2328)
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 24e541d by @renovate[bot] in [#2327](https://github.com/nicholas-fedor/shoutrrr/pull/2327)
 - Update dependency charset-normalizer to v3.5.3 by @renovate[bot] in [#2325](https://github.com/nicholas-fedor/shoutrrr/pull/2325)
 - Update dependency watchdog to v7.1.1 by @renovate[bot] in [#2322](https://github.com/nicholas-fedor/shoutrrr/pull/2322)
 - Update dependency certifi to v2026.11.20 by @renovate[bot] in [#2319](https://github.com/nicholas-fedor/shoutrrr/pull/2319)
