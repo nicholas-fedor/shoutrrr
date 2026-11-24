@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sync deprecated fields when reading config props by @nicholas-fedor in [#2342](https://github.com/nicholas-fedor/shoutrrr/pull/2342)
+
 ### Chores
 
 - Update sigstore/cosign-installer action to v4.1.4 by @renovate[bot] in [#2340](https://github.com/nicholas-fedor/shoutrrr/pull/2340)
