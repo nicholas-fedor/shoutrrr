@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency mkdocs-git-revision-date-localized-plugin to v1.7.1 by @renovate[bot] in [#2345](https://github.com/nicholas-fedor/shoutrrr/pull/2345)
+- Update matrixdotorg/synapse:latest docker digest to b425a34 by @renovate[bot] in [#2344](https://github.com/nicholas-fedor/shoutrrr/pull/2344)
 - Update sigstore/cosign-installer action to v4.1.4 by @renovate[bot] in [#2340](https://github.com/nicholas-fedor/shoutrrr/pull/2340)
 
 ## [0.25.1] - 2026-11-24
