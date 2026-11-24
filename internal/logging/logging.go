@@ -2,12 +2,14 @@ package logging
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/logbridge"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // Logger receives the warnings. The standard service logger implements it.
@@ -92,20 +94,6 @@ const (
 	deprecatedKeyWarning = "config key is deprecated"
 )
 
-// DeprecatedFields logs a warning for each deprecated config field, once per
-// field.
-//
-// The warning names the field and its replacement.
-//
-// Parameters:
-//   - ctx: the context of the call, passed to the log handler.
-//   - logger: the service's logger.
-//   - deprecations: the deprecated fields that are set, such as those that
-//     [format.SyncDeprecatedFields] reports.
-func (o *Once) DeprecatedFields(ctx context.Context, logger Logger, deprecations []format.Deprecation) {
-	logDeprecations(ctx, logger, &o.fields, deprecatedFieldWarning, KeyField, deprecations)
-}
-
 // DeprecatedKeys logs a warning for each deprecated config key, once per key.
 //
 // The warning names the key and its replacement.
@@ -173,6 +161,31 @@ func (o *Once) Reset() {
 	o.keys.Clear()
 	o.insecure.Store(false)
 	o.plaintext.Store(false)
+}
+
+// SyncDeprecatedFields copies each deprecated field of config into the field
+// that replaces it, as [format.SyncDeprecatedFields] does. It logs a warning
+// for each deprecated field that is set, once per field.
+//
+// The warning names the field and its replacement.
+//
+// Parameters:
+//   - ctx: the context of the call, passed to the log handler.
+//   - logger: the service's logger.
+//   - config: a pointer to the config struct.
+//
+// Returns:
+//   - error: the error from [format.SyncDeprecatedFields], wrapped as syncing
+//     deprecated config fields. Nothing is logged then.
+func (o *Once) SyncDeprecatedFields(ctx context.Context, logger Logger, config types.ServiceConfig) error {
+	deprecations, err := format.SyncDeprecatedFields(config)
+	if err != nil {
+		return fmt.Errorf("syncing deprecated config fields: %w", err)
+	}
+
+	logDeprecations(ctx, logger, &o.fields, deprecatedFieldWarning, KeyField, deprecations)
+
+	return nil
 }
 
 // logOnce logs msg unless logged is already true, and sets it.

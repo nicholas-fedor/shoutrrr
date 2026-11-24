@@ -249,12 +249,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	config := *s.Config
 
-	deprecatedFields, err := format.SyncDeprecatedFields(&config)
-	if err != nil {
-		return fmt.Errorf("syncing deprecated config fields: %w", err)
+	if err := s.warnings.SyncDeprecatedFields(ctx, s, &config); err != nil {
+		return err
 	}
 
-	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	// Apply any runtime parameter overrides to this send's configuration

@@ -308,12 +308,10 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
-	deprecatedFields, err := format.SyncDeprecatedFields(&config)
-	if err != nil {
-		return config, fmt.Errorf("syncing deprecated config fields: %w", err)
+	if err := s.warnings.SyncDeprecatedFields(ctx, s, &config); err != nil {
+		return config, err
 	}
 
-	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {

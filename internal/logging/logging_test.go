@@ -3,6 +3,7 @@ package logging
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"sync"
 	"testing"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // recordingLogger records the warnings logged through it. It is its own slog
@@ -37,6 +40,30 @@ type warning struct {
 
 // contextKey identifies the test value in a context.
 type contextKey struct{}
+
+// urlStub provides the URL methods of [types.ServiceConfig] for configs whose
+// URLs the tests do not use.
+type urlStub struct {
+	standard.EnumlessConfig
+}
+
+// deprecatedConfig is a config with one deprecated field.
+type deprecatedConfig struct {
+	urlStub
+
+	// SkipTLSVerify replaces Insecure.
+	SkipTLSVerify bool
+	// Insecure is the deprecated field.
+	Insecure bool `deprecated:"SkipTLSVerify"`
+}
+
+// invalidConfig is a config whose deprecated field names no replacement.
+type invalidConfig struct {
+	urlStub
+
+	// Insecure is the deprecated field.
+	Insecure bool `deprecated:"Missing"`
+}
 
 // Enabled reports true for every level.
 //
@@ -96,6 +123,21 @@ func (l *recordingLogger) WithAttrs([]slog.Attr) slog.Handler { return l }
 //   - slog.Handler: l.
 func (l *recordingLogger) WithGroup(string) slog.Handler { return l }
 
+// GetURL returns an empty URL. The tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (urlStub) GetURL() *url.URL { return &url.URL{} }
+
+// SetURL ignores the URL. The tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (urlStub) SetURL(*url.URL) error { return nil }
+
 // messages returns the message of each recorded warning.
 //
 // Returns:
@@ -148,7 +190,7 @@ func TestOnceReset(t *testing.T) {
 		once.Insecure(t.Context(), logger)
 		once.Plaintext(t.Context(), logger)
 		once.DeprecatedKeys(t.Context(), logger, deprecations)
-		once.DeprecatedFields(t.Context(), logger, deprecations)
+		require.NoError(t, once.SyncDeprecatedFields(t.Context(), logger, &deprecatedConfig{SkipTLSVerify: false, Insecure: true}))
 	}
 
 	logAll()
@@ -174,13 +216,13 @@ func TestOnceDeprecations(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), contextKey{}, "send")
 	logger := &recordingLogger{}
-	keys := []format.Deprecation{{Name: "insecureskipverify", Replacement: "skiptlsverify"}}
-	fields := []format.Deprecation{{Name: "insecureskipverify", Replacement: "SkipTLSVerify"}}
+	keys := []format.Deprecation{{Name: "Insecure", Replacement: "skiptlsverify"}}
+	config := &deprecatedConfig{SkipTLSVerify: false, Insecure: true}
 
 	once.DeprecatedKeys(ctx, logger, keys)
 	once.DeprecatedKeys(ctx, logger, keys)
-	once.DeprecatedFields(ctx, logger, fields)
-	once.DeprecatedFields(ctx, logger, fields)
+	require.NoError(t, once.SyncDeprecatedFields(ctx, logger, config))
+	require.NoError(t, once.SyncDeprecatedFields(ctx, logger, config))
 	once.DeprecatedKeys(ctx, logger, []format.Deprecation{keys[0], {Name: "disabletlsverification", Replacement: "skiptlsverify"}})
 
 	const source = "github.com/nicholas-fedor/shoutrrr/internal/logging.TestOnceDeprecations"
@@ -190,14 +232,14 @@ func TestOnceDeprecations(t *testing.T) {
 			ctx:    ctx,
 			msg:    "config key is deprecated",
 			source: source,
-			attrs:  []string{"key=insecureskipverify", "replacement=skiptlsverify"},
+			attrs:  []string{"key=Insecure", "replacement=skiptlsverify"},
 			level:  slog.LevelWarn,
 		},
 		{
 			ctx:    ctx,
 			msg:    "config field is deprecated",
 			source: source,
-			attrs:  []string{"field=insecureskipverify", "replacement=SkipTLSVerify"},
+			attrs:  []string{"field=Insecure", "replacement=SkipTLSVerify"},
 			level:  slog.LevelWarn,
 		},
 		{
@@ -268,8 +310,9 @@ func TestOnceConnectionWarnings(t *testing.T) {
 }
 
 // TestOnceLoggedSkipsWork verifies that a warning already logged returns
-// without allocating, for the connection and deprecation warnings alike, so
-// the sends that repeat it stay cheap.
+// without allocating, for the connection and deprecation warnings alike. It
+// also verifies that syncing a config with no deprecated field set allocates
+// nothing. This keeps the sends that repeat them cheap.
 //
 //nolint:paralleltest // testing.AllocsPerRun panics in a parallel test.
 func TestOnceLoggedSkipsWork(t *testing.T) {
@@ -277,14 +320,77 @@ func TestOnceLoggedSkipsWork(t *testing.T) {
 
 	logger := &recordingLogger{}
 	deprecations := []format.Deprecation{{Name: "insecureskipverify", Replacement: "skiptlsverify"}}
+	unset := &deprecatedConfig{SkipTLSVerify: true, Insecure: false}
 
 	once.Insecure(t.Context(), logger)
 	once.Plaintext(t.Context(), logger)
 	once.DeprecatedKeys(t.Context(), logger, deprecations)
-	once.DeprecatedFields(t.Context(), logger, deprecations)
 
 	assert.Zero(t, testing.AllocsPerRun(100, func() { once.Insecure(t.Context(), logger) }))
 	assert.Zero(t, testing.AllocsPerRun(100, func() { once.Plaintext(t.Context(), logger) }))
 	assert.Zero(t, testing.AllocsPerRun(100, func() { once.DeprecatedKeys(t.Context(), logger, deprecations) }))
-	assert.Zero(t, testing.AllocsPerRun(100, func() { once.DeprecatedFields(t.Context(), logger, deprecations) }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _ = once.SyncDeprecatedFields(t.Context(), logger, unset) }))
+}
+
+// TestOnceSyncDeprecatedFields verifies that the deprecated fields of a config
+// move into their replacements and are warned about once over two syncs. A
+// config with no deprecated field set logs nothing. A config whose tags name no
+// replacement fails with the sync's error, logs nothing, and keeps its values.
+func TestOnceSyncDeprecatedFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		config       types.ServiceConfig
+		want         types.ServiceConfig
+		wantErr      error
+		name         string
+		wantMessages []string
+	}{
+		{
+			name:         "set field",
+			config:       &deprecatedConfig{SkipTLSVerify: false, Insecure: true},
+			want:         &deprecatedConfig{SkipTLSVerify: true, Insecure: true},
+			wantErr:      nil,
+			wantMessages: []string{"config field is deprecated"},
+		},
+		{
+			name:         "no field set",
+			config:       &deprecatedConfig{SkipTLSVerify: true, Insecure: false},
+			want:         &deprecatedConfig{SkipTLSVerify: true, Insecure: false},
+			wantErr:      nil,
+			wantMessages: []string{},
+		},
+		{
+			name:         "invalid tag",
+			config:       &invalidConfig{Insecure: true},
+			want:         &invalidConfig{Insecure: true},
+			wantErr:      format.ErrInvalidDeprecatedField,
+			wantMessages: []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var once Once
+
+			logger := &recordingLogger{}
+
+			for range 2 {
+				err := once.SyncDeprecatedFields(t.Context(), logger, tc.config)
+				if tc.wantErr == nil {
+					require.NoError(t, err)
+
+					continue
+				}
+
+				require.ErrorIs(t, err, tc.wantErr)
+				require.ErrorContains(t, err, "syncing deprecated config fields: ")
+			}
+
+			assert.Equal(t, tc.want, tc.config)
+			assert.Equal(t, tc.wantMessages, logger.messages())
+		})
+	}
 }
