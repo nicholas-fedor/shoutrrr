@@ -25,9 +25,10 @@
       "semanticCommitType": "chore"
     },
     {
-      "description": "Automerge non-major updates",
+      "description": "Automerge non-major updates once every status check has passed. Renovate merges them itself, because GitHub's native auto-merge merges a pull request with failing checks when the branch requires none.",
       "matchUpdateTypes": ["minor", "patch", "digest"],
-      "automerge": true
+      "automerge": true,
+      "platformAutomerge": false
     }
   ],
   "vulnerabilityAlerts": {
