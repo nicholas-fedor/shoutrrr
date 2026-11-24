@@ -245,15 +245,11 @@ func (s *Service) buildRequest(
 //   - error: a params error or the error from the config's checks, such as
 //     [ErrHostMissing]. Otherwise a priority error.
 func (s *Service) processConfig(ctx context.Context, params *types.Params) (Config, map[string]any, error) {
-	// Get reference to current configuration
 	config := *s.Config
 
-	deprecatedFields, err := format.SyncDeprecatedFields(&config)
-	if err != nil {
-		return config, nil, fmt.Errorf("failed to sync deprecated config fields: %w", err)
+	if err := s.warnings.SyncDeprecatedFields(ctx, s, &config); err != nil {
+		return config, nil, err
 	}
-
-	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 
 	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 

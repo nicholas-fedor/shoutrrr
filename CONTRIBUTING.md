@@ -333,7 +333,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Keep a renamed field's old field, with a `deprecated` tag that names its replacement.
 - Keep an old key whose values map onto another key, such as ntfy's `scheme`, on its field with a `replacedby` tag that names the new key and a `replacedvalues` tag that maps each value.
   Give the field a `desc` that starts with "Deprecated:".
-- Warn with `Once.DeprecatedKeys` about the keys that the resolver reports, and with `Once.DeprecatedFields` about the fields that `format.SyncDeprecatedFields` reports.
+- Warn with `Once.DeprecatedKeys` about the keys that the resolver reports.
+  Move the deprecated fields into their replacements with `Once.SyncDeprecatedFields`, which warns about each one that is set.
 - List the old name on the [deprecations page](docs/usage/deprecations/index.md).
 
 ### Enforcement
