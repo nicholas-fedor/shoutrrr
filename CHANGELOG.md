@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.5 by @renovate[bot] in [#2336](https://github.com/nicholas-fedor/shoutrrr/pull/2336)
+- Update binwiederhier/ntfy:latest docker digest to ca35419 by @renovate[bot] in [#2335](https://github.com/nicholas-fedor/shoutrrr/pull/2335)
 - Update module github.com/eclipse/paho.golang to v0.24.0 by @renovate[bot] in [#2331](https://github.com/nicholas-fedor/shoutrrr/pull/2331)
 - Update dependency packaging to v26.4 by @renovate[bot] in [#2330](https://github.com/nicholas-fedor/shoutrrr/pull/2330)
 - Update anchore/sbom-action action to v0.24.4 by @renovate[bot] in [#2328](https://github.com/nicholas-fedor/shoutrrr/pull/2328)
