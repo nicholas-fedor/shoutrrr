@@ -100,12 +100,16 @@ func (c *Config) GetAPIURL(endpoint string) string {
 // Returns:
 //   - *url.URL: the service URL, with the options as query parameters.
 func (c *Config) GetURL() *url.URL {
-	synced := *c
-	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // An invalid scheme is left out, and a send reports it.
-	synced.Category = ""
-	resolver := format.NewPropKeyResolver(&synced)
+	written := c
+	if c.Category != "" {
+		cleared := *c
+		cleared.Category = ""
+		written = &cleared
+	}
 
-	return synced.getURL(&resolver)
+	resolver := format.NewPropKeyResolver(written)
+
+	return written.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.

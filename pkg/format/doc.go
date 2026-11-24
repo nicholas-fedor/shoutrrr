@@ -48,8 +48,8 @@
 // A `deprecated` tag on an old field names the field that replaces it, which
 // must be an exported field of the same type. The docs, the generators, and
 // [MaskedURL] leave the old field out. [SyncDeprecatedFields] copies it into
-// its replacement. A service calls it on the config it sends with, and on a
-// copy of the config in GetURL.
+// its replacement. A service calls it on the config it sends with, and
+// [BuildQuery] writes the config's URL query as if it had.
 //
 //	SkipTLSVerify bool `default:"No" deprecatedkeys:"insecureskipverify" key:"skiptlsverify"`
 //	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`

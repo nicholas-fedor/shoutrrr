@@ -100,12 +100,9 @@ const priorityKey = "priority"
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
-	synced := *c
+	resolver := format.NewPropKeyResolver(c)
 
-	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
-	resolver := format.NewPropKeyResolver(&synced)
-
-	return synced.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.

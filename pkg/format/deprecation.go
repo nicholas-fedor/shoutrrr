@@ -88,8 +88,6 @@ var deprecatedFieldPairsByType sync.Map
 // says, by the same rule.
 //
 // A service calls it on the config it sends with, before applying params.
-// GetURL calls it on a copy of the config, so the URL carries the replacement
-// key.
 //
 // Parameters:
 //   - config: a pointer to the config struct.
@@ -121,9 +119,8 @@ func SyncDeprecatedFields(config types.ServiceConfig) ([]Deprecation, error) {
 	used := []Deprecation{}
 
 	// The pairs are copied in field order, so when two deprecated fields name
-	// one replacement, the first one that is set wins. A value without a
-	// mapping stops no other pair, so a GetURL that ignores the error still
-	// writes the other replacements.
+	// one replacement, the first one that is set wins. A value its mapping does
+	// not list stops no other pair.
 	var valueErr error
 
 	// Up to four assigned replacements fit on the stack.
@@ -162,9 +159,9 @@ func SyncDeprecatedFields(config types.ServiceConfig) ([]Deprecation, error) {
 // moveDeprecatedFields copies the deprecated fields of a struct into their
 // replacements and then clears them.
 //
-// A later sync in GetURL then has nothing to copy back into a replacement
-// changed after the move. A struct with invalid tags is left unchanged, and so
-// is a replaced field whose value its mapping does not list.
+// A later sync then has nothing to copy back into a replacement changed after
+// the move. A struct with invalid tags is left unchanged, and so is a replaced
+// field whose value its mapping does not list.
 //
 // Parameters:
 //   - structValue: the addressable struct value.
@@ -189,6 +186,34 @@ func moveDeprecatedFields(structValue reflect.Value) {
 			structValue.Field(pairs[i].deprecated).SetZero()
 		}
 	}
+}
+
+// syncedCopy returns a copy of a struct with its deprecated fields moved into
+// their replacements.
+//
+// The struct is copied only when a deprecated field holds a value. A struct
+// with none, or with invalid tags, is returned as it is.
+//
+// Parameters:
+//   - structValue: the struct value, which is not changed.
+//
+// Returns:
+//   - reflect.Value: the synced copy, or structValue itself.
+func syncedCopy(structValue reflect.Value) reflect.Value {
+	if structValue.Kind() != reflect.Struct {
+		return structValue
+	}
+
+	pairs, err := deprecatedFieldPairs(structValue.Type())
+	if err != nil || !slices.ContainsFunc(pairs, func(p deprecatedFieldPair) bool { return p.isSet(structValue) }) {
+		return structValue
+	}
+
+	synced := reflect.New(structValue.Type()).Elem()
+	synced.Set(structValue)
+	moveDeprecatedFields(synced)
+
+	return synced
 }
 
 // deprecatedFieldPairs finds the deprecated fields of a struct type and their
@@ -303,10 +328,11 @@ func deprecatedFieldPairs(structType reflect.Type) ([]deprecatedFieldPair, error
 //
 //nolint:nonamedreturns // Same-type returns need names.
 func (p *deprecatedFieldPair) copy(structValue reflect.Value, assigned []int) (set, took bool, err error) {
-	deprecated := structValue.Field(p.deprecated)
-	if deprecated.IsZero() {
+	if !p.isSet(structValue) {
 		return false, false, nil
 	}
+
+	deprecated := structValue.Field(p.deprecated)
 
 	replacement := structValue.Field(p.replacement)
 	unset := replacement.IsZero() && !slices.Contains(assigned, p.replacement)
@@ -321,12 +347,7 @@ func (p *deprecatedFieldPair) copy(structValue reflect.Value, assigned []int) (s
 		return true, false, nil
 	}
 
-	value := deprecated.String()
-	if equalFoldSameLength(value, p.replaced.DefaultValue) {
-		return false, false, nil
-	}
-
-	mapped, err := p.replaced.replacedValue(value)
+	mapped, err := p.replaced.replacedValue(deprecated.String())
 	if err != nil {
 		return false, false, fmt.Errorf("%s: %w", p.deprecation.Name, err)
 	}
@@ -351,6 +372,26 @@ func (p *deprecatedFieldPair) copy(structValue reflect.Value, assigned []int) (s
 	}
 
 	return true, unset, nil
+}
+
+// isSet reports whether the deprecated field holds a value to copy.
+//
+// A field with a `deprecated` tag is set when it holds a value other than its
+// zero value. A replaced field is set when it holds neither its zero value nor
+// its default in any case, since its keys never set it.
+//
+// Parameters:
+//   - structValue: the struct value.
+//
+// Returns:
+//   - bool: true when the deprecated field is set.
+func (p *deprecatedFieldPair) isSet(structValue reflect.Value) bool {
+	deprecated := structValue.Field(p.deprecated)
+	if deprecated.IsZero() {
+		return false
+	}
+
+	return p.replaced == nil || !equalFoldSameLength(deprecated.String(), p.replaced.DefaultValue)
 }
 
 // replacedFieldPair pairs a field whose keys another key replaces with the

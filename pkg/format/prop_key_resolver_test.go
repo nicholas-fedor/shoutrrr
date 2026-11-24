@@ -726,7 +726,7 @@ func TestPropKeyResolverReplacedKey(t *testing.T) {
 
 	config.Scheme = "http"
 
-	assert.Equal(t, "name=Old+Label", BuildQuery(&resolver), "a config URL should never hold a replaced key")
+	assert.Equal(t, "disabletls=Yes&name=Old+Label", BuildQuery(&resolver), "a config URL should hold the replacement key, never a replaced key")
 }
 
 // TestPropKeyResolverReplacedKeyOrder verifies that the replacement key wins

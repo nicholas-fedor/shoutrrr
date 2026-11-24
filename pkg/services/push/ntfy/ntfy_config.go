@@ -156,12 +156,9 @@ func (c *Config) GetAPIURL() string {
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
-	synced := *c
+	resolver := format.NewPropKeyResolver(c)
 
-	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // An invalid scheme is left out, and a send reports it.
-	resolver := format.NewPropKeyResolver(&synced)
-
-	return synced.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // QueryFields returns the list of query parameter names for the Config struct.
