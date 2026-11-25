@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync deprecated config fields in one send step by @nicholas-fedor in [#2348](https://github.com/nicholas-fedor/shoutrrr/pull/2348)
 - Sync deprecated fields when reading config props by @nicholas-fedor in [#2342](https://github.com/nicholas-fedor/shoutrrr/pull/2342)
 
+### Tests
+
+- Check that sends honor deprecated fields set in code by @nicholas-fedor in [#2351](https://github.com/nicholas-fedor/shoutrrr/pull/2351)
+
 ### Chores
 
 - Update dependency babel to v2.19.0 by @renovate[bot] in [#2347](https://github.com/nicholas-fedor/shoutrrr/pull/2347)
