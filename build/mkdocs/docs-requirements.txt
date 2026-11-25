@@ -239,9 +239,9 @@ jinja2==3.1.6 \
 jsmin==3.0.1 \
     --hash=sha256:c0959a121ef94542e807a674142606f7e90214a2b3d1eb17300244bbb5cc2bfc
     # via mkdocs-minify-plugin
-Markdown==3.11.3 \
-    --hash=sha256:81eb91631dc97ad1efbc76019ef0f80fe90ca49ddf81546752d79989c3bfff3e \
-    --hash=sha256:e1a31a112232504d753e5c01bb8c2de90d3f0ba986b063e10770cf7695b09e73
+Markdown==3.11.4 \
+    --hash=sha256:2e30b19cead1968f391206e184ca67dfe6805c2eb8f383fb07b4dc90f8288075 \
+    --hash=sha256:c911a757f33d64a2578bed2d20c57e007b2aedd8a67bceabd593b31143d54ead
     # via
     #   mkdocs
     #   mkdocs-material
