@@ -61,12 +61,15 @@ func NewNotePush(message, title string) *PushRequest {
 	}
 }
 
-// SetTarget sets the push's target from a URL path target.
+// SetTarget sets the push's target from a URL path target, replacing any
+// target set before.
 //
 // Parameters:
 //   - target: an e-mail address for a user, a #tag for a channel, or a device
 //     identifier. Empty sends the push to all of the token user's devices.
 func (p *PushRequest) SetTarget(target string) {
+	p.Email, p.ChannelTag, p.DeviceIden = "", "", ""
+
 	if isEmailTarget(target) {
 		p.Email = target
 
