@@ -507,8 +507,8 @@ func TestClient_Headers(t *testing.T) {
 // TestClient_RequestHeaders verifies that GET and POST requests carry every
 // value of each header the client holds, and that a header without values
 // adds nothing instead of failing the request. Each request gets its own
-// copy, so a client that changes the request's headers cannot change the
-// client's.
+// copy of every value, so a client that writes into the request's header
+// values cannot change the client's.
 func TestClient_RequestHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -531,7 +531,7 @@ func TestClient_RequestHeaders(t *testing.T) {
 			httpClient := typesmocks.NewMockHTTPClient(t)
 			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 				got = req.Header.Clone()
-				req.Header.Set("X-Trace", "changed")
+				req.Header["X-Trace"][0] = "changed"
 
 				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
 			}).Once()
@@ -539,10 +539,13 @@ func TestClient_RequestHeaders(t *testing.T) {
 			client := NewContextClient(httpClient)
 			client.Headers()["X-Trace"] = []string{"a", "b"}
 			client.Headers()["X-Empty"] = []string{}
+			client.Headers()["X-Nil"] = nil
+
+			want := http.Header{"Content-Type": {ContentType}, "X-Empty": {}, "X-Nil": nil, "X-Trace": {"a", "b"}}
 
 			require.NoError(t, send(client, "https://example.com/"))
-			assert.Equal(t, http.Header{"Content-Type": {ContentType}, "X-Empty": {}, "X-Trace": {"a", "b"}}, got)
-			assert.Equal(t, []string{"a", "b"}, client.Headers()["X-Trace"])
+			assert.Equal(t, want, got)
+			assert.Equal(t, want, client.Headers())
 		})
 	}
 }
