@@ -77,10 +77,10 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 			stringBuilder.WriteString(color.CyanString(typeName))
 		}
 
-		stringBuilder.WriteString(strings.Repeat(" ", util.Max(preLen-valueLen, 1)))
+		stringBuilder.WriteString(strings.Repeat(" ", max(preLen-valueLen, 1)))
 		stringBuilder.WriteString(ColorizeDesc(field.Description))
 		stringBuilder.WriteString(
-			strings.Repeat(" ", util.Max(DescriptionColumnWidth-len(field.Description), 1)),
+			strings.Repeat(" ", max(DescriptionColumnWidth-len(field.Description), 1)),
 		)
 
 		if len(field.URLParts) > 0 && field.URLParts[0] != URLQuery {

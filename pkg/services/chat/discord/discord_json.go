@@ -413,7 +413,7 @@ func createEmbedPayload(
 	title string,
 	colors [types.MessageLevelCount]uint,
 ) WebhookPayload {
-	itemCount := util.Min(MaxEmbeds, len(items))
+	itemCount := min(MaxEmbeds, len(items))
 
 	embeds := make([]embedItem, 0, itemCount)
 
@@ -466,7 +466,7 @@ func newEmbed(item *types.MessageItem, colors [types.MessageLevelCount]uint) emb
 		author.Name = util.Ellipsis(author.Name, maxAuthorName)
 	}
 
-	embedFields = embedFields[:util.Min(len(embedFields), maxEmbedFields)]
+	embedFields = embedFields[:min(len(embedFields), maxEmbedFields)]
 	for i := range embedFields {
 		embedFields[i].Name = util.Ellipsis(embedFields[i].Name, maxFieldName)
 		embedFields[i].Value = util.Ellipsis(embedFields[i].Value, maxFieldValue)
