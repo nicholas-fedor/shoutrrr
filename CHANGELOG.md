@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency markdown to v3.11.4 by @renovate[bot] in [#2361](https://github.com/nicholas-fedor/shoutrrr/pull/2361)
 - Update dependency babel to v2.19.0 by @renovate[bot] in [#2347](https://github.com/nicholas-fedor/shoutrrr/pull/2347)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.7.1 by @renovate[bot] in [#2345](https://github.com/nicholas-fedor/shoutrrr/pull/2345)
 - Update matrixdotorg/synapse:latest docker digest to b425a34 by @renovate[bot] in [#2344](https://github.com/nicholas-fedor/shoutrrr/pull/2344)
