@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Build one push request per send by @nicholas-fedor in [#2357](https://github.com/nicholas-fedor/shoutrrr/pull/2357)
 - Build a token's request form when the token is set by @nicholas-fedor in [#2353](https://github.com/nicholas-fedor/shoutrrr/pull/2353)
 
 ### Changed
