@@ -118,13 +118,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	defer cancel()
 
 	client := s.newJSONClient()
+	// The targets go out one at a time, so they share one push and each sets
+	// its own target on it.
+	push := NewNotePush(message, config.Title)
 
 	return sequential.Send(
 		ctx,
 		config.sendTargets(),
 		sequential.PerTarget(defaultHTTPTimeout),
 		func(ctx context.Context, target string) error {
-			if err := doSend(ctx, client, &config, target, message); err != nil {
+			push.SetTarget(target)
+
+			if err := doSend(ctx, client, push); err != nil {
 				return fmt.Errorf("sending to target %q: %w", target, err)
 			}
 
@@ -177,23 +182,18 @@ func (s *Service) newJSONClient() jsonclient.ContextClient {
 	return client
 }
 
-// doSend sends a push notification to a specific target. The API answers
-// every failure with an error status, so a push counts as sent once the API
-// accepts it, whatever its copy of the push says.
+// doSend sends a push to the target it names. The API answers every failure
+// with an error status, so a push counts as sent once the API accepts it,
+// whatever its copy of the push says.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - client: the API client of the send.
-//   - config: the configuration for this send.
-//   - target: the device, channel, or email to push to.
-//   - message: the message to send.
+//   - push: the push, with its target set.
 //
 // Returns:
 //   - error: the API error or the request error.
-func doSend(ctx context.Context, client jsonclient.ContextClient, config *Config, target, message string) error {
-	push := NewNotePush(message, config.Title)
-	push.SetTarget(target)
-
+func doSend(ctx context.Context, client jsonclient.ContextClient, push *PushRequest) error {
 	// The reply is the created push. It is decoded only to reject a reply that
 	// is not JSON, such as a page from an intermediate server.
 	if err := client.PostContext(ctx, pushesEndpoint, push, &struct{}{}); err != nil {

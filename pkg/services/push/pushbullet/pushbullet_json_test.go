@@ -15,12 +15,13 @@ func TestNewNotePush(t *testing.T) {
 }
 
 // TestPushRequestSetTarget verifies that SetTarget fills exactly one target
-// field: the email for an address, the channel tag without its # for a
-// channel, and the device iden otherwise.
+// field and clears the others, so a push reused for another target carries
+// only that target. An address fills the email. A channel fills the channel
+// tag without its #. Any other target fills the device iden.
 func TestPushRequestSetTarget(t *testing.T) {
 	t.Parallel()
 
-	// tests lists targets with the push fields each should set.
+	// tests lists targets with the target fields each should set.
 	tests := []struct {
 		name   string
 		target string
@@ -36,7 +37,7 @@ func TestPushRequestSetTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			push := PushRequest{}
+			push := PushRequest{Email: "old@example.com", ChannelTag: "old", DeviceIden: "old"}
 			push.SetTarget(tt.target)
 
 			assert.Equal(t, tt.want, push)

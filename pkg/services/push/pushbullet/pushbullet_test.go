@@ -101,16 +101,16 @@ func newRespondingClient(t *testing.T, responses ...cannedResponse) (*mocks.Mock
 // test output.
 //
 // Parameters:
-//   - t: the test.
+//   - tb: the test or benchmark.
 //   - rawURL: the service URL.
 //
 // Returns:
 //   - *Service: the service.
-func newTestService(t *testing.T, rawURL string) *Service {
-	t.Helper()
+func newTestService(tb testing.TB, rawURL string) *Service {
+	tb.Helper()
 
 	service := &Service{}
-	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+	require.NoError(tb, service.Initialize(parseTestURL(tb, rawURL), log.New(tb.Output(), "", 0)))
 
 	return service
 }
