@@ -309,13 +309,10 @@ func (c *client) Get(url string, response any) error {
 //   - error: an [Error] for a status outside 200 to 299 or invalid JSON, or the request error,
 //     which matches ctx's error when ctx ends the request.
 func (c *client) GetContext(ctx context.Context, url string, response any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	req, err := c.newRequest(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
+		return err
 	}
-
-	// A copy, so a request never shares its header values with the client.
-	req.Header = c.headers.Clone()
 
 	res, err := c.http.Client().Do(req)
 	if err != nil {
@@ -376,13 +373,10 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 		body = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	req, err := c.newRequest(ctx, http.MethodPost, url, body)
 	if err != nil {
-		return fmt.Errorf("creating POST request: %w", redact.URLError(err))
+		return err
 	}
-
-	// A copy, so a request never shares its header values with the client.
-	req.Header = c.headers.Clone()
 
 	res, err := c.http.Client().Do(req)
 	if err != nil {
@@ -392,6 +386,50 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 	defer func() { _ = res.Body.Close() }()
 
 	return parseResponse(res, response)
+}
+
+// newRequest builds a request carrying a copy of every header the client
+// holds, so a request never shares its header values with the client.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - method: the HTTP method.
+//   - url: the URL to send the request to.
+//   - body: the request body.
+//
+// Returns:
+//   - *http.Request: the request.
+//   - error: the error building the request, without the URL.
+func (c *client) newRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
+	}
+
+	// Filling the header map the request already has, with the values in one
+	// backing array as http.Header.Clone lays them out, saves allocating a
+	// second map.
+	count := 0
+	for _, values := range c.headers {
+		count += len(values)
+	}
+
+	backing := make([]string, count)
+
+	for key, values := range c.headers {
+		// A nil value stays nil, as http.Header.Clone keeps it.
+		if values == nil {
+			req.Header[key] = nil
+
+			continue
+		}
+
+		copied := copy(backing, values)
+		req.Header[key] = backing[:copied:copied]
+		backing = backing[copied:]
+	}
+
+	return req, nil
 }
 
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
