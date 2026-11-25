@@ -15,6 +15,12 @@ type Token struct {
 	// raw is the normalized token, the type identifier and a colon followed by
 	// the three parts joined by dashes, such as "xoxb:123-456-abc".
 	raw string
+	// authorization is the Authorization header of an API token. SetFromProp
+	// builds it, and it stays empty for a webhook token.
+	authorization string
+	// webhookURL is the webhook URL of a webhook token. SetFromProp builds it,
+	// and it stays empty for an API token.
+	webhookURL string
 }
 
 // webhookBase is the URL that a webhook token's parts are appended to.
@@ -90,6 +96,10 @@ var _ types.ConfigProp = &Token{}
 //   - string: "Bearer " followed by the token with a dash after the type
 //     identifier, such as "Bearer xoxb-123-456-abc".
 func (t *Token) Authorization() string {
+	if t.authorization != "" {
+		return t.authorization
+	}
+
 	typeIdentifier, parts := t.split()
 
 	return "Bearer " + typeIdentifier + "-" + parts
@@ -145,8 +155,19 @@ func (t *Token) SetFromProp(propValue string) error {
 		typeIdentifier = HookTokenIdentifier
 	}
 
-	t.raw = fmt.Sprintf("%s:%s-%s-%s",
-		typeIdentifier, match[tokenMatchPart1], match[tokenMatchPart2], match[tokenMatchPart3])
+	*t = Token{
+		raw: fmt.Sprintf("%s:%s-%s-%s",
+			typeIdentifier, match[tokenMatchPart1], match[tokenMatchPart2], match[tokenMatchPart3]),
+		authorization: "",
+		webhookURL:    "",
+	}
+
+	// Each send uses the form of its token's type, so it is built once here.
+	if t.IsAPIToken() {
+		t.authorization = t.Authorization()
+	} else {
+		t.webhookURL = t.WebhookURL()
+	}
 
 	return nil
 }
@@ -190,6 +211,10 @@ func (t *Token) UserInfo() *url.Userinfo {
 // Returns:
 //   - string: [webhookBase] followed by the three parts joined by slashes.
 func (t *Token) WebhookURL() string {
+	if t.webhookURL != "" {
+		return t.webhookURL
+	}
+
 	_, parts := t.split()
 
 	stringBuilder := strings.Builder{}

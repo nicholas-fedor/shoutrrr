@@ -8,6 +8,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// parsedToken returns the token that SetFromProp reads from value, failing
+// the test when it does not parse.
+//
+// Parameters:
+//   - tb: the test or benchmark.
+//   - value: the token in any form SetFromProp accepts.
+//
+// Returns:
+//   - Token: the token.
+func parsedToken(tb testing.TB, value string) Token {
+	tb.Helper()
+
+	token, err := ParseToken(value)
+	require.NoError(tb, err)
+
+	return *token
+}
+
 // TestParseToken verifies that webhook and API tokens in each accepted
 // notation normalize to "type:part-part-part", with webhook tokens typed
 // "hook" when no type is given.
@@ -80,20 +98,37 @@ func TestParseTokenErrors(t *testing.T) {
 func TestTokenAccessors(t *testing.T) {
 	t.Parallel()
 
-	hook, err := ParseToken("AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
-	require.NoError(t, err)
+	hook := parsedToken(t, "AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
 
 	assert.Equal(t, "hook", hook.TypeIdentifier())
 	assert.False(t, hook.IsAPIToken())
 	assert.Equal(t, "https://hooks.slack.com/services/AAAAAAAAA/BBBBBBBBB/123456789123456789123456", hook.WebhookURL())
 	assert.Equal(t, url.UserPassword("hook", "AAAAAAAAA-BBBBBBBBB-123456789123456789123456"), hook.UserInfo())
 
-	bot, err := ParseToken("xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
-	require.NoError(t, err)
+	bot := parsedToken(t, "xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
 
 	assert.Equal(t, "xoxb", bot.TypeIdentifier())
 	assert.True(t, bot.IsAPIToken())
 	assert.Equal(t, "Bearer xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456", bot.Authorization())
+	assert.Equal(t, "Bearer hook-AAAAAAAAA-BBBBBBBBB-123456789123456789123456", hook.Authorization())
+	assert.Equal(t, "https://hooks.slack.com/services/AAAAAAAAA/BBBBBBBBB/123456789123456789123456", bot.WebhookURL())
+}
+
+// TestTokenSetAgain verifies that a token set again through SetFromProp gives
+// the request forms of its new value, for a token of the same type and of the
+// other type.
+func TestTokenSetAgain(t *testing.T) {
+	t.Parallel()
+
+	token := &Token{}
+	require.NoError(t, token.SetFromProp("xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"))
+	require.NoError(t, token.SetFromProp("xoxp:CCCCCCCCC-DDDDDDDDD-123456789123456789123456"))
+
+	assert.Equal(t, "Bearer xoxp-CCCCCCCCC-DDDDDDDDD-123456789123456789123456", token.Authorization())
+
+	require.NoError(t, token.SetFromProp("hook:EEEEEEEEE-FFFFFFFFF-123456789123456789123456"))
+
+	assert.Equal(t, "https://hooks.slack.com/services/EEEEEEEEE/FFFFFFFFF/123456789123456789123456", token.WebhookURL())
 }
 
 // TestTokenZeroValue verifies that a token that was never set gives empty forms
@@ -131,4 +166,17 @@ func TestTokenProp(t *testing.T) {
 	value, err = empty.GetPropValue()
 	require.NoError(t, err)
 	assert.Empty(t, value)
+}
+
+// TestTokenFormsDoNotAllocate verifies that a token read through SetFromProp
+// returns the request form of its type without building it again, since each
+// send asks for it.
+//
+//nolint:paralleltest // testing.AllocsPerRun panics in a parallel test.
+func TestTokenFormsDoNotAllocate(t *testing.T) {
+	bot := parsedToken(t, "xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
+	hook := parsedToken(t, "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
+
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _ = bot.Authorization() }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _ = hook.WebhookURL() }))
 }
