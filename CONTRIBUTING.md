@@ -341,6 +341,7 @@ Every service follows the same rules, so services behave alike for users and for
 
 - The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
 - The checks for skipping certificate verification and for the insecure warning run against every HTTP service with a `skiptlsverify` key.
+  A deprecated field that `skiptlsverify` replaces, set in code, must also let a request reach the server.
   SMTP, XMPP, and MQTT dial their own connections and test it in their own packages.
 - Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
   It also covers warning about old names and the JSON rules.
@@ -359,6 +360,8 @@ Every service follows the same rules, so services behave alike for users and for
   When reading such a config's own URL fails, a service passes only if the send returns an error before any request or dial.
 - The `send_like_read_back` contract check sends with the same configs when their URLs read back.
   A service passes when the send reaches the same endpoints as a send with the config read back from its URL.
+  The configs also include the fixture's config with each deprecated field set in code and its replacement cleared.
+  Reading such a config's URL back moves the value into the replacement, so the send must do the same.
 - The `path_segments` contract check sets each string config field to values with slashes, dot segments, `?`, and `#`.
   It builds them on a plain value that reaches a request URL.
   That value is a marker, or the fixture's own value for a field that rejects the marker.
