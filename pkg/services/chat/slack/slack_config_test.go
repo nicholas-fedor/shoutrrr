@@ -43,7 +43,7 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "webhook",
 			rawURL: "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?botname=testbot&color=3f00fe&title=Test+title",
 			want: Config{
-				Token: Token{raw: "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"}, Channel: "webhook",
+				Token: parsedToken(t, "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"), Channel: "webhook",
 				BotName: "testbot", Color: "3f00fe", Title: "Test title",
 			},
 		},
@@ -51,7 +51,7 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "bot API",
 			rawURL: "slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789?icon=https://example.com/logo.png&thread_ts=1503435956.000247",
 			want: Config{
-				Token: Token{raw: "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N"}, Channel: "C0123456789",
+				Token: parsedToken(t, "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N"), Channel: "C0123456789",
 				Icon: "https://example.com/logo.png", ThreadTS: "1503435956.000247",
 			},
 		},
@@ -59,20 +59,20 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "aliases",
 			rawURL: "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?username=testbot&icon_emoji=ghost",
 			want: Config{
-				Token: Token{raw: "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"}, Channel: "webhook",
+				Token: parsedToken(t, "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"), Channel: "webhook",
 				BotName: "testbot", Icon: "ghost",
 			},
 		},
 		{
 			name:   "legacy webhook",
 			rawURL: "slack://AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
-			want:   Config{Token: Token{raw: "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"}, Channel: "webhook"},
+			want:   Config{Token: parsedToken(t, "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"), Channel: "webhook"},
 		},
 		{
 			name:   "legacy webhook with a bot name",
 			rawURL: "slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456?color=3f00fe",
 			want: Config{
-				Token: Token{raw: "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"}, Channel: "webhook",
+				Token: parsedToken(t, "hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456"), Channel: "webhook",
 				BotName: "testbot", Color: "3f00fe",
 			},
 		},

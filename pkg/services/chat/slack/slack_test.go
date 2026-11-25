@@ -94,21 +94,21 @@ func newRecordingClient(t *testing.T, status int, body string) (*mocks.MockHTTPC
 // through client and logs to logs.
 //
 // Parameters:
-//   - t: the test.
+//   - tb: the test or benchmark.
 //   - rawURL: the service URL.
 //   - client: the HTTP client to send through.
 //   - logs: where the service logs.
 //
 // Returns:
 //   - *Service: the service.
-func newTestService(t *testing.T, rawURL string, client types.HTTPClient, logs io.Writer) *Service {
-	t.Helper()
+func newTestService(tb testing.TB, rawURL string, client types.HTTPClient, logs io.Writer) *Service {
+	tb.Helper()
 
 	serviceURL, err := url.Parse(rawURL)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	service := &Service{}
-	require.NoError(t, service.Initialize(serviceURL, log.New(logs, "", 0)))
+	require.NoError(tb, service.Initialize(serviceURL, log.New(logs, "", 0)))
 	service.SetHTTPClient(client)
 
 	return service
