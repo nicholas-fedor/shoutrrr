@@ -991,5 +991,5 @@ func readErrorBody(body io.Reader) (errorBody, bool) {
 // Returns:
 //   - time.Duration: the wait.
 func backoff(attempt int) time.Duration {
-	return time.Duration(math.Min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)))
+	return time.Duration(min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)))
 }

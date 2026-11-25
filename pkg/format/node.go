@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Node is the generic config tree item.
@@ -236,7 +235,7 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 		key := keyVal.String()
 		val := mapValue.MapIndex(keyVal)
 		nodeItems[i] = getValueNode(val, newValueFieldInfo(key, elemType, base))
-		maxKeyLength = util.Max(len(key), maxKeyLength)
+		maxKeyLength = max(len(key), maxKeyLength)
 	}
 
 	sortNodeItems(nodeItems)
@@ -346,7 +345,7 @@ func getRootNode(value any) *ContainerNode {
 
 	for i := range infoFields {
 		nodeItems = append(nodeItems, getNode(infoFields[i].value(structValue), &infoFields[i]))
-		maxKeyLength = util.Max(len(infoFields[i].Name), maxKeyLength)
+		maxKeyLength = max(len(infoFields[i].Name), maxKeyLength)
 	}
 
 	sortNodeItems(nodeItems)

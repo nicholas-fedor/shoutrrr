@@ -41,10 +41,10 @@ func PartitionMessage(
 
 	items := make([]types.MessageItem, 0, limits.ChunkCount-1)
 	chunkOffset := 0
-	maxTotal := Min(len(runes), limits.TotalChunkSize)
+	maxTotal := min(len(runes), limits.TotalChunkSize)
 	maxCount := limits.ChunkCount - 1
 	// A search longer than the chunk would read before the chunk's start.
-	distance = Min(distance, limits.ChunkSize)
+	distance = min(distance, limits.ChunkSize)
 
 	for range maxCount {
 		// Default chunkEnd is the maximum chunk size from current offset.
