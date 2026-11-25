@@ -307,6 +307,10 @@ const (
 	// checkInsecureWarning verifies that the shared warning is logged once for
 	// the insecure default client and never for an injected client.
 	checkInsecureWarning = "insecure_warning"
+	// checkSkipTLSVerifyDeprecated verifies that a deprecated field that
+	// skiptlsverify replaces, set in code, reaches a server with an
+	// unverifiable certificate.
+	checkSkipTLSVerifyDeprecated = "skip_tls_verify_deprecated_field"
 )
 
 // Failure kinds, one per distinct way a check can fail.
@@ -1511,6 +1515,7 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 				{checkSkipTLSVerifyURL, runSkipTLSVerifyURL},
 				{checkSkipTLSVerifyParams, runSkipTLSVerifyParams},
 				{checkInsecureWarning, runInsecureWarning},
+				{checkSkipTLSVerifyDeprecated, runSkipTLSVerifyDeprecated},
 			}
 
 			for _, check := range checks {
@@ -3178,7 +3183,8 @@ func configField(service types.Service) (reflect.Value, bool) {
 //
 // They are the zero config of the service's config type and the fixture's
 // config with each set exported field cleared in turn. Then come the fixture's
-// config with each enum field set to each of [undefinedEnumValues], and with
+// config with each enum field set to each of [undefinedEnumValues]. The
+// variants of [deprecatedVariants] follow, and then the fixture's config with
 // its Host field set to each of [invalidHosts].
 //
 // Parameters:
@@ -3223,6 +3229,7 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 	}
 
 	variants = append(variants, enumVariants(t, fixtureConfig)...)
+	variants = append(variants, deprecatedVariants(t, fixtureConfig)...)
 	variants = append(variants, hostVariants(t, fixtureConfig)...)
 
 	for i := range variants {
@@ -3287,6 +3294,76 @@ func enumVariants(t *testing.T, config types.ServiceConfig) []configVariant {
 			variants = append(variants, configVariant{
 				config: changed,
 				name:   fmt.Sprintf("the fixture's config with %s set to %d", name, undefined),
+			})
+		}
+	}
+
+	return variants
+}
+
+// deprecatedVariants returns copies of a config with each deprecated field
+// set in code and its replacement cleared, so the deprecated field decides.
+//
+// A field with a `deprecated` tag holds a sample of its type. A field with a
+// `replacedby` tag holds each value that its `replacedvalues` tag maps, or a
+// sample text when it has no mapping. The config read back from such a copy's
+// URL holds the value in the replacement, so a send that ignores the
+// deprecated field fails the send_like_read_back check when the replacement
+// changes what the send reaches.
+//
+// Parameters:
+//   - t: the test.
+//   - config: the config to copy.
+//
+// Returns:
+//   - []configVariant: the variants, not yet read back.
+func deprecatedVariants(t *testing.T, config types.ServiceConfig) []configVariant {
+	t.Helper()
+
+	fieldsByKey := map[string]string{}
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		if keys := item.Field().Keys; len(keys) > 0 {
+			fieldsByKey[keys[0]] = item.Field().Name
+		}
+	}
+
+	var variants []configVariant
+
+	for field := range reflect.TypeOf(config).Elem().Fields() {
+		var (
+			replacement string
+			values      []reflect.Value
+		)
+
+		if name, tagged := field.Tag.Lookup("deprecated"); tagged {
+			sample, ok := sampleValue(field.Type)
+			require.True(t, ok, "the check cannot set %s of type %s", field.Name, field.Type)
+
+			replacement, values = name, []reflect.Value{sample}
+		}
+
+		if key, replaced := field.Tag.Lookup("replacedby"); replaced {
+			replacement = fieldsByKey[strings.ToLower(key)]
+
+			// A field without a mapping passes its values as written.
+			for pair := range strings.SplitSeq(cmp.Or(field.Tag.Get("replacedvalues"), sampleText+"="+sampleText), ",") {
+				from, _, _ := strings.Cut(pair, "=")
+				values = append(values, reflect.ValueOf(from).Convert(field.Type))
+			}
+		}
+
+		for _, value := range values {
+			require.NotEmpty(t, replacement, "%s names no replacement field", field.Name)
+
+			changed := cloneConfig(t, config)
+			fields := reflect.ValueOf(changed).Elem()
+			fields.FieldByName(replacement).SetZero()
+			fields.FieldByIndex(field.Index).Set(value)
+
+			variants = append(variants, configVariant{
+				config: changed,
+				name:   fmt.Sprintf("the fixture's config with %s set to %v in code", field.Name, value),
 			})
 		}
 	}
@@ -4173,6 +4250,63 @@ func runSkipTLSVerifyParams(t *testing.T, _ *fixture, urls skipVerifyURLs, hits 
 			"no request reached the server with skiptlsverify in the params: %v%s",
 			outcome.err, outcome.panicMsg,
 		)
+	}
+
+	return failure{}
+}
+
+// runSkipTLSVerifyDeprecated verifies that each deprecated field that the
+// skiptlsverify field replaces lets a request reach a server whose certificate
+// cannot be verified, when it is set in code on a service read from a URL
+// without skiptlsverify. Such fields change nothing that an injected client
+// records, so the send_like_read_back check cannot see them. A service without
+// such a field passes.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//   - urls: the service URLs for the server.
+//   - hits: counts the requests that reached the server.
+//
+// Returns:
+//   - failure: a failSkipIgnored failure, or the zero value.
+func runSkipTLSVerifyDeprecated(t *testing.T, _ *fixture, urls skipVerifyURLs, hits *atomic.Int32, _ string) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, urls.base)
+	require.NotNil(t, config, result.detail)
+
+	var replacement string
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		if slices.Contains(item.Field().Keys, "skiptlsverify") {
+			replacement = item.Field().Name
+		}
+	}
+
+	for field := range reflect.TypeOf(config).Elem().Fields() {
+		if name, tagged := field.Tag.Lookup("deprecated"); !tagged || name != replacement {
+			continue
+		}
+
+		service, err := locateDefault(t, urls.base, log.New(io.Discard, "", 0))
+		require.NoError(t, err)
+
+		serviceConfig, ok := configField(service)
+		require.True(t, ok, "the service has no Config field")
+		serviceConfig.Elem().FieldByIndex(field.Index).SetBool(true)
+
+		hits.Store(0)
+
+		outcome := sendRecovering(service, nil)
+
+		if hits.Load() == 0 {
+			return fail(
+				failSkipIgnored,
+				"no request reached the server with %s set in code: %v%s",
+				field.Name, outcome.err, outcome.panicMsg,
+			)
+		}
 	}
 
 	return failure{}
