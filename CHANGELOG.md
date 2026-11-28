@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.14.9 by @renovate[bot] in [#2366](https://github.com/nicholas-fedor/shoutrrr/pull/2366)
 - Update binwiederhier/ntfy:latest docker digest to 874299b by @renovate[bot] in [#2365](https://github.com/nicholas-fedor/shoutrrr/pull/2365)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.7.2 by @renovate[bot] in [#2363](https://github.com/nicholas-fedor/shoutrrr/pull/2363)
 - Update dependency markdown to v3.11.4 by @renovate[bot] in [#2361](https://github.com/nicholas-fedor/shoutrrr/pull/2361)
